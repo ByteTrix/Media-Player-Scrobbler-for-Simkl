@@ -2,3 +2,6 @@ requests
 pygetwindow
 guessit
 python-dotenv
+pywin32
+psutil
+PySimpleGUIQt

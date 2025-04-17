@@ -56,6 +56,26 @@ def mark_as_watched(simkl_id, client_id, access_token):
         print(f"Error marking Simkl ID {simkl_id} as watched: {e}")
     return False
 
+def get_movie_details(simkl_id, client_id, access_token):
+    """Get detailed movie information from Simkl including runtime if available."""
+    if not client_id or not access_token or not simkl_id:
+        return None
+        
+    headers = {
+        'Content-Type': 'application/json',
+        'simkl-api-key': client_id,
+        'Authorization': f'Bearer {access_token}'
+    }
+    
+    try:
+        response = requests.get(f'{SIMKL_API_BASE_URL}/movies/{simkl_id}', headers=headers)
+        response.raise_for_status()
+        movie_details = response.json()
+        return movie_details
+    except requests.exceptions.RequestException as e:
+        print(f"Error getting movie details for ID {simkl_id}: {e}")
+        return None
+
 # --- Authentication Functions --- #
 
 def get_device_code(client_id):
