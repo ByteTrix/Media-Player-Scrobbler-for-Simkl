@@ -354,18 +354,38 @@ class MovieScrobbler:
             
         return success_count
         
-    def cache_movie_info(self, title, simkl_id, movie_name):
-        """Cache movie info to avoid repeated searches"""
+    def cache_movie_info(self, title, simkl_id, movie_name, runtime=None):
+        """
+        Cache movie info to avoid repeated searches
+        
+        Args:
+            title: Original movie title from window
+            simkl_id: Simkl ID of the movie
+            movie_name: Official movie name from Simkl
+            runtime: Movie runtime in minutes from Simkl API
+        """
         if title and simkl_id:
-            self.media_cache.set(title, {
+            cached_data = {
                 "simkl_id": simkl_id,
                 "movie_name": movie_name
-            })
+            }
+            
+            # Add runtime if available
+            if runtime:
+                cached_data["runtime"] = runtime
+                logger.info(f"Caching runtime information: {runtime} minutes for '{movie_name}'")
+            
+            self.media_cache.set(title, cached_data)
             
             # If this is the movie we're currently tracking, update our local copy
             if self.currently_tracking == title:
                 self.simkl_id = simkl_id
                 self.movie_name = movie_name
+                
+                # Update estimated duration if we have runtime from API
+                if runtime:
+                    logger.info(f"Updating estimated duration from {self.estimated_duration} to {runtime} minutes")
+                    self.estimated_duration = runtime
                 
     def is_complete(self, threshold=80):
         """Check if the movie is considered watched (default: 80% threshold)"""

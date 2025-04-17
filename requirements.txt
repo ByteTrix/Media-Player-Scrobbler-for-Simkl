@@ -1,7 +1,7 @@
-requests
+requests>=2.25.0
 pygetwindow
 guessit
-python-dotenv
-pywin32
+python-dotenv>=0.15.0
+pywin32>=300
 psutil
-PySimpleGUIQt
+PySimpleGUIQt>=0.35.0
