@@ -24,7 +24,7 @@ A Python application that monitors the active window title on Windows, extracts 
 1.  Clone the repository:
 
     ```bash
-    git clone <your-repo-url> simkl-movie-tracker
+    git clone https://github.com/kavinthangavel/simkl-movie-tracker.git 
     cd simkl-movie-tracker
     ```
 
