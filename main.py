@@ -85,8 +85,10 @@ class SimklMovieTracker:
             logger.info("Supported players: VLC, MPC-HC, Windows Media Player, MPV, etc.")
             logger.info("Movies will be marked as watched after viewing 80% of their estimated duration")
             
-            signal.signal(signal.SIGINT, self._signal_handler)
-            signal.signal(signal.SIGTERM, self._signal_handler)
+            # Only set up signal handlers when running in the main thread
+            if threading.current_thread() is threading.main_thread():
+                signal.signal(signal.SIGINT, self._signal_handler)
+                signal.signal(signal.SIGTERM, self._signal_handler)
             
             self._polling_loop()
             
