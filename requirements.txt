@@ -1,0 +1,4 @@
+requests
+pygetwindow
+guessit
+python-dotenv
