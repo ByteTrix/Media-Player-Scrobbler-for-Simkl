@@ -28,6 +28,31 @@ def is_video_player(window_title):
     if not window_title:
         return False
     
+    # Exclude common non-media player applications
+    non_players = ['Visual Studio Code', 'Chrome', 'Firefox', 'Edge', 'Explorer', 'Notepad']
+    if any(app in window_title for app in non_players):
+        return False
+    
+    # More specific checks for media players
+    for player in VIDEO_PLAYERS:
+        # Check for exact matches (e.g., "VLC media player")
+        if player.lower() == window_title.lower():
+            return True
+        
+        # Check for player name at the beginning of the title (most common pattern)
+        if window_title.lower().startswith(player.lower()):
+            return True
+        
+        # Check for player name with common separators
+        for separator in [' - ', ': ', ' | ']:
+            pattern = separator + player.lower()
+            if pattern in window_title.lower():
+                return True
+            pattern = player.lower() + separator
+            if pattern in window_title.lower():
+                return True
+    
+    # More lenient fallback check
     return any(player.lower() in window_title.lower() for player in VIDEO_PLAYERS)
 
 def is_movie(window_title):
