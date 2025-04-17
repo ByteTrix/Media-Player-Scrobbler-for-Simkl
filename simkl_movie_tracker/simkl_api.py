@@ -9,51 +9,156 @@ SIMKL_API_BASE_URL = 'https://api.simkl.com'
 
 # Modify functions to accept client_id and access_token
 def search_movie(title, client_id, access_token):
+    """
+    Search for a movie by title on Simkl.
+    
+    Args:
+        title: The movie title to search for
+        client_id: Simkl API client ID
+        access_token: Simkl API access token
+        
+    Returns:
+        dict: The first matching movie result or None if not found
+    """
     if not client_id or not access_token:
         print("Error: Missing Client ID or Access Token for search_movie.")
         return None
+        
     headers = {
         'Content-Type': 'application/json',
         'simkl-api-key': client_id,
         'Authorization': f'Bearer {access_token}'
     }
-    params = {'q': title}
+    
+    params = {'q': title, 'extended': 'full'}
+    
     try:
-        response = requests.get(f'{SIMKL_API_BASE_URL}/search/movies', headers=headers, params=params)
-        response.raise_for_status() # Raise an exception for bad status codes (4xx or 5xx)
+        print(f"Searching Simkl for movie: '{title}'")
+        response = requests.get(f'{SIMKL_API_BASE_URL}/search/movie', headers=headers, params=params)
+        
+        # Print status code for debugging
+        print(f"Simkl API search response status: {response.status_code}")
+        
+        # Handle non-200 responses
+        if response.status_code != 200:
+            print(f"Simkl API error: {response.status_code}")
+            try:
+                error_data = response.json()
+                print(f"Error details: {error_data}")
+            except:
+                print(f"Error response text: {response.text}")
+            return None
+            
+        # Parse the response
         results = response.json()
-        if results:
-            return results[0]  # Return the first matching result
+        
+        # Debug: print number of results
+        print(f"Found {len(results) if results else 0} results for '{title}'")
+        
+        if not results:
+            # Try an alternative search endpoint if the first one returned no results
+            return _fallback_search_movie(title, client_id, access_token)
+            
+        # Return the first result
+        return results[0]
+        
     except requests.exceptions.RequestException as e:
         print(f"Error searching Simkl for '{title}': {e}")
-    return None
+        return None
+        
+def _fallback_search_movie(title, client_id, access_token):
+    """Fallback search method using the general search endpoint."""
+    print(f"Trying fallback search for '{title}'")
+    
+    headers = {
+        'Content-Type': 'application/json',
+        'simkl-api-key': client_id,
+        'Authorization': f'Bearer {access_token}'
+    }
+    
+    params = {'q': title, 'type': 'movie'}
+    
+    try:
+        response = requests.get(f'{SIMKL_API_BASE_URL}/search/all', headers=headers, params=params)
+        
+        if response.status_code != 200:
+            print(f"Fallback search failed with status: {response.status_code}")
+            return None
+            
+        results = response.json()
+        print(f"Fallback search found {len(results) if results else 0} results")
+        
+        # Filter for movies only
+        movie_results = [r for r in results if r.get('type') == 'movie']
+        
+        if movie_results:
+            print(f"Found movie in fallback search: {movie_results[0].get('title', title)}")
+            return movie_results[0]
+        return None
+        
+    except requests.exceptions.RequestException as e:
+        print(f"Error in fallback search: {e}")
+        return None
 
 # Modify functions to accept client_id and access_token
 def mark_as_watched(simkl_id, client_id, access_token):
+    """
+    Mark a movie as watched in Simkl.
+    
+    Args:
+        simkl_id: The Simkl ID of the movie
+        client_id: Simkl API client ID
+        access_token: Simkl API access token
+        
+    Returns:
+        bool: True if successfully marked as watched, False otherwise
+    """
     if not client_id or not access_token:
         print("Error: Missing Client ID or Access Token for mark_as_watched.")
         return False
+    
     headers = {
         'Content-Type': 'application/json',
         'simkl-api-key': client_id,
         'Authorization': f'Bearer {access_token}'
     }
+    
+    # According to Simkl API, we need to send a specific format for adding to history
     data = {
         'movies': [
             {
                 'ids': {
-                    'simkl_id': simkl_id
-                }
+                    'simkl': simkl_id
+                },
+                'status': 'completed'  # Explicitly mark as completed
             }
         ]
     }
+    
+    print(f"Sending request to mark movie ID {simkl_id} as watched with data: {data}")
+    
     try:
+        # According to Simkl API, the endpoint for adding to history is /sync/history
         response = requests.post(f'{SIMKL_API_BASE_URL}/sync/history', headers=headers, json=data)
-        response.raise_for_status()
-        # Simkl uses 201 for successful creation/update in history
-        return response.status_code == 201 or response.status_code == 200
+        
+        # Print response details for debugging
+        print(f"Response status code: {response.status_code}")
+        try:
+            print(f"Response JSON: {response.json()}")
+        except:
+            print(f"Response text: {response.text}")
+        
+        # Check for successful response
+        if response.status_code == 201 or response.status_code == 200:
+            print(f"Successfully marked movie ID {simkl_id} as watched")
+            return True
+        else:
+            print(f"Failed to mark movie as watched. Status code: {response.status_code}")
+            response.raise_for_status()
+            return False
     except requests.exceptions.RequestException as e:
         print(f"Error marking Simkl ID {simkl_id} as watched: {e}")
+    
     return False
 
 def get_movie_details(simkl_id, client_id, access_token):
