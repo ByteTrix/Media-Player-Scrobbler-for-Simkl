@@ -8,7 +8,7 @@
 A powerful Windows-based automatic scrobbler for [Simkl](https://simkl.com) that seamlessly tracks your movie watching progress across multiple media players. Zero configuration required - it just works!
 
 <div align="center">
-  <img src="https://simkl.in/logos/simkl_dark_small.png" alt="Simkl Logo" width="200"/>
+  <img src="https://eu.simkl.in/img_blog_2012/logo.png" alt="Simkl Logo" width="200"/>
   <br/>
   <em>Inspired by <a href="https://github.com/iamkroot/trakt-scrobbler/">iamkroot's Trakt Scrobbler</a></em>
 </div>
