@@ -27,15 +27,15 @@ pip install -r requirements.txt
 cp .env.example .env
 # Edit .env with your credentials
 
-# Run in system tray mode (Windows)
-pythonw tray_app.py
+# Run the background tracker
+python main.py
 ```
 
 ## 🚀 Features
 
 - **Zero Configuration** - Works with most Windows media players out of the box
 - **Smart Detection** - Intelligent movie recognition using guessit library
-- **Background Operation** - Silent system tray interface with status notifications
+- **Background Operation** - Runs silently in the background without a GUI
 - **Progress Tracking** - Monitors viewing progress across sessions
 - **Automatic Scrobbling** - Marks movies as watched after 80% completion
 - **Offline Support** - Maintains sync backlog when offline
@@ -76,7 +76,6 @@ pywin32>=300     # For Windows API integration
 guessit         # For intelligent movie name parsing
 python-dotenv   # For configuration
 psutil          # For process monitoring
-PySimpleGUIQt   # For system tray interface
 ```
 
 ### Detailed Installation
@@ -100,10 +99,10 @@ PySimpleGUIQt   # For system tray interface
 3. **Run the Application:**
    ```bash
    # Console mode (for testing)
-   python main.py
+   python test_movie_completion.py
    
-   # System tray mode (recommended)
-   pythonw tray_app.py  # Runs without console window
+   # Run the tracker (it will run in the background)
+   python main.py
    ```
 
 ### Auto-Start Setup
@@ -113,13 +112,13 @@ To have the tracker start automatically with Windows:
 1. Press `Win+R` and type `shell:startup`
 2. Create a shortcut with these properties:
    ```
-   Target: pythonw.exe "path\to\tray_app.py"
+   Target: python.exe "path\to\main.py"  # Or pythonw.exe to hide console
    Start in: path\to\simkl-movie-tracker
    ```
 
 ## 🎮 Usage
 
-The tracker runs silently in your system tray, automatically detecting and tracking movie playback in supported media players. For testing:
+The tracker runs silently in the background, automatically detecting and tracking movie playback in supported media players. For testing:
 
 ```bash
 # Test with specific movie
@@ -168,7 +167,6 @@ graph LR
 | Movie not detected | Ensure media player shows filename in window title |
 | No auto-marking | Check `simkl_tracker.log` for API errors |
 | Incorrect movie | Include year in filename: "Movie (2023).mp4" |
-| Tray icon missing | Run `pip install PySimpleGUIQt --upgrade` |
 | Player not detected | Verify player is in supported list |
 | Windows permission error | Run as administrator |
 | Movie title parsing failed | Use standard naming: "Movie.Name.2023.mp4" |
@@ -188,7 +186,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [Simkl](https://simkl.com) for their excellent API
 - [iamkroot's Trakt Scrobbler](https://github.com/iamkroot/trakt-scrobbler/) for inspiration
 - [guessit](https://github.com/guessit-io/guessit) for powerful video filename parsing
-- PySimpleGUIQt for the system tray interface
 <!-- - All [contributors](https://github.com/kavinthangavel/simkl-movie-tracker/graphs/contributors) -->
 
 ## 🤝 Contributing
@@ -206,5 +203,4 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 - [ ] Add Linux support
 - [ ] Add macOS support
 - [ ] Create native Windows installer
-- [ ] Add GUI for configuration
 - [ ] Create automated tests

@@ -1,2 +1,7 @@
 .env
 __pycache__
+dist
+build
+# Cache and backlog files
+simkl_movie_tracker/media_cache.json
+simkl_movie_tracker/backlog.json

@@ -4,6 +4,3 @@ guessit
 python-dotenv>=0.15.0
 pywin32>=300
 psutil
-PySimpleGUIQt>=0.35.0
-pystray
-pillow
