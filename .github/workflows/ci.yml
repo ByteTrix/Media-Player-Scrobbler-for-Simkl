@@ -2,96 +2,39 @@ name: Python CI
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ main ]
   pull_request:
-    branches: [ main, master ]
+    branches: [ main ]
 
 jobs:
-  windows-build:
+  build:
     runs-on: windows-latest
     strategy:
       matrix:
-        python-version: ['3.8', '3.9', '3.10', '3.11']
+        python-version: ['3.7', '3.9', '3.11'] # Test against multiple Python versions
 
     steps:
-    - uses: actions/checkout@v3
-    
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v4
-      with:
-        python-version: ${{ matrix.python-version }}
-        
-    - name: Install dependencies on Windows
-      run: |
-        python -m pip install --upgrade pip
-        python -m pip install "setuptools>=65.5.1" flake8 build
-        pip install -r requirements.txt
-        pip install -e .
-      shell: bash
-      
-    - name: Lint with flake8
-      run: |
-        # stop the build if there are Python syntax errors or undefined names
-        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-        # exit-zero treats all errors as warnings
-        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-      
-    - name: Basic import test
-      run: |
-        # Just verify the package can be imported without errors
-        python -c "import simkl_scrobbler; print('Import successful on Windows')"
-        
-    - name: Build package
-      run: |
-        # Test that the package builds correctly
-        python -m build
-  
-  linux-build:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: ['3.8', '3.9', '3.10', '3.11']
+    - uses: actions/checkout@v4
 
-    steps:
-    - uses: actions/checkout@v3
-    
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
-        
-    - name: Install dependencies on Linux
+
+    - name: Install Poetry
       run: |
-        python -m pip install --upgrade pip
-        python -m pip install "setuptools>=65.5.1" flake8 build
-        # Filter out Windows-specific dependencies
-        sed '/pywin32/d; /pygetwindow/d' requirements.txt > requirements_linux.txt
-        pip install -r requirements_linux.txt
-        
-        # Install the package in development mode with special Linux handling
-        pip install -e . --config-settings editable_mode=compat
-      shell: bash
-      
+        pip install poetry
+
+    - name: Install dependencies
+      run: |
+        poetry install --with dev # Install main and dev dependencies
+
     - name: Lint with flake8
       run: |
-        # stop the build if there are Python syntax errors or undefined names
-        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-        # exit-zero treats all errors as warnings
-        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-      
-    - name: Create Linux compatibility module
+        poetry run flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
+        poetry run flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+
+    - name: Test with pytest
       run: |
-        # Create a stub module for pygetwindow on Linux
-        mkdir -p pygetwindow
-        echo 'def getAllTitles(): return []' > pygetwindow/__init__.py
-        python -m pip install -e ./
-        
-    - name: Basic import test
-      run: |
-        # Just verify the package can be imported without errors
-        python -c "import simkl_scrobbler; print('Import successful on Linux')"
-        
-    - name: Build package
-      run: |
-        # Test that the package builds correctly
-        python -m build
+        poetry run pytest

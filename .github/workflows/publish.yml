@@ -1,34 +1,33 @@
-name: Build and Release
+name: Publish Python Package
 
 on:
-  release:
-    types: [created]
-  workflow_dispatch:  # Allow manual triggering
+  push:
+    tags:
+      - 'v*.*.*' # Trigger on version tags like v1.0.0
 
 jobs:
   deploy:
-    runs-on: windows-latest
-    
+    runs-on: ubuntu-latest
+    permissions:
+      # IMPORTANT: this permission is mandatory for trusted publishing
+      id-token: write
     steps:
-    - uses: actions/checkout@v3
-    
+    - uses: actions/checkout@v4
+
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
-        python-version: '3.9'
-        
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install build twine
-        pip install -r requirements.txt
-        
+        python-version: '3.x' # Use a recent Python version for building
+
+    - name: Install Poetry
+      run: pip install poetry
+
     - name: Build package
-      run: python -m build
-        
+      run: poetry build
+
     - name: Publish package to PyPI
-      env:
-        TWINE_USERNAME: __token__
-        TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
-      run: |
-        twine upload dist/*
+      uses: pypa/gh-action-pypi-publish@release/v1
+      # No API token needed if using trusted publishing
+      # with:
+      #   user: __token__
+      #   password: ${{ secrets.PYPI_API_TOKEN }} # Store your PyPI token as a GitHub secret

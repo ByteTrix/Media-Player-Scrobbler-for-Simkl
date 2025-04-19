@@ -33,8 +33,11 @@ A powerful Windows-based automatic scrobbler for [Simkl](https://simkl.com) that
 ## ⚡ Quick Start
 
 ```bash
-# Install with pipx (recommended)
-pipx install simkl-scrobbler
+# Install with pip (standard)
+pip install simkl-scrobbler
+
+# Or install with pipx (isolates dependencies)
+# pipx install simkl-scrobbler
 
 # Initialize the tracker
 simkl-scrobbler init
@@ -76,77 +79,80 @@ The scrobbler monitors the window titles of these players to detect media files 
 
 ## 📥 Installation
 
-### Installation Steps
+### Standard Installation (Recommended)
 
-1. **Ensure you have Python 3.7 or higher installed, and in your system PATH.**
+1.  **Ensure you have Python 3.7 or higher installed, and `pip` is available.**
+    Check by running `python --version` and `pip --version`.
 
-   Check by running:
-   ```
-   python --version
-   ```
+2.  **Install using pip:**
+    ```bash
+    pip install simkl-scrobbler
+    ```
+    This will make the `simkl-scrobbler` command available globally.
 
-2. **Ensure pip is installed.**
+3.  **Initialize SIMKL Scrobbler:**
+    ```bash
+    simkl-scrobbler init
+    ```
+    Follow the prompts to authorize the application with your Simkl account using the PIN method.
 
-   Check by running:
-   ```
-   pip --version
-   ```
+4.  **Start tracking:**
+    ```bash
+    simkl-scrobbler start
+    ```
 
-3. **Install pipx:**
+### Installation with pipx (Alternative)
 
-   **Windows:**
-   ```
-   python -m pip install --user pipx
-   python -m pipx ensurepath
-   ```
-   (You may need to restart your terminal or system after this step)
-   
-4. **Install SIMKL Scrobbler:**
-   ```
-   pipx install simkl-scrobbler
-   ```
-   You will now have the `simkl-scrobbler` command available!
+`pipx` installs packages into isolated environments.
 
-5. **Initialize SIMKL Scrobbler:**
-   ```
-   simkl-scrobbler init
-   ```
-   You will be prompted to:
-   - Copy you Generated Pin
-   - Enter your SIMKL at Pin (https://simkl.com/pin/)
-   - Authorize the app to access the SIMKL API by following the on-screen instructions
+1.  **Install pipx:**
+    ```bash
+    python -m pip install --user pipx
+    python -m pipx ensurepath
+    ```
+    (Restart your terminal after running `ensurepath`)
 
-6. **Start tracking your movies:**
-   ```
-   simkl-scrobbler start
-   ```
+2.  **Install SIMKL Scrobbler with pipx:**
+    ```bash
+    pipx install simkl-scrobbler
+    ```
+
+3.  **Initialize and start as above.**
 
 ### Installing as a Windows Service (Optional)
 
 To have SIMKL Scrobbler start automatically with Windows:
 
-```
+```bash
 simkl-scrobbler install-service
 ```
+Follow the on-screen instructions.
 
-Follow the on-screen instructions to complete the service installation.
+### Development Installation (Using Poetry)
 
-### Manual Installation (Development)
+If you want to contribute or run from the source code:
 
-If you want to install from source:
+1.  **Ensure Python 3.7+ and [Poetry](https://python-poetry.org/docs/#installation) are installed.**
 
-```bash
-# Clone repository
-git clone https://github.com/kavinthangavel/simkl-scrobbler.git
-cd simkl-scrobbler
+2.  **Clone the repository:**
+    ```bash
+    git clone https://github.com/kavinthangavel/simkl-scrobbler.git
+    cd simkl-scrobbler
+    ```
 
-# Install the package in development mode
-pip install -e .
+3.  **Install dependencies using Poetry:**
+    ```bash
+    poetry install --with dev
+    ```
+    This installs the main package and development dependencies (like `pytest`, `flake8`).
 
-# Initialize and run
-simkl-scrobbler init
-simkl-scrobbler start
-```
+4.  **Run commands using `poetry run`:**
+    ```bash
+    poetry run simkl-scrobbler init
+    poetry run simkl-scrobbler start
+    # To run tests (see Testing section)
+    poetry run python tests/master_test.py --test-mode
+    ```
 
 ## 🎮 Usage
 
@@ -228,17 +234,18 @@ graph LR
 SIMKL Scrobbler includes a comprehensive test suite to ensure reliability and functionality:
 
 ```bash
+# Ensure development dependencies are installed (poetry install --with dev)
 # Run the full test suite with mock API responses
-python tests/master_test.py --test-mode
+poetry run python tests/master_test.py --test-mode
 
 # Run specific test categories
-python tests/master_test.py --test-mode --skip-api-errors --skip-offline
+poetry run python tests/master_test.py --test-mode --skip-api-errors --skip-offline
 
 # Run tests with a real video file
-python tests/master_test.py --test-mode --test-real-playback --video-file "path/to/movie.mp4"
+poetry run python tests/master_test.py --test-mode --test-real-playback --video-file "path/to/movie.mp4"
 
 # Get test help and options
-python tests/master_test.py --help
+poetry run python tests/master_test.py --help
 ```
 
 ### Test Suite Features:
@@ -309,11 +316,12 @@ If you're having issues, these commands can help diagnose problems:
 # Check Python version
 python --version
 
-# Verify installed dependencies
-pip list | findstr "requests pygetwindow guessit python-dotenv pywin32 psutil pytest colorama"
+# Verify installed dependencies (using Poetry)
+poetry show
 
 # Check network connectivity to Simkl API
-curl -I https://api.simkl.com/
+# (Using PowerShell's Invoke-WebRequest as curl might not be available)
+Invoke-WebRequest -Uri https://api.simkl.com/ -Method Head
 
 # List running media player processes
 tasklist | findstr "vlc mpc wmplayer"

@@ -1,8 +1,0 @@
-requests>=2.25.0
-pygetwindow>=0.0.9
-guessit>=3.3.0
-python-dotenv>=0.15.0
-pywin32>=300
-psutil>=5.8.0
-pytest>=6.2.5
-colorama>=0.4.4  # For colorized terminal output in tests
