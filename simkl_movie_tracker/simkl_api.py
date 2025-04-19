@@ -338,7 +338,7 @@ def poll_for_token(client_id, user_code, interval, expires_in):
                     continue
                     
                 if response_data.get('result') == 'OK' and 'access_token' in response_data:
-                    print("✓ Authorization successful!")
+                    print("[NICE] Authorization successful!")
                     return response_data
                 elif response_data.get('result') == 'KO':
                     print("✗ Authorization denied by user")
@@ -400,7 +400,7 @@ def authenticate(client_id):
 
     if access_token_info and 'access_token' in access_token_info:
         token = access_token_info['access_token']
-        print("\n✓ Authentication complete! Access token received.")
+        print("\n[NICE] Authentication complete! Access token received.")
         return token
     else:
         print("\n✗ Authentication process failed or timed out.")

@@ -4,6 +4,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Platform](https://img.shields.io/badge/platform-windows-blue.svg)](https://www.microsoft.com/windows)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+[![Last Updated](https://img.shields.io/badge/last%20updated-April%202025-brightgreen.svg)]()
 
 A powerful Windows-based automatic scrobbler for [Simkl](https://simkl.com) that seamlessly tracks your movie watching progress across multiple media players. Zero configuration required - it just works!
 
@@ -12,6 +13,22 @@ A powerful Windows-based automatic scrobbler for [Simkl](https://simkl.com) that
   <br/>
   <em>Inspired by <a href="https://github.com/iamkroot/trakt-scrobbler/">iamkroot's Trakt Scrobbler</a></em>
 </div>
+
+## 📋 Table of Contents
+
+- [Quick Start](#-quick-start)
+- [Features](#-features)
+- [Supported Media Players](#-supported-media-players)
+- [Setup Guide](#️-setup-guide)
+- [Usage](#-usage)
+- [Advanced Configuration](#️-advanced-configuration)
+- [How It Works](#-how-it-works)
+- [Testing](#-testing)
+- [Troubleshooting](#-troubleshooting)
+- [License](#-license)
+- [Acknowledgments](#-acknowledgments)
+- [Contributing](#-contributing)
+- [Roadmap](#-roadmap)
 
 ## ⚡ Quick Start
 
@@ -73,12 +90,14 @@ The scrobbler monitors the window titles of these players to detect media files 
 ### Required Dependencies
 
 ```txt
-requests>=2.25.0
-pygetwindow      # For Windows window detection
-pywin32>=300     # For Windows API integration
-guessit         # For intelligent movie name parsing
-python-dotenv   # For configuration
-psutil          # For process monitoring
+requests>=2.25.0     # HTTP API communication with Simkl
+pygetwindow>=0.0.9   # For Windows window detection
+guessit>=3.3.0       # For intelligent movie name parsing
+python-dotenv>=0.15.0 # For configuration management
+pywin32>=300         # For Windows API integration
+psutil>=5.8.0        # For process monitoring
+pytest>=6.2.5        # For running unit tests
+colorama>=0.4.4      # For colorized terminal output in tests
 ```
 
 ### Detailed Installation
@@ -124,8 +143,6 @@ To have the tracker start automatically with Windows:
 The tracker runs silently in the background, automatically detecting and tracking movie playback in supported media players. For testing:
 
 ```bash
-# Test real playback with media player launch
-python test_real_playback.py
 
 # Monitor log file
 type simkl_tracker.log
@@ -152,13 +169,12 @@ For enhanced position tracking with VLC and MPC-HC/BE:
 2. Select "All" settings mode (bottom left)
 3. Navigate to Interface > Main interfaces
 4. Check "Web" option
-5. Set a password if desired (optional)
-6. Default port is 8080
+
 
 **MPC-HC/BE:**
 1. Go to View > Options > Player > Web Interface
 2. Check "Listen on port:" (default 13579)
-3. No authentication needed
+
 
 ## 🔍 How It Works
 
@@ -182,6 +198,56 @@ graph LR
 6. **Auto-marking**: Updates Simkl when 80% threshold reached
 7. **Offline Handling**: Queues failed updates in backlog for future retry
 
+## 🧪 Testing
+
+Simkl Movie Tracker includes a comprehensive test suite to ensure reliability and functionality:
+
+```bash
+# Run the full test suite with mock API responses
+python tests/master_test.py --test-mode
+
+# Run specific test categories
+python tests/master_test.py --test-mode --skip-api-errors --skip-offline
+
+# Run tests with a real video file
+python tests/master_test.py --test-mode --test-real-playback --video-file "path/to/movie.mp4"
+
+# Get test help and options
+python tests/master_test.py --help
+```
+
+### Test Suite Features:
+
+- **Interactive Visual Output**: Modern colorized terminal display with progress bars and structured results
+- **API Integration Tests**: Verifies Simkl API interactions work correctly
+- **Error Handling Tests**: Ensures graceful handling of API and network failures
+- **Offline Mode Testing**: Validates offline tracking and backlog sync capabilities
+- **Movie Completion Tests**: Confirms proper threshold detection and marking behavior
+- **Cache and Parsing Tests**: Validates movie title extraction from window titles
+- **Media Player Interface Tests**: Verifies connectivity with player web interfaces
+- **Real Playback Tests**: End-to-end testing with actual media player launch
+- **Comprehensive Results**: Summary of all tests with timing and detailed error reporting
+- **Export to JSON**: Test results saved to `test_results.json` for analysis
+
+### Test Command Options:
+
+| Option | Description |
+|--------|-------------|
+| `--test-mode` | Run with mock API responses (no actual API calls) |
+| `--movie-title TITLE` | Test with specific movie title |
+| `--video-file PATH` | Path to video file for real playback testing |
+| `--test-real-playback` | Run real playback test with media player |
+| `--skip-api` | Skip API integration tests |
+| `--skip-api-errors` | Skip API error handling tests |
+| `--skip-offline` | Skip offline tracking tests |
+| `--skip-completion` | Skip movie completion tests |
+| `--skip-cache` | Skip cache functionality tests |
+| `--skip-title-parsing` | Skip title parsing tests |
+| `--verbose` | Show more detailed test information |
+| `--show-version` | Show test suite version and exit |
+
+The master test suite automatically discovers and configures media players installed on your system, and sets up their web interfaces for enhanced position tracking when available.
+
 ## 🔧 Troubleshooting
 
 ### Common Issues
@@ -195,6 +261,8 @@ graph LR
 | Windows permission error | Run as administrator |
 | Movie title parsing failed | Use standard naming: "Movie.Name.2023.mp4" |
 | Position tracking not working | Enable web interface in VLC or MPC-HC/BE |
+| Test fails to connect to MPC-HC | Restart MPC-HC after enabling web interface settings |
+| Test output has encoding issues | Make sure terminal supports UTF-8 encoding |
 
 ### Logs and Debugging
 ```bash
@@ -204,9 +272,37 @@ type simkl_tracker.log
 # Check detailed playback events
 type simkl_movie_tracker\playback_log.jsonl
 
-# Run test with detailed output
-python test_real_playback.py
+# Run tests with verbose output
+python tests/master_test.py --test-mode --verbose
 ```
+
+### Diagnostic Commands
+
+If you're having issues, these commands can help diagnose problems:
+
+```bash
+# Check Python version
+python --version
+
+# Verify installed dependencies
+pip list | findstr "requests pygetwindow guessit python-dotenv pywin32 psutil pytest colorama"
+
+# Check network connectivity to Simkl API
+curl -I https://api.simkl.com/
+
+# List running media player processes
+tasklist | findstr "vlc mpc wmplayer"
+```
+
+<!-- ## 📊 Screenshots
+
+<div align="center">
+  <p><strong>Test Suite Output</strong> - Modern colorized output with progress bar</p>
+  <img src="https://i.imgur.com/example1.png" alt="Test Suite Output" width="600"/>
+  
+  <p><strong>Media Player Detection</strong> - Automatic player discovery and configuration</p>
+  <img src="https://i.imgur.com/example2.png" alt="Media Player Detection" width="600"/>
+</div> -->
 
 ## 📄 License
 
@@ -229,7 +325,7 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 4. Push to the branch: `git push origin feature/amazing-feature`
 5. Open a Pull Request
 
-## 📝 Todo
+## 📝 Roadmap
 
 - [ ] Add Linux support
 - [ ] Add macOS support
@@ -237,5 +333,7 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 - [x] Add real-time position tracking for supported players
 - [x] Implement multi-window monitoring
 - [x] Create automated playback tests
+- [x] Enhance test suite with visual output and comprehensive coverage
 - [ ] Add support for more media players
 - [ ] Create GUI configuration tool
+

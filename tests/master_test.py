@@ -1115,11 +1115,16 @@ class SimklMovieTrackerTester:
     
     def _setup_mpc_web_interface(self):
         """
-        Try to enable MPC-HC's web interface if it's not already running.
-        This is done by editing registry settings for MPC-HC.
+        Enable and verify MPC-HC's web interface, launching the player if necessary.
         """
         try:
             import winreg
+            import psutil
+            import subprocess
+            import time
+            import urllib.request
+            
+            # Step 1: Find the correct registry paths
             reg_paths = [
                 r"SOFTWARE\MPC-HC\MPC-HC",
                 r"SOFTWARE\MPC-HC\MPC-HC64",
@@ -1127,141 +1132,135 @@ class SimklMovieTrackerTester:
                 r"SOFTWARE\MPC-BE\MPC-BE64"
             ]
             
-            # First, try to find the correct registry path by reading from it
             registry_found = False
+            active_reg_path = None
+            current_port = 13579  # Default port
+            
+            # Find the active registry path and check current settings
             for reg_path in reg_paths:
                 try:
                     with winreg.OpenKey(winreg.HKEY_CURRENT_USER, reg_path, 0, winreg.KEY_READ) as key:
                         try:
-                            web_server_port = winreg.QueryValueEx(key, "WebServerPort")[0]
-                            web_server_enabled = True
-                            logger.info(f"Found MPC settings in registry path {reg_path}, port: {web_server_port}")
+                            current_port = winreg.QueryValueEx(key, "WebServerPort")[0]
+                            logger.info(f"Found MPC settings in registry path {reg_path}, port: {current_port}")
                             registry_found = True
+                            active_reg_path = reg_path
                             break
                         except FileNotFoundError:
-                            # WebServerPort key doesn't exist, so web interface is not configured
                             logger.info(f"Found registry path {reg_path} but web interface is not configured")
                             registry_found = True
+                            active_reg_path = reg_path
                             break
                 except FileNotFoundError:
                     logger.debug(f"Registry path {reg_path} not found")
             
             if not registry_found:
                 logger.warning("Could not find MPC-HC/BE registry settings. Is MPC installed?")
-                
-            # Now try to enable the web interface in all possible registry paths
-            enabled_any = False
-            for reg_path in reg_paths:
-                try:
-                    # First try to read the current settings
-                    current_settings = {}
-                    try:
-                        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, reg_path, 0, winreg.KEY_READ) as key:
-                            for setting in ["WebServerUseCompression", "WebServerPort", "WebServerLocalhostOnly", 
-                                            "WebServerUseAuthentication", "WebServerEnableCORSForAllOrigins"]:
-                                try:
-                                    current_settings[setting] = winreg.QueryValueEx(key, setting)[0]
-                                except FileNotFoundError:
-                                    # Key doesn't exist
-                                    pass
-                    except FileNotFoundError:
-                        # Registry path doesn't exist
-                        logger.debug(f"Registry path {reg_path} not found, cannot read current settings")
-                    
-                    # Now try to write the settings
-                    with winreg.OpenKey(winreg.HKEY_CURRENT_USER, reg_path, 0, winreg.KEY_WRITE) as key:
-                        # Only update settings that haven't been set or are different
-                        if current_settings.get("WebServerUseCompression") != 1:
-                            winreg.SetValueEx(key, "WebServerUseCompression", 0, winreg.REG_DWORD, 1)
-                        
-                        # Only set port if it's not already set 
-                        if "WebServerPort" not in current_settings:
-                            winreg.SetValueEx(key, "WebServerPort", 0, winreg.REG_DWORD, 13579)
-                        
-                        if current_settings.get("WebServerLocalhostOnly") != 0:
-                            winreg.SetValueEx(key, "WebServerLocalhostOnly", 0, winreg.REG_DWORD, 0)
-                        
-                        if current_settings.get("WebServerUseAuthentication") != 0:
-                            winreg.SetValueEx(key, "WebServerUseAuthentication", 0, winreg.REG_DWORD, 0)
-                        
-                        if current_settings.get("WebServerEnableCORSForAllOrigins") != 1:
-                            winreg.SetValueEx(key, "WebServerEnableCORSForAllOrigins", 0, winreg.REG_DWORD, 1)
-                        
-                        logger.info(f"Updated MPC web interface settings in registry at {reg_path}")
-                        enabled_any = True
-                except Exception as e:
-                    logger.debug(f"Could not write to registry path {reg_path}: {e}")
-            
-            if enabled_any:
-                logger.info("MPC web interface settings have been updated in registry")
-                logger.info("NOTE: You'll need to restart MPC-HC/BE for these settings to take effect!")
-                
-                # Try to verify if MPC-HC is running and restart it to apply settings
-                try:
-                    import subprocess
-                    import psutil
-                    
-                    mpc_processes = []
-                    for proc in psutil.process_iter(['pid', 'name']):
-                        try:
-                            if proc.info['name'].lower() in ['mpc-hc.exe', 'mpc-hc64.exe', 'mpc-be.exe', 'mpc-be64.exe']:
-                                mpc_processes.append(proc)
-                        except (psutil.NoSuchProcess, psutil.AccessDenied):
-                            pass
-                    
-                    if mpc_processes:
-                        logger.info(f"Found running MPC instances ({len(mpc_processes)}). Attempting to restart to apply settings...")
-                        
-                        # Get executable path before terminating
-                        exe_paths = []
-                        for proc in mpc_processes:
-                            try:
-                                exe_paths.append(proc.exe())
-                                proc.terminate()
-                                logger.info(f"Terminated MPC process {proc.pid}")
-                            except (psutil.NoSuchProcess, psutil.AccessDenied) as e:
-                                logger.warning(f"Could not terminate MPC process {proc.pid}: {e}")
-                        
-                        # Wait for processes to terminate
-                        time.sleep(1)
-                        
-                        # Restart the first MPC instance
-                        if exe_paths:
-                            logger.info(f"Restarting MPC from {exe_paths[0]}...")
-                            subprocess.Popen([exe_paths[0]])
-                            logger.info("MPC restarted. Waiting for web interface to initialize...")
-                            time.sleep(3)  # Give it time to start up
-                    else:
-                        logger.info("No running MPC instances found. Web interface will be active next time MPC is started.")
-                except Exception as e:
-                    logger.warning(f"Error managing MPC processes: {e}")
-                
-                # Try to verify if web interface is accessible now
-                try:
-                    urls = ["http://localhost:13579/variables.html", "http://127.0.0.1:13579/variables.html"]
-                    web_interface_available = False
-                    
-                    for url in urls:
-                        try:
-                            with urllib.request.urlopen(url, timeout=2) as response:
-                                if response.status == 200:
-                                    logger.info(f"MPC web interface is accessible at {url}")
-                                    web_interface_available = True
-                                    break
-                        except Exception as e:
-                            logger.debug(f"Could not connect to {url}: {e}")
-                    
-                    if not web_interface_available:
-                        logger.warning("MPC web interface is still not accessible. Please start MPC manually.")
-                except Exception as e:
-                    logger.warning(f"Error checking web interface accessibility: {e}")
-                
-                return True
-            else:
-                logger.warning("Could not enable MPC web interface through registry")
                 return False
+            
+            # Step 2: Update registry settings to enable web interface
+            try:
+                with winreg.OpenKey(winreg.HKEY_CURRENT_USER, active_reg_path, 0, winreg.KEY_WRITE) as key:
+                    # Configure required settings for web interface
+                    winreg.SetValueEx(key, "WebServerUseCompression", 0, winreg.REG_DWORD, 1)
+                    winreg.SetValueEx(key, "WebServerPort", 0, winreg.REG_DWORD, current_port)
+                    winreg.SetValueEx(key, "WebServerLocalhostOnly", 0, winreg.REG_DWORD, 0)
+                    winreg.SetValueEx(key, "WebServerUseAuthentication", 0, winreg.REG_DWORD, 0)
+                    winreg.SetValueEx(key, "WebServerEnableCORSForAllOrigins", 0, winreg.REG_DWORD, 1)
+                    
+                    # Add setting to auto-start web interface
+                    winreg.SetValueEx(key, "WebServer", 0, winreg.REG_DWORD, 1)
+                    
+                    logger.info(f"Updated MPC web interface settings in registry at {active_reg_path}")
+            except Exception as e:
+                logger.error(f"Failed to update registry settings: {e}")
+                return False
+            
+            # Step 3: Check if MPC is already running, terminate it to apply new settings
+            mpc_processes = []
+            player_exe = self.selected_player_exe
+            for proc in psutil.process_iter(['pid', 'name']):
+                try:
+                    if proc.info['name'].lower() in ['mpc-hc.exe', 'mpc-hc64.exe', 'mpc-be.exe', 'mpc-be64.exe']:
+                        mpc_processes.append(proc)
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    pass
+            
+            for proc in mpc_processes:
+                try:
+                    logger.info(f"Terminating existing MPC process: {proc.info['name']} (PID: {proc.pid})")
+                    proc.terminate()
+                    proc.wait(timeout=5)
+                except Exception as e:
+                    logger.warning(f"Error terminating MPC process: {e}")
+                    try:
+                        proc.kill()
+                    except:
+                        pass
+            
+            # Step 4: Launch MPC-HC with appropriate parameters to ensure web interface is active
+            mpc_path = self.selected_player_path
+            if not mpc_path or not os.path.exists(mpc_path):
+                logger.error("MPC executable not found. Cannot launch.")
+                return False
+            
+            # Launch with specific parameters to ensure web interface is enabled
+            # Using '/webport' instead of '/webserver' since the latter is not valid
+            launch_args = [mpc_path, "/webport", str(current_port), "/minimized"]
+            logger.info(f"Launching MPC-HC to activate web interface: {' '.join(launch_args)}")
+            
+            # Use startupinfo to hide console window
+            startupinfo = subprocess.STARTUPINFO()
+            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            startupinfo.wShowWindow = 6  # SW_MINIMIZE
+            
+            try:
+                mpc_process = subprocess.Popen(launch_args, startupinfo=startupinfo)
+                logger.info(f"MPC-HC launched with PID: {mpc_process.pid}")
+            except Exception as e:
+                logger.error(f"Failed to launch MPC-HC: {e}")
+                return False
+            
+            # Step 5: Wait for web interface to become accessible
+            urls_to_check = [
+                f"http://localhost:{current_port}/variables.html",
+                f"http://127.0.0.1:{current_port}/variables.html"
+            ]
+            
+            web_interface_accessible = False
+            max_attempts = 10
+            
+            logger.info("Waiting for MPC web interface to initialize...")
+            for attempt in range(max_attempts):
+                time.sleep(2)  # Allow some time for the web interface to start
+                
+                for url in urls_to_check:
+                    try:
+                        with urllib.request.urlopen(url, timeout=2) as response:
+                            if response.status == 200:
+                                logger.info(f"[NICE] MPC web interface is accessible at {url}")
+                                web_interface_accessible = True
+                                self.player_web_interface_ok = True
+                                break
+                    except Exception as e:
+                        logger.debug(f"Attempt {attempt+1}/{max_attempts}: Could not connect to {url}: {e}")
+                
+                if web_interface_accessible:
+                    break
+                
+                logger.info(f"Waiting for web interface to start (attempt {attempt+1}/{max_attempts})...")
+            
+            if not web_interface_accessible:
+                logger.warning("Could not verify MPC web interface is accessible after multiple attempts.")
+                logger.warning("Keeping MPC-HC running for manual testing. Please check if web interface is enabled.")
+                return False
+            
+            # Success!
+            logger.info("MPC-HC web interface setup complete and verified working")
+            return True
+            
         except Exception as e:
-            logger.warning(f"Error setting up MPC web interface: {e}")
+            logger.error(f"Error setting up MPC web interface: {e}")
             return False
     
     def _get_mpc_position(self):
