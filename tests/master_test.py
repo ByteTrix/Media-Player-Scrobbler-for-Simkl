@@ -724,16 +724,20 @@ class SimklMovieTrackerTester:
             
             logger.info(f"Attempting to mark '{movie_name}' (ID: {simkl_id}) as finished")
             
-            original_mark_as_watched = None
-            if self.test_mode:
-                original_mark_as_watched = simkl_api.mark_as_watched
-                simkl_api.mark_as_watched = lambda simkl_id, client_id, access_token: True
-            
+            # --- Mock mark_as_watched for this test specifically ---
+            original_mark_as_watched = simkl_api.mark_as_watched
+            # Always mock to return True to test scrobbler logic, regardless of self.test_mode
+            simkl_api.mark_as_watched = lambda simkl_id, client_id, access_token: True 
+            logger.info("Mocking simkl_api.mark_as_watched to return True for this test")
+            # --- End Mock ---
+
             marked_finished = scrobbler.mark_as_finished(simkl_id, movie_name)
             
-            if original_mark_as_watched:
-                simkl_api.mark_as_watched = original_mark_as_watched
-            
+            # --- Restore original function ---
+            simkl_api.mark_as_watched = original_mark_as_watched
+            logger.info("Restored original simkl_api.mark_as_watched")
+            # --- End Restore ---
+
             completion_flag_set = scrobbler.completed
             
             success = (not below_threshold_complete and 
@@ -772,6 +776,11 @@ class SimklMovieTrackerTester:
             test_result.add_error(str(e))
             test_result.complete(False)
         finally:
+            # --- Ensure restoration even on error ---
+            if 'original_mark_as_watched' in locals() and simkl_api.mark_as_watched != original_mark_as_watched:
+                 simkl_api.mark_as_watched = original_mark_as_watched
+                 logger.info("Restored original simkl_api.mark_as_watched in finally block")
+            # --- End Ensure restoration ---
             scrobbler.stop_tracking()
         
         self.results.append(test_result)
@@ -1732,28 +1741,44 @@ class SimklMovieTrackerTester:
     @mock.patch('simkl_scrobbler.media_tracker.get_all_windows_info')
     @mock.patch('simkl_scrobbler.media_tracker.time.sleep', return_value=None) # Mock sleep to speed up test
     @mock.patch.object(MovieScrobbler, 'process_window') # Mock the parent's method
-    def test_monitor_aware_scrobbler(self, mock_process_window, mock_sleep, mock_get_all_windows):
-        """Test MonitorAwareScrobbler background monitoring loop."""
+    @mock.patch('logging.Logger.error') # Mock the logger to check error messages
+    def test_monitor_aware_scrobbler(self, mock_logger_error, mock_process_window, mock_sleep, mock_get_all_windows):
+        """Test MonitorAwareScrobbler background monitoring loop, including stopping and error logging."""
         test_result = TestResult("Monitor Aware Scrobbler")
         logger.info("Starting Monitor Aware Scrobbler test...")
 
         monitor_scrobbler = MonitorAwareScrobbler(client_id=self.client_id, access_token=self.access_token)
-        monitor_scrobbler.set_poll_interval(0.1)
+        monitor_scrobbler.set_poll_interval(0.01) # Use very short interval for testing
         monitor_scrobbler.set_check_all_windows(True)
 
-        # Create a realistic window info dictionary with a properly formatted title
         player_window_info = {'hwnd': 123, 'title': 'Test Movie (2024) - MPC-HC', 'process_name': 'mpc-hc64.exe'}
         non_player_window_info = {'hwnd': 456, 'title': 'Document - Notepad', 'process_name': 'notepad.exe'}
         
-        # Set up mock to return appropriate window info in sequence
-        mock_get_all_windows.side_effect = [
-            [player_window_info],  # First call - has player window
-            [non_player_window_info],  # Second call - no player window
-            [],  # Third call - no windows
-            Exception("Stop loop")  # Fourth call - exception to stop loop
-        ]
+        # Define a side effect function to control the mock and stop the loop
+        # Note: call_count starts at 0 before the first call
+        side_effect_calls = 0
+        def mock_side_effect_controller(*args, **kwargs):
+            nonlocal side_effect_calls
+            side_effect_calls += 1
+            logger.debug(f"mock_get_all_windows called {side_effect_calls} times")
+            if side_effect_calls == 1:
+                return [player_window_info]
+            elif side_effect_calls == 2:
+                return [non_player_window_info]
+            elif side_effect_calls == 3:
+                return []
+            elif side_effect_calls == 4:
+                # Raise an exception to test the loop's error handling
+                raise Exception("Test Stop loop")
+            else:
+                # Stop monitoring AFTER the exception is caught and logged
+                logger.debug("Setting monitoring to False")
+                monitor_scrobbler.monitoring = False
+                return [] # Return empty list for any subsequent calls
 
-        # Set up mock process_window to return a scrobble info dictionary
+        mock_get_all_windows.side_effect = mock_side_effect_controller
+
+        # Set up mock process_window to return some data
         mock_process_window.return_value = {
             "title": "Test Movie (2024)",
             "movie_name": "Test Movie",
@@ -1762,41 +1787,64 @@ class SimklMovieTrackerTester:
             "progress": 10.0
         }
 
+        loop_stopped_correctly = False
+        error_logged_correctly = False
+        process_window_called_correctly = False
+        
         try:
-            # Start monitoring in the same thread (no daemon thread for testing)
-            monitor_scrobbler.monitoring = True
-            
-            # Call the monitor loop directly (won't return until monitoring is set to False or exception)
-            with self.assertRaises(Exception) as context:
-                monitor_scrobbler._monitor_loop()
-                
-            logger.info(f"Monitor loop stopped with expected exception: {context.exception}")
+            # Start monitoring in a separate thread
+            monitor_scrobbler.start_monitoring()
+
+            # Wait for the thread to finish (should stop after side_effect sets monitoring=False)
+            # Use a reasonable timeout
+            monitor_scrobbler._monitor_thread.join(timeout=5.0) 
+
+            if monitor_scrobbler._monitor_thread.is_alive():
+                 logger.error("[FAIL] Monitor thread did not stop within timeout.")
+                 test_result.add_error("Monitor thread timed out")
+            else:
+                 logger.info("Monitor thread stopped as expected.")
+                 loop_stopped_correctly = not monitor_scrobbler.monitoring
+                 if not loop_stopped_correctly:
+                      logger.error("[FAIL] Monitoring flag was not set to False.")
+                      test_result.add_error("Monitoring flag still True after loop exit")
             
             # Verify process_window was called with the player window info
-            mock_process_window.assert_called_with(player_window_info)
-            logger.info(f"process_window calls: {mock_process_window.call_args_list}")
-            
-            # Check that process_window was called at least once with the player window
-            player_window_call = False
-            for call in mock_process_window.call_args_list:
-                args, kwargs = call
-                if args and args[0] == player_window_info:
-                    player_window_call = True
-                    break
-                    
-            if player_window_call:
+            try:
+                # Check if called AT LEAST once with the correct info
+                mock_process_window.assert_any_call(player_window_info)
                 logger.info("[PASS] process_window was called with player window info")
-            else:
-                logger.error("[FAIL] process_window was NOT called with player window info.")
-                
-            test_result.complete(player_window_call)
+                process_window_called_correctly = True
+            except AssertionError as e:
+                logger.error(f"[FAIL] process_window assertion failed: {e}")
+                test_result.add_error(f"process_window call assertion failed: {e}")
+
+            # Check if the specific error was logged by the loop's exception handler
+            for call in mock_logger_error.call_args_list:
+                args, kwargs = call
+                # Check the format used in the _monitor_loop's except block
+                if args and f"Error in monitor loop: Test Stop loop" in args[0]:
+                    error_logged_correctly = True
+                    logger.info("[PASS] Expected 'Test Stop loop' exception was logged.")
+                    break
+            
+            if not error_logged_correctly:
+                 logger.error("[FAIL] Expected 'Test Stop loop' exception was NOT logged.")
+                 test_result.add_error("Expected exception not logged by monitor loop")
+                 # Log the actual errors that were logged for debugging
+                 logger.error(f"Actual errors logged: {mock_logger_error.call_args_list}")
+
+            # Final success condition
+            success = loop_stopped_correctly and process_window_called_correctly and error_logged_correctly
+            test_result.complete(success)
+
         except Exception as e:
-            logger.error(f"Monitor aware scrobbler test error: {e}")
-            test_result.add_error(str(e))
+            logger.error(f"Monitor aware scrobbler test itself raised an error: {e}", exc_info=True)
+            test_result.add_error(f"Test framework error: {e}")
             test_result.complete(False)
         finally:
-            monitor_scrobbler.monitoring = False
-            monitor_scrobbler.stop_monitoring()
+            # Ensure monitoring is stopped even if the test failed partway
+            monitor_scrobbler.stop_monitoring() 
 
         self.results.append(test_result)
         return test_result.success

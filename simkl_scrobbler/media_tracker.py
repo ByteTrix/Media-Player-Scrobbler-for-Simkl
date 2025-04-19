@@ -130,6 +130,7 @@ class BacklogCleaner:
                 with open(self.backlog_file, 'r') as f:
                     content = f.read().strip()
                     if content:  # Only try to parse if file is not empty
+                        f.seek(0) # Reset file pointer before reading again for JSON parsing
                         return json.load(f)
                     else:
                         logger.info("Backlog file exists but is empty. Starting with empty backlog.")
@@ -137,8 +138,10 @@ class BacklogCleaner:
             except json.JSONDecodeError as e:
                 logger.error(f"Error loading backlog: {e}")
                 logger.info("Creating new empty backlog due to loading error")
-                # Create a new empty backlog file
-                self._save_backlog([])
+                # Set backlog to empty list and then save it
+                self.backlog = []
+                self._save_backlog() # Call without arguments
+                return [] # Return the newly created empty backlog
             except Exception as e:
                 logger.error(f"Error loading backlog: {e}")
         return []
