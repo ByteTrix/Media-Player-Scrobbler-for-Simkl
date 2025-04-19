@@ -25,8 +25,15 @@ jobs:
     - name: Update dependencies
       id: update
       run: |
-        # Generate updated requirements
-        pip-compile --upgrade --allow-unsafe --output-file=requirements.txt.new requirements.in
+        # Create platform-agnostic requirements.in
+        grep -v "pywin32\|pygetwindow" requirements.in > requirements_core.in
+        
+        # Generate updated requirements for core dependencies
+        pip-compile --upgrade --allow-unsafe --output-file=requirements_core.txt requirements_core.in
+        
+        # Merge with Windows-specific dependencies to keep them in place
+        grep "pywin32\|pygetwindow" requirements.txt > requirements_windows_specific.txt || true
+        cat requirements_core.txt requirements_windows_specific.txt > requirements.txt.new
         
         # Check if there are changes
         if ! cmp -s requirements.txt requirements.txt.new; then

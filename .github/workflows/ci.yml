@@ -7,7 +7,7 @@ on:
     branches: [ main, master ]
 
 jobs:
-  build:
+  windows-build:
     runs-on: windows-latest
     strategy:
       matrix:
@@ -21,14 +21,11 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
         
-    - name: Install dependencies
+    - name: Install dependencies on Windows
       run: |
         python -m pip install --upgrade pip
         python -m pip install flake8 build
-        python -m pip install pywin32>=300
-        # Create a temporary requirements file without platform-specific packages
-        python -c "import re; open('requirements_ci.txt', 'w').write(re.sub('pywin32>=300\n', '', open('requirements.txt').read()))"
-        pip install -r requirements_ci.txt
+        pip install -r requirements.txt
         pip install -e .
       shell: bash
       
@@ -42,7 +39,48 @@ jobs:
     - name: Basic import test
       run: |
         # Just verify the package can be imported without errors
-        python -c "import simkl_scrobbler; print('Import successful')"
+        python -c "import simkl_scrobbler; print('Import successful on Windows')"
+        
+    - name: Build package
+      run: |
+        # Test that the package builds correctly
+        python -m build
+  
+  linux-build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.7', '3.8', '3.9', '3.10', '3.11']
+
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+        
+    - name: Install dependencies on Linux
+      run: |
+        python -m pip install --upgrade pip
+        python -m pip install flake8 build
+        # Filter out Windows-specific dependencies
+        sed '/pywin32/d; /pygetwindow/d' requirements.txt > requirements_linux.txt
+        pip install -r requirements_linux.txt
+        pip install -e .
+      shell: bash
+      
+    - name: Lint with flake8
+      run: |
+        # stop the build if there are Python syntax errors or undefined names
+        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        # exit-zero treats all errors as warnings
+        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+      
+    - name: Basic import test
+      run: |
+        # Just verify the package can be imported without errors
+        python -c "import simkl_scrobbler; print('Import successful on Linux')"
         
     - name: Build package
       run: |

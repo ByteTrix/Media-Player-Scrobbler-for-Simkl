@@ -25,7 +25,9 @@ jobs:
         python -m pip install --upgrade pip
         # Use pip-audit instead of safety which doesn't require interactive login
         pip install pip-audit
-        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+        # Filter out Windows-specific dependencies
+        sed '/pywin32/d; /pygetwindow/d' requirements.txt > requirements_linux.txt
+        pip install -r requirements_linux.txt
         
     - name: Check dependencies for security vulnerabilities
       run: |
