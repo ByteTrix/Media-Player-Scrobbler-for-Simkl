@@ -34,13 +34,13 @@ A powerful Windows-based automatic scrobbler for [Simkl](https://simkl.com) that
 
 ```bash
 # Install with pipx (recommended)
-pipx install simkl-movie-tracker
+pipx install simkl-scrobbler
 
 # Initialize the tracker
-simkl-tracker init
+simkl-scrobbler init
 
 # Start tracking your movies
-simkl-tracker start
+simkl-scrobbler start
 ```
 
 ## 🚀 Features
