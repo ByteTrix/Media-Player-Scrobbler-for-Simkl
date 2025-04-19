@@ -141,6 +141,10 @@ def _fallback_search_movie(title, client_id, access_token):
         results = response.json()
         logger.info(f"Fallback search found {len(results) if results else 0} results")
         
+        # Check if results is None or empty before trying to iterate
+        if not results:
+            return None
+        
         movie_results = [r for r in results if r.get('type') == 'movie']
         
         if movie_results:

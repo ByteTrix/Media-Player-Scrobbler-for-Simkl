@@ -118,9 +118,10 @@ class MediaCache:
 class BacklogCleaner:
     """Manages a backlog of watched movies to sync when connection is restored"""
 
-    def __init__(self, backlog_file="backlog.json"):
+    def __init__(self, backlog_file="backlog.json", threshold_days=None):
         self.backlog_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), backlog_file)
         self.backlog = self._load_backlog()
+        self.threshold_days = threshold_days  # New parameter for old entries threshold
 
     def _load_backlog(self):
         """Load the backlog from file"""
@@ -240,35 +241,90 @@ class MovieScrobbler:
         try:
             # --- VLC Integration ---
             if process_name_lower == 'vlc.exe':
-                player_interface_url = 'http://localhost:8080/requests/status.json'
-                # TODO: Add configuration for VLC password if needed
-                # auth = ('', vlc_password) if vlc_password else None
-                response = requests.get(player_interface_url, timeout=0.5) # Short timeout
-                response.raise_for_status()
-                data = response.json()
-                position = data.get('time')
-                duration = data.get('length')
+                # VLC might use different authentication methods or ports
+                # Default is port 8080 and no password, but we'll check multiple configurations
+                vlc_ports = [8080, 8081, 9090]  # Common VLC web interface ports
+                vlc_passwords = ["", "admin"]  # Empty password (default) and common password
+                
+                for port in vlc_ports:
+                    for password in vlc_passwords:
+                        try:
+                            player_interface_url = f'http://localhost:{port}/requests/status.json'
+                            
+                            # Prepare auth if password is provided
+                            auth = None
+                            if password:
+                                auth = ('', password)  # VLC uses empty username and password in the password field
+
+                            # Try to connect with a short timeout
+                            if auth:
+                                response = requests.get(player_interface_url, auth=auth, timeout=0.5)
+                            else:
+                                response = requests.get(player_interface_url, timeout=0.5)
+                                
+                            response.raise_for_status()
+                            data = response.json()
+                            
+                            # Check if we received valid data
+                            if 'time' in data and 'length' in data:
+                                position = data.get('time')
+                                duration = data.get('length')
+                                
+                                # Get additional info for logging
+                                filename = data.get('information', {}).get('category', {}).get('meta', {}).get('filename', 'Unknown file')
+                                
+                                logger.info(f"Successfully connected to VLC web interface on port {port}")
+                                logger.debug(f"VLC is playing: {filename}")
+                                logger.debug(f"Retrieved position data from VLC: position={position}s, duration={duration}s")
+                                break  # Found working port and auth, exit the loop
+                            else:
+                                logger.debug(f"Connected to VLC port {port} but no valid position/duration data")
+                        except requests.RequestException as e:
+                            logger.debug(f"Could not connect to VLC on port {port} with auth={auth is not None}: {str(e)}")
+                            continue
+                    
+                    # Break outer loop if we found working settings
+                    if position is not None and duration is not None:
+                        break
 
             # --- MPC-HC / MPC-BE Integration ---
             elif process_name_lower in ['mpc-hc.exe', 'mpc-hc64.exe', 'mpc-be.exe', 'mpc-be64.exe']:
-                player_interface_url = 'http://localhost:13579/variables.html'
-                response = requests.get(player_interface_url, timeout=0.5) # Short timeout
-                response.raise_for_status()
-                html_content = response.text
-                # Extract variables using regex
-                pos_match = re.search(r'<p id="position">(\d+)</p>', html_content)
-                dur_match = re.search(r'<p id="duration">(\d+)</p>', html_content)
-                # MPC reports position/duration in milliseconds
-                if pos_match and dur_match:
-                    position = int(pos_match.group(1)) / 1000.0
-                    duration = int(dur_match.group(1)) / 1000.0
+                # Try multiple possible ports (MPC-HC can use different ports)
+                mpc_ports = [13579, 13580, 13581, 13582]
+                for port in mpc_ports:
+                    player_interface_url = f'http://localhost:{port}/variables.html'
+                    try:
+                        response = requests.get(player_interface_url, timeout=0.5)
+                        if response.status_code == 200:
+                            html_content = response.text
+                            # Extract variables using regex
+                            pos_match = re.search(r'<p id="position">(\d+)</p>', html_content)
+                            dur_match = re.search(r'<p id="duration">(\d+)</p>', html_content)
+                            file_match = re.search(r'<p id="file">(.*?)</p>', html_content)
+                            
+                            # Log what we found for debugging
+                            if file_match:
+                                logger.debug(f"MPC is playing file: {file_match.group(1)}")
+                            
+                            # MPC reports position/duration in milliseconds
+                            if pos_match and dur_match:
+                                position = int(pos_match.group(1)) / 1000.0
+                                duration = int(dur_match.group(1)) / 1000.0
+                                logger.info(f"Successfully connected to MPC web interface on port {port}")
+                                logger.debug(f"Retrieved position data from MPC: position={position}s, duration={duration}s")
+                                break  # Found working port, exit the loop
+                            else:
+                                logger.debug(f"MPC web interface on port {port} responded but position/duration not found")
+                    except requests.RequestException:
+                        logger.debug(f"MPC web interface not responding on port {port}")
+                        continue
 
             # --- Add other player integrations here ---
             # Example: Add PotPlayer integration if it has a web API or similar
 
             if position is not None and duration is not None:
                 # Basic validation
-                if isinstance(position, (int, float)) and isinstance(duration, (int, float)) and duration >= 0 and position >= 0:
+                if isinstance(position, (int, float)) and isinstance(duration, (int, float)) and duration > 0 and position >= 0:
                      # Ensure position doesn't exceed duration slightly due to timing
                     position = min(position, duration)
                     return round(position, 2), round(duration, 2)
@@ -276,12 +332,14 @@ class MovieScrobbler:
                     logger.debug(f"Invalid position/duration data received from {process_name}: pos={position}, dur={duration}")
                     return None, None
 
-        except requests.exceptions.RequestException:
+        except requests.exceptions.RequestException as e:
             # Log connection errors less frequently
             now = time.time()
             last_log_time = self._last_connection_error_log.get(process_name, 0)
             if now - last_log_time > 60: # Log max once per minute per player
-                logger.warning(f"Could not connect to {process_name} web interface at {player_interface_url or 'default URL'}. Is it enabled/running?")
+                logger.warning(f"Could not connect to {process_name} web interface at {player_interface_url or 'default URL'}. Error: {str(e)}")
+                logger.info("For MPC-HC/BE users: Make sure to enable the web interface in View > Options > Player > Web Interface")
+                logger.info("For VLC users: Make sure to enable the web interface in Tools > Preferences > Interface > Main interfaces")
                 self._last_connection_error_log[process_name] = now
         except Exception as e:
             logger.error(f"Error processing player ({process_name}) interface data: {e}")
@@ -778,7 +836,7 @@ def get_active_window_info():
     """Get information about the currently active window."""
     try:
         active_window = gw.getActiveWindow()
-        if active_window:
+        if (active_window):
             hwnd = active_window._hWnd
             process_name = get_process_name_from_hwnd(hwnd)
             if process_name and active_window.title:
@@ -856,6 +914,10 @@ def parse_movie_title(window_title_or_info):
     """
     if isinstance(window_title_or_info, dict):
         window_title = window_title_or_info.get('title', '')
+        process_name = window_title_or_info.get('process_name', '').lower()
+        # Quick reject based on process name
+        if process_name and not any(player in process_name for player in VIDEO_PLAYER_EXECUTABLES):
+            return None
     elif isinstance(window_title_or_info, str):
         window_title = window_title_or_info
     else:
@@ -863,6 +925,22 @@ def parse_movie_title(window_title_or_info):
 
     if not window_title:
         return None
+
+    # Check for common non-video files
+    non_video_patterns = [
+        r'\.txt\b',           # Text files
+        r'\.doc\b',           # Word documents
+        r'\.pdf\b',           # PDF files
+        r'\.xls\b',           # Excel files
+        r'Notepad',           # Notepad windows
+        r'Document',          # Generic document windows
+        r'Microsoft Word',    # Microsoft Word windows
+        r'Microsoft Excel',   # Microsoft Excel windows
+    ]
+    
+    for pattern in non_video_patterns:
+        if re.search(pattern, window_title, re.IGNORECASE):
+            return None
 
     # --- Initial check if it's likely a movie ---
     # This check is important to avoid trying to parse titles from non-movie windows
@@ -929,7 +1007,7 @@ class MonitorAwareScrobbler(MovieScrobbler):
 
     def __init__(self, client_id=None, access_token=None, testing_mode=False):
         super().__init__(client_id, access_token, testing_mode)
-        self.monitor_thread = None
+        self._monitor_thread = None  # Changed from monitor_thread to _monitor_thread
         self.poll_interval = 10  # Default polling interval in seconds
         self.monitoring = False
         self.last_window_info = None
@@ -949,24 +1027,24 @@ class MonitorAwareScrobbler(MovieScrobbler):
 
     def start_monitoring(self):
         """Start the window monitoring thread"""
-        if self.monitor_thread and self.monitor_thread.is_alive():
+        if self._monitor_thread and self._monitor_thread.is_alive():
             logger.warning("Monitor thread already running")
             return
 
         self.monitoring = True
-        self.monitor_thread = threading.Thread(target=self._monitor_loop, daemon=True)
-        self.monitor_thread.start()
+        self._monitor_thread = threading.Thread(target=self._monitor_loop, daemon=True)
+        self._monitor_thread.start()
         logger.info("Started window monitoring thread")
 
     def stop_monitoring(self):
         """Stop the window monitoring thread"""
         self.monitoring = False
-        if self.monitor_thread:
-            if self.monitor_thread.is_alive():
+        if self._monitor_thread:
+            if self._monitor_thread.is_alive():
                 logger.info("Stopping monitor thread...")
                 # Join with timeout to avoid blocking
-                self.monitor_thread.join(timeout=1.0)
-            self.monitor_thread = None
+                self._monitor_thread.join(timeout=1.0)
+            self._monitor_thread = None
         logger.info("Window monitoring stopped")
 
     def _monitor_loop(self):

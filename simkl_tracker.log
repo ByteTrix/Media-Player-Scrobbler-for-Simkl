@@ -1,36 +1,38 @@
-2025-04-19 16:04:26,848 - INFO - Starting Simkl Movie Tracker application
-2025-04-19 16:04:26,849 - INFO - Starting main application
-2025-04-19 16:04:26,849 - INFO - Initializing Simkl Movie Tracker...
-2025-04-19 16:04:26,850 - INFO - Starting Simkl Movie Tracker...
-2025-04-19 16:04:26,850 - INFO - Monitoring for supported video players...
-2025-04-19 16:04:26,850 - INFO - Supported players: VLC, MPC-HC, Windows Media Player, MPV, etc.
-2025-04-19 16:04:26,850 - INFO - Movies will be marked as watched after viewing 80% of their estimated duration
-2025-04-19 16:04:26,850 - INFO - Scrobble callback function registered
-2025-04-19 16:04:26,851 - INFO - Monitor loop started
-2025-04-19 16:04:26,851 - INFO - Started window monitoring thread
-2025-04-19 16:04:37,064 - INFO - Starting to track: Sweetheart (2025)
-2025-04-19 16:04:37,603 - INFO - Updating total duration from Nones to 8601.58s based on player info.
-2025-04-19 16:04:37,604 - INFO - Searching for movie: Sweetheart (2025)
-2025-04-19 16:04:38,814 - INFO - Searching Simkl for movie: 'Sweetheart (2025)'
-2025-04-19 16:04:39,652 - INFO - Found 4 results for 'Sweetheart (2025)'
-2025-04-19 16:04:39,652 - INFO - Found movie: 'Sweetheart!' (ID: 2467249)
-2025-04-19 16:04:39,653 - INFO - Fetching detailed info for movie ID: 2467249
-2025-04-19 16:04:40,205 - INFO - Retrieved movie: 'Sweetheart!' (2025), Runtime: 144 min, Genres: Comedy, Drama, Romance
-2025-04-19 16:04:40,205 - INFO - Found runtime: 144 minutes for 'Sweetheart!'
-2025-04-19 16:04:40,206 - INFO - Retrieved actual runtime: 144 minutes
-2025-04-19 16:04:40,206 - INFO - Caching duration information: 8601.58 seconds for 'Sweetheart!'
-2025-04-19 16:04:40,207 - INFO - Watching 'Sweetheart!' - Progress: 90.2%
-2025-04-19 16:04:50,766 - INFO - Completion threshold (80%) met for 'Sweetheart!'
-2025-04-19 16:04:53,917 - INFO - Sending request to mark movie ID 2467249 as watched
-2025-04-19 16:04:54,864 - INFO - Response status code: 201
-2025-04-19 16:04:54,864 - INFO - Successfully marked movie ID 2467249 as watched
-2025-04-19 16:04:54,865 - INFO - Successfully marked 'Sweetheart!' as watched on Simkl
-2025-04-19 16:04:54,865 - INFO - Watching 'Sweetheart!' - Progress: 90.4%
-2025-04-19 16:05:05,468 - INFO - Watching 'Sweetheart!' - Progress: 90.6%
-2025-04-19 16:05:16,052 - INFO - Seek detected: Position changed by -2701.0s in 10.6s (Expected ~10.6s).
-2025-04-19 16:05:26,057 - INFO - Media player closed or changed, stopping tracking for: Sweetheart (2025)
-2025-04-19 16:05:43,177 - INFO - Received signal 2, shutting down gracefully...
-2025-04-19 16:05:43,178 - INFO - Stopping Simkl Movie Tracker...
-2025-04-19 16:05:43,179 - INFO - Stopping monitor thread...
-2025-04-19 16:05:44,183 - INFO - Window monitoring stopped
-2025-04-19 16:05:46,063 - INFO - Monitor loop terminated
+2025-04-19 17:15:19,888 - INFO - Starting Simkl Movie Tracker application
+2025-04-19 17:15:19,889 - INFO - Starting main application
+2025-04-19 17:15:19,890 - INFO - Initializing Simkl Movie Tracker...
+2025-04-19 17:15:19,891 - INFO - Starting Simkl Movie Tracker...
+2025-04-19 17:15:19,891 - INFO - Monitoring for supported video players...
+2025-04-19 17:15:19,891 - INFO - Supported players: VLC, MPC-HC, Windows Media Player, MPV, etc.
+2025-04-19 17:15:19,891 - INFO - Movies will be marked as watched after viewing 80% of their estimated duration
+2025-04-19 17:15:19,891 - INFO - Scrobble callback function registered
+2025-04-19 17:15:19,892 - INFO - Monitor loop started
+2025-04-19 17:15:19,892 - INFO - Started window monitoring thread
+2025-04-19 17:15:30,191 - INFO - Starting to track: jilla (2014)
+2025-04-19 17:15:30,739 - INFO - Updating total duration from Nones to 113.01s based on player info.
+2025-04-19 17:15:30,740 - INFO - Searching for movie: jilla (2014)
+2025-04-19 17:15:32,309 - INFO - Searching Simkl for movie: 'jilla (2014)'
+2025-04-19 17:15:33,035 - INFO - Found 1 results for 'jilla (2014)'
+2025-04-19 17:15:33,036 - INFO - Found movie: 'Jilla' (ID: 343160)
+2025-04-19 17:15:33,036 - INFO - Fetching detailed info for movie ID: 343160
+2025-04-19 17:15:34,304 - INFO - Retrieved movie: 'Jilla' (2014), Runtime: 169 min, Genres: Action
+2025-04-19 17:15:34,304 - INFO - Found runtime: 169 minutes for 'Jilla'
+2025-04-19 17:15:34,305 - INFO - Retrieved actual runtime: 169 minutes
+2025-04-19 17:15:34,305 - INFO - Caching duration information: 113.01 seconds for 'Jilla'
+2025-04-19 17:16:16,458 - INFO - Seek detected: Position changed by 6.3s in 10.6s (Expected ~10.6s).
+2025-04-19 17:16:26,996 - INFO - Seek detected: Position changed by 7.4s in 10.5s (Expected ~10.5s).
+2025-04-19 17:16:37,535 - INFO - Seek detected: Position changed by 32.8s in 10.5s (Expected ~10.5s).
+2025-04-19 17:16:37,536 - INFO - Watching 'Jilla' - Progress: 75.3%
+2025-04-19 17:16:48,072 - INFO - Completion threshold (80%) met for 'Jilla'
+2025-04-19 17:16:50,976 - INFO - Sending request to mark movie ID 343160 as watched
+2025-04-19 17:16:51,615 - INFO - Response status code: 201
+2025-04-19 17:16:51,616 - INFO - Successfully marked movie ID 343160 as watched
+2025-04-19 17:16:51,617 - INFO - Successfully marked 'Jilla' as watched on Simkl
+2025-04-19 17:16:51,618 - INFO - Watching 'Jilla' - Progress: 84.7%
+2025-04-19 17:17:02,154 - INFO - Watching 'Jilla' - Progress: 97.1%
+2025-04-19 17:17:12,158 - INFO - Media player closed or changed, stopping tracking for: jilla (2014)
+2025-04-19 17:18:55,239 - INFO - Received signal 2, shutting down gracefully...
+2025-04-19 17:18:55,240 - INFO - Stopping Simkl Movie Tracker...
+2025-04-19 17:18:55,240 - INFO - Stopping monitor thread...
+2025-04-19 17:18:56,245 - INFO - Window monitoring stopped
+2025-04-19 17:19:02,206 - INFO - Monitor loop terminated
