@@ -1,8 +1,37 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# Environment files with sensitive data
 .env
-__pycache__
-dist
-build
-# Cache and backlog files
-simkl_movie_tracker/media_cache.json
-simkl_movie_tracker/backlog.json
-test_playback.log
+
+# Logs
+*.log
+*.log.*
+*.jsonl
+
+# Cache files
+*_cache.json
+media_cache.json
+
+# Backlog data
+backlog.json
+
+# Test results
+test_results.json
+master_test.log
+
+# OS specific files
+.DS_Store
+Thumbs.db
