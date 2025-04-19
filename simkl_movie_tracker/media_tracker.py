@@ -11,18 +11,34 @@ import time
 import os
 import json
 import threading
+import logging.handlers
+import requests # For player web interfaces
+import re # For parsing MPC variables.html
 from datetime import datetime
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+
+# Setup Playback Logger
+playback_log_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'playback_log.jsonl')
+playback_logger = logging.getLogger('PlaybackLogger')
+playback_logger.setLevel(logging.INFO)
+# Use a rotating file handler (5MB per file, keep 3 backups)
+formatter = logging.Formatter('{"timestamp": "%(asctime)s", "level": "%(levelname)s", "message": %(message)s}') # Raw JSON message
+handler = logging.handlers.RotatingFileHandler(playback_log_file, maxBytes=5*1024*1024, backupCount=3, encoding='utf-8')
+handler.setFormatter(formatter)
+playback_logger.addHandler(handler)
+playback_logger.propagate = False # Prevent double logging to root logger
+
 # List of supported video player executable names
 VIDEO_PLAYER_EXECUTABLES = [
     'vlc.exe',
-    'mpc-hc.exe', 
+    'mpc-hc.exe',
     'mpc-hc64.exe',
     'mpc-be.exe',
+    'mpc-be64.exe', # Added 64bit mpc-be
     'wmplayer.exe',
     'mpv.exe',
     'PotPlayerMini.exe',
@@ -35,7 +51,7 @@ VIDEO_PLAYER_EXECUTABLES = [
 
 # List of supported video player window title keywords (as fallback)
 VIDEO_PLAYER_KEYWORDS = [
-    'VLC', 
+    'VLC',
     'MPC-HC',
     'MPC-BE',
     'Windows Media Player',
@@ -47,14 +63,7 @@ VIDEO_PLAYER_KEYWORDS = [
     'Media Player Classic'
 ]
 
-# Average movie durations in minutes for different movie types
-# Used to estimate completion percentage when we can't get actual duration
-AVERAGE_MOVIE_DURATION = {
-    'default': 120,  # 2 hours
-    'animated': 100,  # 1 hour 40 minutes
-    'short': 90,      # 1 hour 30 minutes
-    'documentary': 100, # 1 hour 40 minutes
-}
+# Average duration dictionary removed as we now rely on player/API data
 
 # Default polling interval in seconds
 DEFAULT_POLL_INTERVAL = 10
@@ -64,19 +73,19 @@ PLAYING = "playing"
 PAUSED = "paused"
 STOPPED = "stopped"
 
-# Polling and monitoring constants
-MONITOR_POLL_INTERVAL = 10  # How often to check for active players (seconds)
-MONITOR_RECONNECT_INTERVAL = 30  # How often to try reconnecting to players (seconds)
-MONITOR_TIMEOUT = 5  # Timeout for player connection attempts (seconds)
-PLAYER_ACTIVITY_THRESHOLD = 300  # How long to consider a player "active" after last seen (seconds)
+# Polling and monitoring constants (These might be less relevant now without the specific monitor classes)
+# MONITOR_POLL_INTERVAL = 10
+# MONITOR_RECONNECT_INTERVAL = 30
+# MONITOR_TIMEOUT = 5
+# PLAYER_ACTIVITY_THRESHOLD = 300
 
 class MediaCache:
     """Cache for storing identified media to avoid repeated searches"""
-    
+
     def __init__(self, cache_file="media_cache.json"):
         self.cache_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), cache_file)
         self.cache = self._load_cache()
-        
+
     def _load_cache(self):
         """Load the cache from file"""
         if os.path.exists(self.cache_file):
@@ -86,7 +95,7 @@ class MediaCache:
             except Exception as e:
                 logger.error(f"Error loading cache: {e}")
         return {}
-        
+
     def _save_cache(self):
         """Save the cache to file"""
         try:
@@ -94,27 +103,27 @@ class MediaCache:
                 json.dump(self.cache, f)
         except Exception as e:
             logger.error(f"Error saving cache: {e}")
-            
+
     def get(self, title):
         """Get movie info from cache"""
         return self.cache.get(title.lower())
-        
+
     def set(self, title, movie_info):
         """Store movie info in cache"""
         self.cache[title.lower()] = movie_info
         self._save_cache()
-        
+
     def get_all(self):
         """Get all cached movie info"""
         return self.cache
 
 class BacklogCleaner:
     """Manages a backlog of watched movies to sync when connection is restored"""
-    
+
     def __init__(self, backlog_file="backlog.json"):
         self.backlog_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), backlog_file)
         self.backlog = self._load_backlog()
-        
+
     def _load_backlog(self):
         """Load the backlog from file"""
         if os.path.exists(self.backlog_file):
@@ -124,7 +133,7 @@ class BacklogCleaner:
             except Exception as e:
                 logger.error(f"Error loading backlog: {e}")
         return []
-        
+
     def _save_backlog(self):
         """Save the backlog to file"""
         try:
@@ -132,7 +141,7 @@ class BacklogCleaner:
                 json.dump(self.backlog, f)
         except Exception as e:
             logger.error(f"Error saving backlog: {e}")
-            
+
     def add(self, simkl_id, title):
         """Add a movie to the backlog"""
         entry = {
@@ -140,25 +149,25 @@ class BacklogCleaner:
             "title": title,
             "timestamp": datetime.now().isoformat()
         }
-        
+
         # Don't add duplicates
         for item in self.backlog:
             if item.get("simkl_id") == simkl_id:
                 return
-                
+
         self.backlog.append(entry)
         self._save_backlog()
         logger.info(f"Added '{title}' to backlog for future syncing")
-        
+
     def get_pending(self):
         """Get all pending backlog entries"""
         return self.backlog
-        
+
     def remove(self, simkl_id):
         """Remove an entry from the backlog"""
         self.backlog = [item for item in self.backlog if item.get("simkl_id") != simkl_id]
         self._save_backlog()
-        
+
     def clear(self):
         """Clear the entire backlog"""
         self.backlog = []
@@ -166,17 +175,18 @@ class BacklogCleaner:
 
 class MovieScrobbler:
     """Tracks movie viewing and scrobbles to Simkl"""
-    
-    def __init__(self, client_id=None, access_token=None):
+
+    def __init__(self, client_id=None, access_token=None, testing_mode=False):
         self.client_id = client_id
         self.access_token = access_token
+        self.testing_mode = testing_mode # Add testing mode flag
         self.currently_tracking = None
         self.start_time = None
         self.last_update_time = None
         self.watch_time = 0
         self.state = STOPPED
         self.previous_state = STOPPED
-        self.estimated_duration = None
+        self.estimated_duration = None # Kept for logging comparison, but not used for completion logic
         self.simkl_id = None
         self.movie_name = None
         self.last_scrobble_time = 0
@@ -185,311 +195,550 @@ class MovieScrobbler:
         self.last_progress_check = 0  # Time of last progress threshold check
         self.completion_threshold = 80  # Default completion threshold (percent)
         self.completed = False  # Flag to track if movie has been marked as complete
-        
+        self.current_position_seconds = 0 # Current playback position in seconds
+        self.total_duration_seconds = None # Total duration in seconds (if known)
+        self._last_connection_error_log = {} # Track player connection errors
+
+    def _log_playback_event(self, event_type, extra_data=None):
+        """Logs a structured playback event to the playback log file."""
+        log_entry = {
+            "event": event_type,
+            "movie_title_raw": self.currently_tracking,
+            "movie_name_simkl": self.movie_name,
+            "simkl_id": self.simkl_id,
+            "state": self.state,
+            "watch_time_accumulated_seconds": round(self.watch_time, 2),
+            "current_position_seconds": self.current_position_seconds,
+            "total_duration_seconds": self.total_duration_seconds,
+            "estimated_duration_seconds": self.estimated_duration, # Logged for comparison
+            "completion_percent_accumulated": self._calculate_percentage(use_accumulated=True),
+            "completion_percent_position": self._calculate_percentage(use_position=True),
+            "is_complete_flag": self.completed,
+        }
+        if extra_data:
+            log_entry.update(extra_data)
+
+        # Use json.dumps to ensure proper JSON formatting within the log message
+        try:
+            playback_logger.info(json.dumps(log_entry))
+        except Exception as e:
+            logger.error(f"Failed to log playback event: {e} - Data: {log_entry}")
+
+
+    def _get_player_position_duration(self, process_name):
+        """
+        Get current position and total duration from supported media players via web interfaces.
+        Requires the web interface to be enabled in the player settings.
+        Args:
+            process_name (str): The executable name of the player process.
+        Returns:
+            tuple: (current_position_seconds, total_duration_seconds) or (None, None) if unavailable/unsupported.
+        """
+        position = None
+        duration = None
+        player_interface_url = None
+        process_name_lower = process_name.lower() if process_name else ''
+
+        try:
+            # --- VLC Integration ---
+            if process_name_lower == 'vlc.exe':
+                player_interface_url = 'http://localhost:8080/requests/status.json'
+                # TODO: Add configuration for VLC password if needed
+                # auth = ('', vlc_password) if vlc_password else None
+                response = requests.get(player_interface_url, timeout=0.5) # Short timeout
+                response.raise_for_status()
+                data = response.json()
+                position = data.get('time')
+                duration = data.get('length')
+
+            # --- MPC-HC / MPC-BE Integration ---
+            elif process_name_lower in ['mpc-hc.exe', 'mpc-hc64.exe', 'mpc-be.exe', 'mpc-be64.exe']:
+                player_interface_url = 'http://localhost:13579/variables.html'
+                response = requests.get(player_interface_url, timeout=0.5) # Short timeout
+                response.raise_for_status()
+                html_content = response.text
+                # Extract variables using regex
+                pos_match = re.search(r'<p id="position">(\d+)</p>', html_content)
+                dur_match = re.search(r'<p id="duration">(\d+)</p>', html_content)
+                # MPC reports position/duration in milliseconds
+                if pos_match and dur_match:
+                    position = int(pos_match.group(1)) / 1000.0
+                    duration = int(dur_match.group(1)) / 1000.0
+
+            # --- Add other player integrations here ---
+            # Example: Add PotPlayer integration if it has a web API or similar
+
+            if position is not None and duration is not None:
+                # Basic validation
+                if isinstance(position, (int, float)) and isinstance(duration, (int, float)) and duration >= 0 and position >= 0:
+                     # Ensure position doesn't exceed duration slightly due to timing
+                    position = min(position, duration)
+                    return round(position, 2), round(duration, 2)
+                else:
+                    logger.debug(f"Invalid position/duration data received from {process_name}: pos={position}, dur={duration}")
+                    return None, None
+
+        except requests.exceptions.RequestException:
+            # Log connection errors less frequently
+            now = time.time()
+            last_log_time = self._last_connection_error_log.get(process_name, 0)
+            if now - last_log_time > 60: # Log max once per minute per player
+                logger.warning(f"Could not connect to {process_name} web interface at {player_interface_url or 'default URL'}. Is it enabled/running?")
+                self._last_connection_error_log[process_name] = now
+        except Exception as e:
+            logger.error(f"Error processing player ({process_name}) interface data: {e}")
+
+        return None, None # Return None if unsupported, error occurred, or data invalid
+
     def set_credentials(self, client_id, access_token):
         """Set API credentials"""
         self.client_id = client_id
         self.access_token = access_token
-        
+
     def process_window(self, window_info):
         """Process the current window and update scrobbling state"""
         if not is_video_player(window_info):
             if self.state != STOPPED:
-                logger.info(f"Media player closed, stopping tracking for: {self.currently_tracking}")
+                logger.info(f"Media player closed or changed, stopping tracking for: {self.currently_tracking}")
                 self.stop_tracking()
             return None
-            
+
         # Get the movie title
         movie_title = parse_movie_title(window_info)
         if not movie_title:
-            return None
-            
+             if self.state != STOPPED:
+                 logger.debug(f"Could not parse movie title from '{window_info.get('title', '')}', stopping tracking.")
+                 self.stop_tracking()
+             return None
+
         # Check if it's a new movie
         if self.currently_tracking != movie_title:
+            if self.currently_tracking: # Stop previous before starting new
+                 logger.info(f"New movie detected ('{movie_title}'), stopping tracking for '{self.currently_tracking}'")
+                 self.stop_tracking()
             self._start_new_movie(movie_title)
-            
-        # It's the same movie, update tracking
+
+        # It's the same movie (or just started), update tracking
         return self._update_tracking(window_info)
-        
+
     def _start_new_movie(self, movie_title):
         """Start tracking a new movie"""
         logger.info(f"Starting to track: {movie_title}")
-        
+
         # Check if we've seen this movie before in our cache
         cached_info = self.media_cache.get(movie_title)
-        
+
         if cached_info:
             self.simkl_id = cached_info.get("simkl_id")
             self.movie_name = cached_info.get("movie_name", movie_title)
-            self.estimated_duration = cached_info.get("runtime", self._estimate_duration(movie_title))
-            logger.info(f"Using cached info for '{movie_title}' (Simkl ID: {self.simkl_id}, Runtime: {self.estimated_duration} min)")
+            self.total_duration_seconds = cached_info.get("duration_seconds") # Get duration from cache if available
+            self.estimated_duration = self.total_duration_seconds # Align estimated with known, if available
+            logger.info(f"Using cached info for '{movie_title}' (Simkl ID: {self.simkl_id}, Duration: {self.total_duration_seconds}s)")
         else:
-            # Will be populated later by the main app after search
+            # Will be populated later by the main app after search or player query
             self.simkl_id = None
             self.movie_name = None
-            self.estimated_duration = self._estimate_duration(movie_title)
-        
+            self.estimated_duration = None # Duration is unknown initially
+            self.total_duration_seconds = None
+
         self.currently_tracking = movie_title
         self.start_time = time.time()
         self.last_update_time = self.start_time
         self.watch_time = 0
-        self.state = PLAYING
+        self.current_position_seconds = 0 # Reset position
+        # total_duration_seconds is set above based on cache or None
+        self.state = PLAYING # Assume playing initially
         self.previous_state = STOPPED
         self.completed = False  # Reset completed flag for new movie
         self.last_progress_check = time.time()
-        
+
+        # Log start event
+        self._log_playback_event("start_tracking")
+
     def _update_tracking(self, window_info=None):
-        """Update tracking for the current movie"""
+        """Update tracking for the current movie, including position and duration if possible."""
         if not self.currently_tracking or not self.last_update_time:
             return None
-            
+
         current_time = time.time()
-        
-        # Determine playback state
+
+        # --- Get Position/Duration (From Player Integration) ---
+        process_name = window_info.get('process_name') if window_info else None
+        pos, dur = None, None
+        if process_name:
+            pos, dur = self._get_player_position_duration(process_name)
+
+        position_updated = False
+        if pos is not None and dur is not None and dur > 0: # Ensure duration is positive
+             # Update total duration if player provides it and it wasn't known or differs
+             if self.total_duration_seconds is None or abs(self.total_duration_seconds - dur) > 1: # Allow 1s difference
+                 logger.info(f"Updating total duration from {self.total_duration_seconds}s to {dur}s based on player info.")
+                 self.total_duration_seconds = dur
+                 self.estimated_duration = dur # Keep estimate aligned
+
+             # Detect seeking
+             time_diff = current_time - self.last_update_time
+             # Only detect seek if time has passed and we were playing
+             if time_diff > 0.1 and self.state == PLAYING:
+                 pos_diff = pos - self.current_position_seconds
+                 # Allow for small discrepancies (e.g., 2 seconds) + normal playback time
+                 if abs(pos_diff - time_diff) > 2.0:
+                      logger.info(f"Seek detected: Position changed by {pos_diff:.1f}s in {time_diff:.1f}s (Expected ~{time_diff:.1f}s).")
+                      self._log_playback_event("seek", {"previous_position_seconds": round(self.current_position_seconds, 2), "new_position_seconds": pos})
+                      # Optional: Adjust accumulated watch time based on seek? (More complex)
+
+             self.current_position_seconds = pos
+             position_updated = True
+        # --- End Position/Duration ---
+
+        # Determine playback state (TODO: Enhance with player state if available)
         if self._detect_pause(window_info):
             new_state = PAUSED
         else:
             new_state = PLAYING
-            # Only increment watch time if we're actually playing
-            if self.state == PLAYING:
-                elapsed = current_time - self.last_update_time
-                # Sanity check: if elapsed time is too large, cap it 
-                # (e.g. computer was sleeping)
-                if elapsed > 60:  # More than a minute
-                    logger.warning(f"Large time gap detected ({elapsed:.1f}s), capping at 10 seconds")
-                    elapsed = 10
-                self.watch_time += elapsed
-            
+
+        # Calculate elapsed time for accumulated watch time
+        elapsed = current_time - self.last_update_time
+        if elapsed < 0: elapsed = 0 # Prevent negative time if clock changes
+        # Sanity check for large gaps (e.g., sleep)
+        if elapsed > 60:
+            logger.warning(f"Large time gap detected ({elapsed:.1f}s), capping at 10 seconds for accumulated time.")
+            elapsed = 10
+
+        # Only increment accumulated watch time if we were playing
+        if self.state == PLAYING:
+            self.watch_time += elapsed
+
         # Handle state changes
         state_changed = (new_state != self.state)
         if state_changed:
             logger.info(f"Playback state changed: {self.state} -> {new_state}")
             self.previous_state = self.state
             self.state = new_state
-        
+            # Log state change
+            self._log_playback_event("state_change", {"previous_state": self.previous_state})
+
         self.last_update_time = current_time
-        
-        # Calculate percentage watched
-        watched_minutes = self.watch_time / 60
-        percentage = min(100, (watched_minutes / self.estimated_duration) * 100)
-        
-        # Check if we've reached the completion threshold (every 30 seconds)
-        if (current_time - self.last_progress_check > 30 and 
-            not self.completed and 
-            self.simkl_id and 
-            percentage >= self.completion_threshold):
-            
-            logger.info(f"Progress {percentage:.1f}% reached threshold ({self.completion_threshold}%) for '{self.movie_name or self.currently_tracking}'")
-            self.mark_as_finished(self.simkl_id, self.movie_name or self.currently_tracking)
-            self.completed = True
-            self.last_progress_check = current_time
-        
-        # Scrobble if the state changed or it's been longer than poll interval
+
+        # --- Calculate Percentage ---
+        percentage = self._calculate_percentage(use_position=position_updated)
+        # --- End Calculate Percentage ---
+
+        # Log progress update periodically or on state change/seek
+        log_progress = state_changed or position_updated or (current_time - self.last_scrobble_time > DEFAULT_POLL_INTERVAL)
+        if log_progress:
+             self._log_playback_event("progress_update")
+
+        # Check completion threshold
+        # Use self.is_complete() which handles the logic including the flag
+        if not self.completed and (current_time - self.last_progress_check > 30):
+            if self.is_complete(): # Check if threshold is met based on current state
+                 logger.info(f"Completion threshold ({self.completion_threshold}%) met for '{self.movie_name or self.currently_tracking}'")
+                 self._log_playback_event("completion_threshold_reached")
+                 if self.simkl_id:
+                     self.mark_as_finished(self.simkl_id, self.movie_name or self.currently_tracking)
+                 else:
+                     logger.warning("Cannot mark as finished: Simkl ID unknown.")
+                     # Consider adding to backlog even without ID? Maybe not useful.
+            self.last_progress_check = time.time() # Reset check timer regardless
+
+        # Scrobble update (consider adjusting frequency/logic based on Simkl needs)
         should_scrobble = state_changed or (current_time - self.last_scrobble_time > DEFAULT_POLL_INTERVAL)
-        
         if should_scrobble and self.simkl_id:
             self.last_scrobble_time = current_time
+            self._log_playback_event("scrobble_update") # Log before returning data
             return {
                 "title": self.currently_tracking,
                 "movie_name": self.movie_name,
                 "simkl_id": self.simkl_id,
                 "state": self.state,
                 "progress": percentage,
-                "watched_minutes": watched_minutes,
-                "estimated_duration": self.estimated_duration
+                "watched_seconds": round(self.watch_time, 2),
+                "current_position_seconds": self.current_position_seconds,
+                "total_duration_seconds": self.total_duration_seconds,
+                "estimated_duration_seconds": self.estimated_duration # Keep for reference
             }
-        
+
         return None
-        
+
+    def _calculate_percentage(self, use_position=False, use_accumulated=False):
+        """Calculates completion percentage. Prefers position/duration if use_position is True and data is valid."""
+        percentage = None
+        # Try position first if requested and valid
+        if use_position and self.current_position_seconds is not None and self.total_duration_seconds is not None and self.total_duration_seconds > 0:
+            percentage = min(100, (self.current_position_seconds / self.total_duration_seconds) * 100)
+        # Fallback to accumulated time vs known duration (player/API/cache)
+        elif (use_accumulated or not use_position) and self.total_duration_seconds is not None and self.total_duration_seconds > 0:
+             percentage = min(100, (self.watch_time / self.total_duration_seconds) * 100)
+        # If duration is completely unknown, cannot calculate percentage
+
+        return percentage
+
+
     def _detect_pause(self, window_info):
-        """Detect if playback is paused based on window title or other indicators"""
+        """Detect if playback is paused based on window title."""
+        # TODO: Enhance with player-specific state checks if possible via web interface/API
         # Some players indicate pause in the window title
         if window_info and window_info.get('title'):
-            if " - Paused" in window_info['title'] or "[Paused]" in window_info['title']:
+            title_lower = window_info['title'].lower()
+            if "paused" in title_lower: # More general check
                 return True
-                
-        # More sophisticated pause detection could be added here
-        # For now, we assume it's playing if the player is open
+
+        # For now, we assume it's playing if the player is open and title doesn't indicate pause
         return False
-        
+
     def stop_tracking(self):
         """Stop tracking the current movie"""
         if not self.currently_tracking:
             return
-            
-        # Update one last time to get final progress
-        scrobble_info = self._update_tracking()
-        
+
+        # --- Get final state before logging stop ---
+        # Use the last known state for the stop log
+        final_state = self.state
+        final_pos = self.current_position_seconds
+        final_watch_time = self.watch_time
+        final_scrobble_info = { # Construct based on last known state
+                "title": self.currently_tracking,
+                "movie_name": self.movie_name,
+                "simkl_id": self.simkl_id,
+                "state": STOPPED, # Explicitly stopped
+                "progress": self._calculate_percentage(use_position=True) or self._calculate_percentage(use_accumulated=True),
+                "watched_seconds": round(final_watch_time, 2),
+                "current_position_seconds": final_pos,
+                "total_duration_seconds": self.total_duration_seconds,
+                "estimated_duration_seconds": self.estimated_duration
+            }
+        # --- End final state capture ---
+
+        # Log stop event *before* resetting state
+        self._log_playback_event("stop_tracking", extra_data={"final_state": final_state, "final_position": final_pos, "final_watch_time": final_watch_time})
+
+
         # Reset tracking state
+        logger.debug(f"Resetting tracking state for {self.currently_tracking}")
         self.currently_tracking = None
         self.state = STOPPED
+        self.previous_state = self.state # Update previous state as well
         self.start_time = None
         self.last_update_time = None
-        
-        return scrobble_info
-        
+        self.watch_time = 0
+        self.current_position_seconds = 0
+        self.total_duration_seconds = None
+        self.estimated_duration = None
+        self.simkl_id = None
+        self.movie_name = None
+        self.completed = False # Ensure completed is reset
+
+        # Return the constructed final scrobble info
+        return final_scrobble_info
+
     def mark_as_finished(self, simkl_id, title):
-        """Mark a movie as finished, either via API or backlog"""
-        from simkl_movie_tracker.simkl_api import mark_as_watched
-        
-        # For test mode, bypass the API call
-        if hasattr(self, 'testing_mode') and self.testing_mode:
-            logger.info(f"TEST MODE: Simulating marking '{title}' as watched")
-            self.completed = True
+        """Mark a movie as finished, either via API or backlog. Sets self.completed on success."""
+        # Check testing_mode first
+        if self.testing_mode:
+            logger.info(f"TEST MODE: Simulating marking '{title}' (ID: {simkl_id}) as watched")
+            self.completed = True # Set completed flag in test mode
+            self._log_playback_event("marked_as_finished_test_mode")
             return True
-            
+
         if not self.client_id or not self.access_token:
             logger.error("Cannot mark movie as finished: missing API credentials")
-            self.backlog.add(simkl_id, title)
+            self._log_playback_event("marked_as_finished_fail_credentials")
+            self.backlog.add(simkl_id, title) # Backlog add logs itself
             return False
-            
+
         try:
+            # Import inside method to avoid circular imports
+            from simkl_movie_tracker.simkl_api import mark_as_watched
+            
             result = mark_as_watched(simkl_id, self.client_id, self.access_token)
             if result:
                 logger.info(f"Successfully marked '{title}' as watched on Simkl")
-                self.completed = True  # Update completed flag
+                self.completed = True  # Update completed flag ONLY on success
+                # Log successful marking
+                self._log_playback_event("marked_as_finished_api_success")
                 return True
             else:
                 logger.warning(f"Failed to mark '{title}' as watched, adding to backlog")
-                self.backlog.add(simkl_id, title)
+                # Log API failure and backlog add
+                self._log_playback_event("marked_as_finished_api_fail")
+                self.backlog.add(simkl_id, title) # Backlog add logs itself
                 return False
         except Exception as e:
             logger.error(f"Error marking movie as watched: {e}")
-            self.backlog.add(simkl_id, title)
+            # Log exception and backlog add
+            self._log_playback_event("marked_as_finished_api_error", {"error": str(e)})
+            self.backlog.add(simkl_id, title) # Backlog add logs itself
             return False
-            
+
     def process_backlog(self):
         """Process pending backlog items"""
         if not self.client_id or not self.access_token:
             return 0
-            
-        from simkl_movie_tracker.simkl_api import mark_as_watched
-        
+
+        from simkl_movie_tracker.simkl_api import mark_as_watched # Keep import local
+
         success_count = 0
         pending = self.backlog.get_pending()
-        
+
         if not pending:
             return 0
-            
+
         logger.info(f"Processing backlog: {len(pending)} items")
-        
-        for item in pending:
+
+        # Process in reverse order? Or keep order? Keep order for now.
+        items_to_process = list(pending) # Create copy to iterate over while modifying original
+
+        for item in items_to_process:
             simkl_id = item.get("simkl_id")
             title = item.get("title", "Unknown")
-            
+            timestamp = item.get("timestamp")
+
             if simkl_id:
+                logger.info(f"Backlog: Attempting to mark '{title}' (ID: {simkl_id}, Added: {timestamp}) as watched")
                 try:
                     result = mark_as_watched(simkl_id, self.client_id, self.access_token)
                     if result:
                         logger.info(f"Backlog: Successfully marked '{title}' as watched")
-                        self.backlog.remove(simkl_id)
+                        self.backlog.remove(simkl_id) # Remove from original list
                         success_count += 1
+                        self._log_playback_event("backlog_sync_success", {"backlog_simkl_id": simkl_id, "backlog_title": title})
                     else:
-                        logger.warning(f"Backlog: Failed to mark '{title}' as watched")
+                        logger.warning(f"Backlog: Failed to mark '{title}' as watched via API")
+                        self._log_playback_event("backlog_sync_fail", {"backlog_simkl_id": simkl_id, "backlog_title": title})
+                        # Keep item in backlog for next try
                 except Exception as e:
                     logger.error(f"Backlog: Error processing '{title}': {e}")
-            
+                    self._log_playback_event("backlog_sync_error", {"backlog_simkl_id": simkl_id, "backlog_title": title, "error": str(e)})
+                    # Keep item in backlog for next try
+            else:
+                 logger.warning(f"Backlog: Skipping item with missing Simkl ID: {item}")
+                 # Optionally remove invalid items? For now, keep them.
+                 # self.backlog.remove(simkl_id) # Requires careful handling if ID is None
+
+        if success_count > 0:
+             logger.info(f"Backlog processing finished: {success_count} items synced.")
+        elif items_to_process:
+             logger.info("Backlog processing finished: No items synced successfully.")
+
+
         return success_count
-        
+
     def cache_movie_info(self, title, simkl_id, movie_name, runtime=None):
         """
-        Cache movie info to avoid repeated searches
-        
+        Cache movie info to avoid repeated searches. Prioritizes known duration.
+
         Args:
             title: Original movie title from window
             simkl_id: Simkl ID of the movie
             movie_name: Official movie name from Simkl
-            runtime: Movie runtime in minutes from Simkl API
+            runtime: Movie runtime in minutes from Simkl API (optional)
         """
         if title and simkl_id:
             cached_data = {
                 "simkl_id": simkl_id,
                 "movie_name": movie_name
             }
-            
-            # Add runtime if available
-            if runtime:
-                cached_data["runtime"] = runtime
-                logger.info(f"Caching runtime information: {runtime} minutes for '{movie_name}'")
-            
+
+            api_duration_seconds = None
+            if runtime: # Runtime from Simkl API is usually in minutes
+                api_duration_seconds = runtime * 60
+
+            # Determine the best duration to cache: Player > API > Existing Cache > None
+            current_cached_info = self.media_cache.get(title)
+            existing_cached_duration = current_cached_info.get("duration_seconds") if current_cached_info else None
+
+            # Use current total_duration_seconds if known (likely from player), else API, else existing cache
+            duration_to_cache = self.total_duration_seconds if self.total_duration_seconds is not None else api_duration_seconds
+            if duration_to_cache is None:
+                duration_to_cache = existing_cached_duration
+
+            if duration_to_cache:
+                cached_data["duration_seconds"] = duration_to_cache
+                logger.info(f"Caching duration information: {duration_to_cache} seconds for '{movie_name}'")
+            else:
+                 logger.info(f"No duration information available to cache for '{movie_name}'")
+
             self.media_cache.set(title, cached_data)
-            
-            # If this is the movie we're currently tracking, update our local copy
+
+            # If this is the movie we're currently tracking, update its duration if needed
             if self.currently_tracking == title:
                 self.simkl_id = simkl_id
                 self.movie_name = movie_name
-                
-                # Update estimated duration if we have runtime from API
-                if runtime:
-                    logger.info(f"Updating estimated duration from {self.estimated_duration} to {runtime} minutes")
-                    self.estimated_duration = runtime
-                
+
+                # Update duration if cache provides a value and we don't have one,
+                # or if the cached value is different (though player value should take precedence)
+                if duration_to_cache is not None and self.total_duration_seconds != duration_to_cache:
+                     if self.total_duration_seconds is None: # Only update if we didn't already get it from player
+                          logger.info(f"Updating known duration from None to {duration_to_cache}s based on cache/API info")
+                          self.total_duration_seconds = duration_to_cache
+                          self.estimated_duration = duration_to_cache # Align estimate
+
+
     def is_complete(self, threshold=None):
-        """Check if the movie is considered watched (default: based on instance threshold)"""
+        """Check if the movie is considered watched (default: based on instance threshold), prioritizing position."""
         if not self.currently_tracking:
             return False
-            
+
+        # Return completion flag status immediately if already marked
+        if self.completed:
+            return True
+
         # Use provided threshold or instance default
         if threshold is None:
             threshold = self.completion_threshold
-            
-        watched_minutes = self.watch_time / 60
-        percentage = min(100, (watched_minutes / self.estimated_duration) * 100)
-        
-        return percentage >= threshold or self.completed
-        
-    def _estimate_duration(self, movie_title):
-        """Estimate movie duration based on title or guessit data"""
-        # Try to get info from guessit
-        guess = guessit(movie_title)
-        
-        duration = AVERAGE_MOVIE_DURATION['default']
-        
-        # Check if guessit found any helpful info
-        if guess.get('type') == 'movie':
-            # Check for hints in the title
-            lower_title = movie_title.lower()
-            
-            if any(word in lower_title for word in ['animated', 'animation', 'cartoon', 'pixar', 'disney']):
-                duration = AVERAGE_MOVIE_DURATION['animated']
-            elif any(word in lower_title for word in ['documentary', 'biography', 'true story']):
-                duration = AVERAGE_MOVIE_DURATION['documentary']
-            elif any(word in lower_title for word in ['short']):
-                duration = AVERAGE_MOVIE_DURATION['short']
-        
-        return duration
+
+        # Calculate percentage. Requires known duration (player/API/cache).
+        # Prioritize position-based calculation.
+        percentage = self._calculate_percentage(use_position=True)
+        if percentage is None: # Fallback to accumulated time if position failed but duration is known
+             percentage = self._calculate_percentage(use_accumulated=True)
+
+        # If percentage could not be calculated (duration unknown), it's not complete.
+        if percentage is None:
+            # logger.debug(f"Cannot determine completion for '{self.currently_tracking}', duration unknown.")
+            return False
+
+        # Check threshold.
+        is_past_threshold = percentage >= threshold
+        # No need for debug log here, completion_threshold_reached event covers it
+
+        return is_past_threshold
+
 
 def get_process_name_from_hwnd(hwnd):
     """Get the process name from a window handle."""
     try:
         # Get the process ID from the window handle
         _, pid = win32process.GetWindowThreadProcessId(hwnd)
-        
+
         # Get the process name from the process ID
         process = psutil.Process(pid)
         return process.name()
+    except (psutil.NoSuchProcess, psutil.AccessDenied, win32process.error) as e:
+        logger.debug(f"Error getting process name for HWND {hwnd}: {e}")
     except Exception as e:
-        logger.debug(f"Error getting process name: {e}")
-        return None
+        logger.error(f"Unexpected error getting process name: {e}")
+    return None
 
 # Modified function to get all windows, not just the active one
 def get_all_windows_info():
     """Get information about all open windows, not just the active one."""
     windows_info = []
-    
+
     try:
         # Get all visible windows using pygetwindow
         all_windows = gw.getAllWindows()
-        
+
         for window in all_windows:
             if window.visible and window.title:
                 try:
                     # Get handle from window
                     hwnd = window._hWnd
-                    
+
                     # Get process name
                     process_name = get_process_name_from_hwnd(hwnd)
-                    
+
                     # Only include windows with valid process names and titles
                     if process_name and window.title:
                         windows_info.append({
@@ -498,549 +747,260 @@ def get_all_windows_info():
                             'process_name': process_name
                         })
                 except Exception as e:
-                    # Skip windows that cause errors
-                    logger.debug(f"Error getting info for window '{window.title}': {e}")
-                    continue
-        
-        return windows_info
+                    # Log error getting info for a specific window but continue
+                    logger.debug(f"Error processing window (HWND: {window._hWnd}, Title: {window.title}): {e}")
+
     except Exception as e:
         logger.error(f"Error getting all windows info: {e}")
-        return []
 
-# Keep the original function for backward compatibility
+    return windows_info
+
+
+# --- Functions related to identifying active media ---
+
 def get_active_window_info():
-    """Get detailed information about the active window, including process name and title."""
+    """Get information about the currently active window."""
     try:
-        # Get the handle of the active window
-        hwnd = win32gui.GetForegroundWindow()
-        
-        # Get the title of the active window
-        window_title = win32gui.GetWindowText(hwnd)
-        
-        # Get the process name of the active window
-        process_name = get_process_name_from_hwnd(hwnd)
-        
-        return {
-            'hwnd': hwnd,
-            'title': window_title,
-            'process_name': process_name
-        }
+        active_window = gw.getActiveWindow()
+        if active_window:
+            hwnd = active_window._hWnd
+            process_name = get_process_name_from_hwnd(hwnd)
+            if process_name and active_window.title:
+                 return {
+                     'hwnd': hwnd,
+                     'title': active_window.title,
+                     'process_name': process_name
+                 }
     except Exception as e:
         logger.error(f"Error getting active window info: {e}")
-        return {
-            'hwnd': None,
-            'title': None,
-            'process_name': None
-        }
+    return None
 
 def get_active_window_title():
-    """Legacy method for backwards compatibility."""
-    window_info = get_active_window_info()
-    return window_info['title']
+    """Get the title of the currently active window."""
+    info = get_active_window_info()
+    return info['title'] if info else None
 
 def is_video_player(window_info):
     """
-    Determine if the active window is a video player based on process name and window title.
-    
+    Check if the window information corresponds to a known video player.
+
     Args:
-        window_info: Dictionary containing window information (title, process_name)
-        
+        window_info (dict): Dictionary containing 'process_name' and 'title'.
+
     Returns:
-        bool: True if the window is a video player, False otherwise
+        bool: True if it's a known video player, False otherwise.
     """
-    if isinstance(window_info, str):
-        # Handle string input for backwards compatibility
-        window_title = window_info
-        window_info = {'title': window_title, 'process_name': None}
-    
-    if not window_info['title']:
+    if not window_info:
         return False
-        
-    # Check process name (most reliable method)
-    if window_info['process_name'] and window_info['process_name'].lower() in [exe.lower() for exe in VIDEO_PLAYER_EXECUTABLES]:
-        logger.debug(f"Matched video player by process name: {window_info['process_name']}")
+
+    process_name = window_info.get('process_name', '').lower()
+    # title = window_info.get('title', '') # Title check removed for now
+
+    # Check against known executable names first
+    if process_name in [p.lower() for p in VIDEO_PLAYER_EXECUTABLES]:
         return True
-    
-    window_title = window_info['title']
-    
-    # Exclude common non-media player applications
-    non_players = ['Visual Studio Code', 'Chrome', 'Firefox', 'Edge', 'Explorer', 'Notepad']
-    if any(app in window_title for app in non_players):
-        return False
-    
-    # Check for media player keywords in window title
-    for player in VIDEO_PLAYER_KEYWORDS:
-        # Check for exact matches
-        if player.lower() == window_title.lower():
-            return True
-        
-        # Check for player name at the beginning of the title
-        if window_title.lower().startswith(player.lower()):
-            return True
-        
-        # Check for player name with common separators
-        for separator in [' - ', ': ', ' | ']:
-            if f"{separator}{player.lower()}" in window_title.lower() or f"{player.lower()}{separator}" in window_title.lower():
-                return True
-    
-    # Fallback check
-    return any(player.lower() in window_title.lower() for player in VIDEO_PLAYER_KEYWORDS)
+
+    return False
 
 def is_movie(window_title):
-    """Determine if the media is a movie and not anime, series or TV show using guessit's detection."""
-    # First try guessit detection
-    guess = guessit(window_title)
-    
-    # Debug info
-    logger.debug(f"Guessit result for '{window_title}': {guess}")
-    
-    # Use guessit's type detection - it can determine if content is movie or episode
-    media_type = guess.get('type')
-    
-    # If guessit explicitly identified this as an episode, it's not a movie
-    if media_type == 'episode':
+    """Determine if the media is likely a movie using guessit."""
+    if not window_title:
         return False
-    
-    # If guessit explicitly identified this as a movie, check if it's anime
-    if media_type == 'movie':
-        # Exclude anime movies
-        if guess.get('anime'):
-            return False
-        return True
-    
-    # If guessit couldn't determine the type, check additional indicators
-    
-    # Check for episode/season numbers which indicate TV shows
-    if guess.get('episode') is not None or guess.get('season') is not None:
-        return False
-    
-    # TV show indicators
-    tv_indicators = [
-        r'\bS\d+E\d+\b',              # S01E01 format
-        r'\b\d+x\d+\b',                # 1x01 format
-        r'season\s+\d+',               # "Season 1"
-        r'episode\s+\d+',              # "Episode 1"
-        r'\b(anime|series|tv show)\b', # Explicit indicators
-    ]
-    
-    for pattern in tv_indicators:
-        if re.search(pattern, window_title, re.IGNORECASE):
-            return False
-    
-    # If we've gotten here and there's a title, it's likely a movie
-    if guess.get('title'):
-        return True
-    
+
+    try:
+        guess = guessit(window_title)
+        media_type = guess.get('type')
+
+        # Primarily rely on guessit's type detection
+        if media_type == 'movie':
+            # Optional: Add checks to exclude things guessit might misclassify
+            # e.g., if 'episode' or 'season' is also present, maybe ignore?
+            if 'episode' not in guess and 'season' not in guess:
+                 return True
+            else:
+                 logger.debug(f"Guessit identified as movie but found episode/season: {guess}")
+                 return False # Likely a TV show episode named like a movie
+
+    except Exception as e:
+        logger.error(f"Error using guessit on title '{window_title}': {e}")
+
     return False
+
 
 def parse_movie_title(window_title_or_info):
     """
-    Parse the movie title from a video player window without cleaning.
-    
+    Extract a clean movie title from the window title or info dictionary.
+    Tries to remove player-specific clutter and episode info.
+
     Args:
-        window_title_or_info: Either a window title string or a window info dictionary
-        
+        window_title_or_info (str or dict): The window title string or info dict.
+
     Returns:
-        str: The movie title, or None if not a movie or video player
+        str: A cleaned movie title, or None if parsing fails or it's not likely a movie.
     """
-    # Handle different input types
     if isinstance(window_title_or_info, dict):
-        window_info = window_title_or_info
-        window_title = window_info['title']
-    else:
+        window_title = window_title_or_info.get('title', '')
+    elif isinstance(window_title_or_info, str):
         window_title = window_title_or_info
-        window_info = {'title': window_title, 'process_name': None}
-    
-    # Log the input for debugging
-    logger.debug(f"Parsing title from: {window_title}")
-    
-    # Check if it's a video player
-    if not is_video_player(window_info):
-        logger.debug(f"Not a video player: {window_title}")
+    else:
         return None
-    
-    # Check if it's a movie and not anime/series/tv show
+
+    if not window_title:
+        return None
+
+    # --- Initial check if it's likely a movie ---
+    # This check is important to avoid trying to parse titles from non-movie windows
     if not is_movie(window_title):
-        logger.debug(f"Not a movie: {window_title}")
-        return None
-    
-    # Remove specific player indicators from title
-    for player in VIDEO_PLAYER_KEYWORDS:
-        if f" - {player}" in window_title:
-            window_title = window_title.replace(f" - {player}", "")
-    
-    # Try guessit as a fallback if title seems invalid
-    if not window_title or len(window_title) < 2:
-        guess = guessit(window_title)
-        guessed_title = guess.get('title')
-        if guessed_title:
-            logger.debug(f"Using guessit title instead: {guessed_title}")
-            return guessed_title
-    
-    return window_title
+         # logger.debug(f"Title '{window_title}' doesn't seem to be a movie based on guessit.")
+         return None
+    # --- End initial check ---
 
-class PlayerMonitor:
-    """
-    Monitors a specific media player and extracts currently playing media information.
-    Works as a consistent connection to a single player instance.
-    """
-    
-    def __init__(self, player_name, executable_names=None, window_title_keywords=None):
-        self.player_name = player_name
-        self.executable_names = executable_names or []
-        self.window_title_keywords = window_title_keywords or []
-        self.running = False
-        self.connected = False
-        self.last_activity = 0
-        self.current_media = None
-        self.current_state = STOPPED
-        self.last_connection_attempt = 0
-        self.window_info = None  # Store the current window info
-        
-    def check_if_running(self):
-        """Check if this player is currently running by looking at all windows, not just active one"""
-        all_windows = get_all_windows_info()
-        
-        for window_info in all_windows:
-            # Check by process name (most reliable)
-            if window_info['process_name'] and any(exe.lower() == window_info['process_name'].lower() for exe in self.executable_names):
-                self.running = True
-                self.last_activity = time.time()
-                self.window_info = window_info
-                return True
-                
-            # Check by window title keywords (fallback)
-            if window_info['title'] and any(keyword.lower() in window_info['title'].lower() for keyword in self.window_title_keywords):
-                self.running = True
-                self.last_activity = time.time()
-                self.window_info = window_info
-                return True
-        
-        # Check if it's been inactive too long
-        if time.time() - self.last_activity > PLAYER_ACTIVITY_THRESHOLD:
-            if self.running:
-                logger.info(f"Player {self.player_name} seems to be closed (no activity for {PLAYER_ACTIVITY_THRESHOLD} seconds)")
-            self.running = False
-            self.window_info = None
-            
-        return self.running
-        
-    def try_connect(self):
-        """Try to establish a connection to the player for media monitoring"""
-        if not self.running or not self.window_info:
-            return False
-            
-        # Don't try connecting too frequently if previously failed
-        if not self.connected and time.time() - self.last_connection_attempt < MONITOR_RECONNECT_INTERVAL:
-            return False
-            
-        self.last_connection_attempt = time.time()
-        
-        try:
-            # We're now using the stored window_info rather than the active window
-            window_info = self.window_info
-            
-            # Simple connection check - can we read window title and is it a video player
-            if is_video_player(window_info):
-                movie_title = parse_movie_title(window_info)
-                if movie_title:
-                    if not self.connected:
-                        logger.info(f"Connected to {self.player_name}")
-                    self.connected = True
-                    return True
-                    
-            if self.connected:
-                logger.info(f"Lost connection to {self.player_name}")
-                self.connected = False
-                
-            return False
-        except Exception as e:
-            logger.error(f"Error connecting to {self.player_name}: {e}")
-            self.connected = False
-            return False
-            
-    def get_playing_media(self):
-        """Get information about currently playing media"""
-        if not self.connected or not self.window_info:
-            return None
-            
-        try:
-            window_info = self.window_info
-            
-            if is_video_player(window_info):
-                movie_title = parse_movie_title(window_info)
-                if movie_title:
-                    # Detect pause state
-                    paused = self._detect_pause(window_info)
-                    
-                    media_info = {
-                        'title': movie_title,
-                        'state': PAUSED if paused else PLAYING,
-                        'player': self.player_name,
-                        'timestamp': time.time()
-                    }
-                    
-                    self.current_media = movie_title
-                    self.current_state = media_info['state']
-                    return media_info
-            
-            # If we get here, no media is detected
-            self.current_media = None
-            self.current_state = STOPPED
-            return None
-            
-        except Exception as e:
-            logger.error(f"Error getting media info from {self.player_name}: {e}")
-            return None
-            
-    def _detect_pause(self, window_info):
-        """Detect if playback is paused based on window title or other indicators"""
-        if window_info and window_info.get('title'):
-            if " - Paused" in window_info['title'] or "[Paused]" in window_info['title']:
-                return True
-        return False
 
-class PlayerMonitorManager:
-    """
-    Manages multiple player monitors and coordinates media information extraction.
-    This is the main controller for tracking all media players.
-    """
-    
-    def __init__(self):
-        self.monitors = []
-        self.active_monitor = None
-        self.running = False
-        self._setup_monitors()
-        self.polling_thread = None
-        self.last_report_time = 0  # Track when we last reported activity to prevent log spam
-        
-    def _setup_monitors(self):
-        """Set up monitors for supported media players"""
-        # VLC monitor
-        vlc_monitor = PlayerMonitor(
-            "VLC Media Player",
-            executable_names=['vlc.exe'],
-            window_title_keywords=['VLC']
-        )
-        self.monitors.append(vlc_monitor)
-        
-        # MPC-HC/BE monitor
-        mpc_monitor = PlayerMonitor(
-            "Media Player Classic",
-            executable_names=['mpc-hc.exe', 'mpc-hc64.exe', 'mpc-be.exe', 'MediaPlayerClassic.exe'],
-            window_title_keywords=['MPC-HC', 'MPC-BE', 'Media Player Classic']
-        )
-        self.monitors.append(mpc_monitor)
-        
-        # Windows Media Player monitor
-        wmp_monitor = PlayerMonitor(
-            "Windows Media Player",
-            executable_names=['wmplayer.exe'],
-            window_title_keywords=['Windows Media Player']
-        )
-        self.monitors.append(wmp_monitor)
-        
-        # MPV Player monitor
-        mpv_monitor = PlayerMonitor(
-            "MPV Player",
-            executable_names=['mpv.exe'],
-            window_title_keywords=['mpv']
-        )
-        self.monitors.append(mpv_monitor)
-        
-        # PotPlayer monitor
-        potplayer_monitor = PlayerMonitor(
-            "PotPlayer",
-            executable_names=['PotPlayerMini.exe', 'PotPlayerMini64.exe'],
-            window_title_keywords=['PotPlayer']
-        )
-        self.monitors.append(potplayer_monitor)
-        
-        # Additional players can be added similarly
-        smplayer_monitor = PlayerMonitor(
-            "SMPlayer",
-            executable_names=['smplayer.exe'],
-            window_title_keywords=['SMPlayer']
-        )
-        self.monitors.append(smplayer_monitor)
-        
-        kmplayer_monitor = PlayerMonitor(
-            "KMPlayer",
-            executable_names=['kmplayer.exe'],
-            window_title_keywords=['KMPlayer']
-        )
-        self.monitors.append(kmplayer_monitor)
-        
-        gom_monitor = PlayerMonitor(
-            "GOM Player",
-            executable_names=['GOM.exe'],
-            window_title_keywords=['GOM Player']
-        )
-        self.monitors.append(gom_monitor)
-        
-        logger.info(f"Set up {len(self.monitors)} player monitors")
-        
-    def start_monitoring(self):
-        """Start monitoring all players"""
-        if self.running:
-            return
-            
-        self.running = True
-        self.polling_thread = threading.Thread(target=self._polling_loop, daemon=True)
-        self.polling_thread.start()
-        logger.info("Started player monitoring")
-        
-    def stop_monitoring(self):
-        """Stop monitoring all players"""
-        if not self.running:
-            return
-            
-        self.running = False
-        if self.polling_thread:
-            self.polling_thread.join(timeout=1)
-        logger.info("Stopped player monitoring")
-        
-    def _polling_loop(self):
-        """Main polling loop to check all players for activity"""
-        while self.running:
-            try:
-                self._check_players()
-                time.sleep(MONITOR_POLL_INTERVAL)
-            except Exception as e:
-                logger.error(f"Error in monitoring loop: {e}")
-                time.sleep(MONITOR_POLL_INTERVAL)
-                
-    def _check_players(self):
-        """Check all players for activity and update active player"""
-        active_found = False
-        
-        for monitor in self.monitors:
-            # Check if this player is running
-            if monitor.check_if_running():
-                # If running, try to connect and get media info
-                if monitor.try_connect():
-                    media_info = monitor.get_playing_media()
-                    if media_info:
-                        # This player is active and has media playing
-                        prev_monitor = self.active_monitor
-                        self.active_monitor = monitor
-                        active_found = True
-                        
-                        # Only log when we switch players or every 5 minutes to avoid spam
-                        if prev_monitor != monitor or time.time() - self.last_report_time > 300:
-                            logger.info(f"Monitoring media: '{media_info['title']}' on {monitor.player_name}")
-                            self.last_report_time = time.time()
-                            
-                        # Process the media info
-                        self._handle_active_media(media_info)
-                        break
-        
-        # No active player found
-        if not active_found and self.active_monitor:
-            if time.time() - self.last_report_time > 60:  # Only log once per minute
-                logger.info(f"No active media detected in any player")
-                self.last_report_time = time.time()
-            self.active_monitor = None
-            self._handle_no_active_media()
-    
-    def _handle_active_media(self, media_info):
-        """Handle active media detection - to be connected to scrobbling system"""
-        # Placeholder - this will be handled by the MonitorAwareScrobbler
-        pass
-        
-    def _handle_no_active_media(self):
-        """Handle the case when no media is active"""
-        # Placeholder - this will be handled by the MonitorAwareScrobbler
-        pass
-    
-    def get_current_media_info(self):
-        """Get current media info from active player, if any"""
-        if self.active_monitor:
-            return self.active_monitor.get_playing_media()
-        return None
+    # --- Clean the title ---
+    cleaned_title = window_title
+
+    # Remove common player indicators first
+    player_patterns = [
+        r'\s*-\s*VLC media player$',
+        r'\s*-\s*MPC-HC.*$',
+        r'\s*-\s*MPC-BE.*$',
+        r'\s*-\s*Windows Media Player$',
+        r'\s*-\s*mpv$',
+        r'\s+\[.*PotPlayer.*\]$', # PotPlayer often adds [Playing] etc.
+        r'\s*-\s*SMPlayer.*$',
+        r'\s*-\s*KMPlayer.*$',
+        r'\s*-\s*GOM Player.*$',
+        r'\s*-\s*Media Player Classic.*$',
+        r'\s*\[Paused\]$', # General pause indicator
+        r'\s*-\s*Paused$',
+    ]
+    for pattern in player_patterns:
+        cleaned_title = re.sub(pattern, '', cleaned_title, flags=re.IGNORECASE).strip()
+
+
+    # Use guessit to get the core title if possible
+    try:
+        guess = guessit(cleaned_title)
+        # Prefer guessit's title if found and seems reasonable
+        if 'title' in guess:
+             # Basic sanity check: avoid excessively short titles from guessit
+             if len(guess['title']) > 2:
+                  # If guessit also found a year, include it
+                  if 'year' in guess:
+                       # Ensure year is plausible
+                       if isinstance(guess['year'], int) and 1880 < guess['year'] < datetime.now().year + 2:
+                            return f"{guess['title']} ({guess['year']})"
+                       else:
+                            return guess['title'] # Return title without implausible year
+                  else:
+                       return guess['title']
+             else:
+                  logger.debug(f"Guessit title '{guess['title']}' too short, using cleaned title.")
+        # Fallback to the regex-cleaned title if guessit didn't provide a good one
+        return cleaned_title.strip()
+
+    except Exception as e:
+         logger.error(f"Error using guessit for title parsing '{cleaned_title}': {e}")
+         # Fallback to the regex-cleaned title on error
+         return cleaned_title.strip()
+
 
 class MonitorAwareScrobbler(MovieScrobbler):
     """
-    Extended version of MovieScrobbler that works with the PlayerMonitorManager
-    to track media player activity more accurately.
+    Enhanced version of MovieScrobbler that handles its own monitoring of windows.
+    This class adds window monitoring functionality on top of the basic scrobbling.
     """
-    
-    def __init__(self, client_id=None, access_token=None):
-        super().__init__(client_id, access_token)
-        self.monitor_manager = PlayerMonitorManager()
-        self.current_player = None
-        
-        # Initialize time tracking attributes
-        self.start_time = time.time()
-        self.last_update_time = time.time() 
-        self.last_progress_check = time.time()
-        self.continuous_monitoring = True  # Flag to control continuous monitoring
-        
+
+    def __init__(self, client_id=None, access_token=None, testing_mode=False):
+        super().__init__(client_id, access_token, testing_mode)
+        self.monitor_thread = None
+        self.poll_interval = 10  # Default polling interval in seconds
+        self.monitoring = False
+        self.last_window_info = None
+        self.check_all_windows = True  # Whether to check all windows or just active window
+
+    def set_poll_interval(self, seconds):
+        """Set the polling interval for window checks"""
+        if seconds > 0:
+            self.poll_interval = seconds
+            logger.info(f"Set polling interval to {seconds} seconds")
+
     def start_monitoring(self):
-        """Start monitoring players and scrobbling"""
-        self.monitor_manager.start_monitoring()
-        # Start a thread to check for media updates
-        threading.Thread(target=self._media_update_loop, daemon=True).start()
-        logger.info("Started media monitoring and scrobbling")
-        
+        """Start the window monitoring thread"""
+        if self.monitor_thread and self.monitor_thread.is_alive():
+            logger.warning("Monitor thread already running")
+            return
+
+        self.monitoring = True
+        self.monitor_thread = threading.Thread(target=self._monitor_loop, daemon=True)
+        self.monitor_thread.start()
+        logger.info("Started window monitoring thread")
+
     def stop_monitoring(self):
-        """Stop monitoring players"""
-        self.continuous_monitoring = False
-        self.monitor_manager.stop_monitoring()
-        logger.info("Stopped media monitoring")
+        """Stop the window monitoring thread"""
+        self.monitoring = False
+        if self.monitor_thread:
+            if self.monitor_thread.is_alive():
+                logger.info("Stopping monitor thread...")
+                # Join with timeout to avoid blocking
+                self.monitor_thread.join(timeout=1.0)
+            self.monitor_thread = None
+        logger.info("Window monitoring stopped")
+
+    def _monitor_loop(self):
+        """Main monitoring loop that checks for video player windows"""
+        logger.info("Monitor loop started")
         
-    def _media_update_loop(self):
-        """Loop to process media updates from monitor manager"""
-        while self.continuous_monitoring:
+        while self.monitoring:
             try:
-                # Get current media info from monitor manager
-                media_info = self.monitor_manager.get_current_media_info()
+                # Process active window first (most likely scenario)
+                active_window_info = get_active_window_info()
+                if active_window_info and is_video_player(active_window_info):
+                    scrobble_data = self.process_window(active_window_info)
+                    self.last_window_info = active_window_info
+                    
+                    # Check if we need to update movie info (for movies not in cache)
+                    if scrobble_data:
+                        # This would be handled by the main app's _handle_scrobble_update
+                        # but we log it here in case someone uses this class directly
+                        logger.debug(f"Scrobble update: {scrobble_data.get('title')} - {scrobble_data.get('progress'):.1f}%")
                 
-                if media_info:
-                    # Process the media info using our existing scrobbler
-                    self._process_monitor_media(media_info)
-                elif self.currently_tracking:
-                    # No media playing, but we were tracking something
-                    # Only stop tracking if it's been a while since we saw activity
-                    if time.time() - self.last_update_time > 60:  # 1 minute timeout
-                        logger.info(f"No media detected for over a minute, stopping tracking for: {self.currently_tracking}")
-                        self.stop_tracking()
+                # Optionally check all windows (more resource intensive)
+                elif self.check_all_windows:
+                    # Get all visible windows and look for video players
+                    all_windows = get_all_windows_info()
+                    video_players = [w for w in all_windows if is_video_player(w)]
+                    
+                    if video_players:
+                        # Take the first video player window for now
+                        # Could be enhanced to track multiple players or prioritize
+                        window_info = video_players[0]
+                        scrobble_data = self.process_window(window_info)
+                        self.last_window_info = window_info
+                        
+                        if scrobble_data:
+                            logger.debug(f"Scrobble update (non-active window): {scrobble_data.get('title')} - {scrobble_data.get('progress'):.1f}%")
+                    
+                    # If no players found but we were tracking something, process null to stop
+                    elif self.currently_tracking:
+                        self.process_window(None)
                 
-                time.sleep(MONITOR_POLL_INTERVAL)
+                # No video player found, stop tracking if needed
+                elif self.currently_tracking and not is_video_player(self.last_window_info if self.last_window_info else {}):
+                    self.process_window(None)
+                    self.last_window_info = None
+                
             except Exception as e:
-                logger.error(f"Error in media update loop: {e}")
-                time.sleep(MONITOR_POLL_INTERVAL)
-    
-    def _process_monitor_media(self, media_info):
-        """Process media info from monitor"""
-        title = media_info['title']
-        state = media_info['state']
-        player = media_info['player']
-        
-        # Update our current player info
-        self.current_player = player
-        
-        # Check if this is a new movie
-        if self.currently_tracking != title:
-            self._start_new_movie(title)
-        
-        # Create a window info object to pass to process_window
-        window_info = {
-            'title': title,
-            'process_name': None,  # We don't need this for processing
-            'state': state
-        }
-        
-        # Update tracking and get scrobble info
-        scrobble_info = self._update_tracking(window_info)
-        
-        # Check if we need to mark as watched (80% threshold)
-        # This handles the case when simulation doesn't have time to check completion status
-        if not self.completed and self.is_complete(threshold=80) and self.simkl_id:
-            logger.info(f"Monitor detected 80% completion for '{self.movie_name or title}'")
-            result = self.mark_as_finished(self.simkl_id, self.movie_name or title)
-            if result:
-                logger.info(f"✓ Successfully marked '{self.movie_name or title}' as watched on Simkl")
-                self.completed = True
-        
-        return scrobble_info
+                logger.error(f"Error in monitor loop: {e}")
+            
+            # Sleep to avoid high CPU usage
+            time.sleep(self.poll_interval)
+            
+        logger.info("Monitor loop terminated")
+
+    def set_check_all_windows(self, check_all):
+        """Set whether to check all windows or just active window"""
+        self.check_all_windows = bool(check_all)
+        logger.info(f"Set check_all_windows to {self.check_all_windows}")
+
+# --- End of File ---

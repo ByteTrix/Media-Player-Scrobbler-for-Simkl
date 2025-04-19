@@ -4,3 +4,4 @@ guessit
 python-dotenv>=0.15.0
 pywin32>=300
 psutil
+requests
