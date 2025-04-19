@@ -9,6 +9,9 @@ import json
 import re
 import subprocess
 import shutil
+import urllib.request
+import requests
+import winreg
 from datetime import datetime
 from dotenv import load_dotenv
 
@@ -16,8 +19,7 @@ from dotenv import load_dotenv
 project_root = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, project_root)
 
-# Import components from our package
-from simkl_movie_tracker.media_tracker import MovieScrobbler, MonitorAwareScrobbler, get_active_window_info
+# Import components from our package - use existing functions directly
 from simkl_movie_tracker.simkl_api import (
     search_movie, 
     get_movie_details, 
@@ -25,6 +27,19 @@ from simkl_movie_tracker.simkl_api import (
     authenticate,
     is_internet_connected
 )
+from simkl_movie_tracker.media_tracker import (
+    MovieScrobbler, 
+    MonitorAwareScrobbler,
+    MediaCache,
+    BacklogCleaner,
+    get_active_window_info,
+    is_video_player,
+    parse_movie_title,
+    PLAYING,
+    PAUSED,
+    STOPPED
+)
+import simkl_movie_tracker.simkl_api as simkl_api  # For modifying functions during tests
 
 # Configure logging with both file and console output
 log_file = os.path.join(project_root, "master_test.log")
@@ -53,6 +68,14 @@ PLAYER_PATHS = {
     "mpc-hc.exe": [
         r"C:\Program Files (x86)\K-Lite Codec Pack\MPC-HC\mpc-hc.exe",
         r"C:\Program Files\MPC-HC\mpc-hc.exe",
+    ],
+    "mpc-be64.exe": [
+        r"C:\Program Files\MPC-BE\mpc-be64.exe",
+        r"C:\Program Files (x86)\MPC-BE\mpc-be64.exe",
+    ],
+    "mpc-be.exe": [
+        r"C:\Program Files\MPC-BE\mpc-be.exe",
+        r"C:\Program Files (x86)\MPC-BE\MPC-BE.exe",
     ],
     "vlc.exe": [
         r"C:\Program Files\VideoLAN\VLC\vlc.exe",
@@ -89,7 +112,7 @@ class TestResult:
         return (self.end_time - self.start_time).total_seconds()
     
     def __str__(self):
-        status = "✅ PASSED" if self.success else "❌ FAILED"
+        status = "[PASSED]" if self.success else "[FAILED]"
         result = f"{status} - {self.test_name} - {self.duration_seconds():.2f}s"
         if self.errors:
             result += f" - {len(self.errors)} errors"
@@ -115,9 +138,18 @@ class SimklMovieTrackerTester:
         self.results = []
         self.test_mode = False
         self.video_path = None
-        
+        # For player selection
+        self.selected_player_exe = None
+        self.selected_player_path = None
+        self.player_web_interface_ok = False
+        # Shared scrobbler instance
+        self.scrobbler = None
+    
     def setup(self):
-        """Load credentials and prepare test environment"""
+        """Load credentials and check authentication"""
+        test_result = TestResult("Authentication Check")
+        logger.info("Starting authentication check...")
+        
         # Load credentials from .env file
         load_dotenv()
         self.client_id = os.getenv("SIMKL_CLIENT_ID")
@@ -125,32 +157,42 @@ class SimklMovieTrackerTester:
         
         if not self.client_id:
             logger.error("SIMKL_CLIENT_ID not found in environment variables")
-            if self.test_mode:
-                self.client_id = "test_client_id"
-                logger.warning("Using test client_id")
-            else:
-                return False
+            test_result.add_error("SIMKL_CLIENT_ID not found")
+            test_result.complete(False, {"credentials_found": False})
+            self.results.append(test_result)
+            return False
                 
         if not self.access_token and not self.test_mode:
             logger.warning("SIMKL_ACCESS_TOKEN not found, attempting authentication")
             self.access_token = authenticate(self.client_id)
             if not self.access_token:
                 logger.error("Authentication failed, please set up authentication first")
+                test_result.add_error("Authentication failed")
+                test_result.complete(False, {"credentials_found": False})
+                self.results.append(test_result)
                 return False
         elif self.test_mode:
             self.access_token = "test_access_token"
             logger.warning("Using test access_token")
+            
+        logger.info("Authentication check successful")
+        
+        # Initialize shared scrobbler for tests
+        self.scrobbler = MovieScrobbler(client_id=self.client_id, access_token=self.access_token)
+        self.scrobbler.completion_threshold = COMPLETION_THRESHOLD
         
         # Clear any existing cache files for clean testing
         self._clear_cache()
+        self._clear_backlog()
             
         logger.info("Test setup completed successfully")
+        test_result.complete(True, {"credentials_found": True})
+        self.results.append(test_result)
         return True
     
     def _clear_cache(self, movie_title=None):
         """Clear cache and backlog files for testing"""
         cache_file = os.path.join(project_root, "simkl_movie_tracker", "media_cache.json")
-        backlog_file = os.path.join(project_root, "simkl_movie_tracker", "backlog.json")
         
         # Clear media cache
         if os.path.exists(cache_file):
@@ -178,12 +220,89 @@ class SimklMovieTrackerTester:
                 with open(cache_file, 'w') as f:
                     json.dump({}, f)
                 logger.info("Cleared media cache for testing")
-        
-        # Clear backlog
+    
+    def _clear_backlog(self):
+        """Clear backlog for testing"""
+        backlog_file = os.path.join(project_root, "simkl_movie_tracker", "backlog.json")
         if os.path.exists(backlog_file):
             with open(backlog_file, 'w') as f:
                 json.dump([], f)
             logger.info("Cleared backlog for testing")
+    
+    def _check_player_setup(self):
+        """Check for installed players and web interfaces"""
+        test_result = TestResult("Player Detection")
+        logger.info("Checking for installed media players...")
+        
+        # Find installed players
+        available_players = self._find_installed_players()
+        
+        if not available_players:
+            logger.error("No compatible media players found on this system")
+            test_result.add_error("No compatible media players found")
+            test_result.complete(False)
+            self.results.append(test_result)
+            return False
+        
+        # Select a player - prioritize MPC-HC/BE, then VLC
+        preferred_order = ["mpc-hc64.exe", "mpc-be64.exe", "mpc-hc.exe", "mpc-be.exe", "vlc.exe"]
+        
+        for player in preferred_order:
+            if player in available_players:
+                self.selected_player_exe = player
+                self.selected_player_path = available_players[player]
+                logger.info(f"Selected player for testing: {self.selected_player_exe} at {self.selected_player_path}")
+                break
+        
+        # If no preferred player found, use any available
+        if not self.selected_player_exe:
+            self.selected_player_exe = list(available_players.keys())[0]
+            self.selected_player_path = available_players[self.selected_player_exe]
+            logger.info(f"Using available player: {self.selected_player_exe} at {self.selected_player_path}")
+        
+        test_result.details["available_players"] = list(available_players.keys())
+        test_result.details["selected_player"] = self.selected_player_exe
+        
+        # Check web interface connectivity for selected player
+        logger.info(f"Checking web interface for {self.selected_player_exe}...")
+        if "mpc-hc" in self.selected_player_exe.lower() or "mpc-be" in self.selected_player_exe.lower():
+            # Try to enable the web interface (might require admin rights)
+            self._setup_mpc_web_interface()
+            # Test connection to interface (without launching player yet)
+            test_url = "http://localhost:13579/variables.html"
+            try:
+                response = urllib.request.urlopen(test_url, timeout=1)
+                if response.status == 200:
+                    logger.info("MPC-HC/BE web interface is accessible")
+                    self.player_web_interface_ok = True
+                else:
+                    logger.warning("MPC-HC/BE web interface returned unexpected status: " + str(response.status))
+            except Exception as e:
+                logger.warning(f"MPC-HC/BE web interface not accessible: {e}")
+                logger.warning("To enable position tracking, open MPC-HC/BE and go to View > Options > Player > Web Interface")
+                logger.warning("Check 'Listen on port: 13579' and ensure 'Serve pages to localhost only' is unchecked")
+        
+        elif "vlc" in self.selected_player_exe.lower():
+            # Try connecting to VLC web interface
+            test_url = "http://localhost:8080/requests/status.json"
+            try:
+                response = urllib.request.urlopen(test_url, timeout=1)
+                if response.status == 200:
+                    logger.info("VLC web interface is accessible")
+                    self.player_web_interface_ok = True
+                elif response.status == 401:  # Authentication required
+                    logger.warning("VLC web interface requires authentication. Please set blank password in VLC preferences.")
+                else:
+                    logger.warning("VLC web interface returned unexpected status: " + str(response.status))
+            except Exception as e:
+                logger.warning(f"VLC web interface not accessible: {e}")
+                logger.warning("To enable position tracking, open VLC and go to Tools > Preferences > Interface")
+                logger.warning("Check 'Web' under Main interfaces, set a blank password, and restart VLC")
+        
+        test_result.details["web_interface_ok"] = self.player_web_interface_ok
+        test_result.complete(True)  # Detection is successful even if web interface is not available
+        self.results.append(test_result)
+        return True
     
     def run_all_tests(self, args):
         """Run all tests and collect results"""
@@ -195,23 +314,40 @@ class SimklMovieTrackerTester:
         self.test_mode = args.test_mode
         self.video_path = args.video_file
         
-        # Set up test environment
+        # 1. AUTHENTICATION CHECK (required)
         if not self.setup():
-            logger.error("Test setup failed, cannot continue")
+            logger.error("Authentication setup failed, cannot continue")
             return False
         
-        # Run API tests
-        self.test_api_integration()
+        # 2. PLAYER SETUP CHECK
+        self._check_player_setup()
         
-        # Run offline tracking tests
-        self.test_offline_tracking()
+        # 3. API TESTS
+        if not args.skip_api:
+            self.test_api_integration()
         
-        # Run movie completion tests
-        self.test_movie_completion(args.movie_title)
+        # 4. OFFLINE TRACKING TESTS
+        if not args.skip_offline:
+            self.test_offline_tracking()
         
-        # Run real playback test if enabled and video file provided
+        # 5. MOVIE COMPLETION TESTS
+        if not args.skip_completion:
+            self.test_movie_completion(args.movie_title)
+        
+        # 6. CACHE & TITLE PARSING TESTS
+        if not args.skip_cache:
+            self.test_cache_functionality()
+        
+        if not args.skip_title_parsing:
+            self.test_title_parsing()
+        
+        # 7. REAL PLAYBACK TEST
         if args.test_real_playback and self.video_path:
-            self.test_real_playback()
+            if os.path.exists(self.video_path):
+                self.test_real_playback()
+            else:
+                logger.error(f"Video file not found: {self.video_path}")
+                logger.error("Skipping real playback test")
         
         # Print summary
         self._print_results_summary()
@@ -227,8 +363,6 @@ class SimklMovieTrackerTester:
         
         if self.test_mode:
             logger.info("Running in TEST MODE - will use mock API responses")
-            # Simulate successful API test in test mode
-            time.sleep(1)
             test_result.complete(True, {
                 "api_calls": ["search_movie", "get_movie_details", "mark_as_watched"],
                 "mocked": True
@@ -238,58 +372,84 @@ class SimklMovieTrackerTester:
             return True
         
         try:
-            # Test movie title to search for
-            test_titles = ["The Matrix", "Inception", "Avengers"]
+            # First check internet connectivity
+            if not is_internet_connected():
+                logger.warning("No internet connection detected. Skipping real API test.")
+                test_result.complete(True, {"skipped": True, "reason": "No internet connection"})
+                self.results.append(test_result)
+                return True
+            
+            # Test movie titles (including one that shouldn't exist)
+            test_titles = ["Inception", "The Matrix", "Avengers", "NonexistentMovieXYZ123"]
             found_movies = 0
+            found_details = 0
             
             for title in test_titles:
                 logger.info(f"Testing search_movie API with title: '{title}'")
                 movie = search_movie(title, self.client_id, self.access_token)
                 
                 if movie:
-                    found_movies += 1
-                    
                     # Extract movie info
-                    if 'movie' in movie:
-                        movie_data = movie['movie']
+                    if isinstance(movie, list):
+                        movie_data = movie[0]
                     else:
                         movie_data = movie
                     
+                    if 'movie' in movie_data:
+                        movie_data = movie_data['movie']
+                    
                     if 'ids' in movie_data:
+                        found_movies += 1
                         simkl_id = movie_data['ids'].get('simkl_id')
                         movie_name = movie_data.get('title', movie_data.get('name', title))
                         
                         logger.info(f"Found movie: '{movie_name}' (ID: {simkl_id})")
+                        test_result.details[f"movie_{found_movies}"] = {
+                            "title": movie_name,
+                            "simkl_id": simkl_id
+                        }
                         
-                        # Test get_movie_details
-                        if simkl_id:
-                            logger.info(f"Testing get_movie_details API for ID: {simkl_id}")
-                            details = get_movie_details(simkl_id, self.client_id, self.access_token)
-                            
-                            if details:
-                                runtime = details.get('runtime')
-                                logger.info(f"Got movie details - Runtime: {runtime} minutes")
-                                test_result.details[f"movie_{found_movies}_details"] = {
-                                    "title": movie_name,
-                                    "simkl_id": simkl_id,
-                                    "runtime": runtime
-                                }
-                            else:
-                                logger.warning(f"Could not get details for movie ID: {simkl_id}")
+                        # Only test details API for real movies
+                        if title != "NonexistentMovieXYZ123":
+                            # Test get_movie_details
+                            if simkl_id:
+                                logger.info(f"Testing get_movie_details API for ID: {simkl_id}")
+                                details = get_movie_details(simkl_id, self.client_id, self.access_token)
+                                
+                                if details:
+                                    found_details += 1
+                                    runtime = details.get('runtime')
+                                    logger.info(f"Got movie details - Runtime: {runtime} minutes")
+                                    test_result.details[f"movie_{found_movies}_details"] = {
+                                        "title": movie_name,
+                                        "simkl_id": simkl_id,
+                                        "runtime": runtime
+                                    }
+                                else:
+                                    logger.warning(f"Could not get details for movie ID: {simkl_id}")
                     else:
                         logger.warning(f"Movie found but no IDs available: {movie_data}")
                 else:
-                    logger.warning(f"No movie found for title: '{title}'")
+                    if title == "NonexistentMovieXYZ123":
+                        logger.info(f"Correctly found no results for non-existent movie '{title}'")
+                    else:
+                        logger.warning(f"No movie found for title: '{title}'")
             
-            # Test pass if at least one movie was found
-            success = found_movies > 0
+            # Consider test successful if we found real movies and their details
+            real_titles = [t for t in test_titles if t != "NonexistentMovieXYZ123"]
+            success = found_movies >= len(real_titles) and found_details > 0
+            
             if success:
-                logger.info(f"API integration test PASSED - found {found_movies} movies")
+                logger.info(f"API integration test PASSED - found {found_movies} movies with {found_details} detailed lookups")
             else:
-                logger.error("API integration test FAILED - no movies found")
-                test_result.add_error("Failed to find any movies via API")
+                logger.error(f"API integration test FAILED - only found {found_movies}/{len(real_titles)} movies")
+                test_result.add_error("Failed to find all expected movies via API")
             
-            test_result.complete(success, {"movies_found": found_movies})
+            test_result.complete(success, {
+                "movies_searched": len(test_titles),
+                "movies_found": found_movies,
+                "details_found": found_details
+            })
             
         except Exception as e:
             logger.error(f"API integration test error: {e}", exc_info=True)
@@ -304,14 +464,8 @@ class SimklMovieTrackerTester:
         test_result = TestResult("Offline Tracking")
         logger.info("Starting offline tracking test...")
         
-        # Initialize the scrobbler with real credentials
-        scrobbler = MonitorAwareScrobbler()
-        scrobbler.set_poll_interval(5)
-        
-        if self.test_mode:
-            scrobbler.set_credentials("test_client_id", "test_access_token")
-        else:
-            scrobbler.set_credentials(self.client_id, self.access_token)
+        # Use our shared scrobbler instance
+        scrobbler = self.scrobbler
         
         # Clear any existing backlog for clean testing
         scrobbler.backlog.clear()
@@ -319,12 +473,11 @@ class SimklMovieTrackerTester:
         
         try:
             # Override is_internet_connected to simulate offline state
-            import simkl_movie_tracker.simkl_api
-            original_is_connected = simkl_movie_tracker.simkl_api.is_internet_connected
+            original_is_connected = simkl_api.is_internet_connected
             
             # First get real movie data from the API while we're online
             real_movie_data = []
-            if not self.test_mode:
+            if not self.test_mode and original_is_connected():
                 # Get real movie data for testing
                 logger.info("Getting real movie data from Simkl API for offline testing")
                 popular_movies = ["Inception", "The Shawshank Redemption", "Interstellar"]
@@ -333,10 +486,14 @@ class SimklMovieTrackerTester:
                     try:
                         movie_result = search_movie(title, self.client_id, self.access_token)
                         if movie_result:
-                            if 'movie' in movie_result:
-                                movie_info = movie_result['movie']
+                            movie_info = None
+                            if isinstance(movie_result, list):
+                                movie_info = movie_result[0]
                             else:
                                 movie_info = movie_result
+                                
+                            if 'movie' in movie_info:
+                                movie_info = movie_info['movie']
                                 
                             if 'ids' in movie_info and 'simkl_id' in movie_info['ids']:
                                 simkl_id = movie_info['ids']['simkl_id']
@@ -368,7 +525,7 @@ class SimklMovieTrackerTester:
                 ]
             
             # Start with offline mode
-            simkl_movie_tracker.simkl_api.is_internet_connected = lambda: False
+            simkl_api.is_internet_connected = lambda: False
             logger.info("SIMULATING OFFLINE MODE - Internet connectivity check will return False")
             
             # Check the backlog count before starting
@@ -378,10 +535,14 @@ class SimklMovieTrackerTester:
             
             # Simulate watching movies while offline
             for movie in real_movie_data:
-                self._simulate_movie_watch(scrobbler, 
-                    movie["title"], movie["simkl_id"], movie["duration"])
-                # Brief pause between movies
-                time.sleep(1)
+                logger.info(f"Simulating marking movie as watched while offline: {movie['title']}")
+                # Call mark_as_finished which should add to backlog when offline
+                result = scrobbler.mark_as_finished(movie["simkl_id"], movie["title"])
+                if result:
+                    logger.error(f"Error: Movie '{movie['title']}' was incorrectly marked as finished despite being offline")
+                    test_result.add_error(f"Movie incorrectly marked as watched while offline: {movie['title']}")
+                else:
+                    logger.info(f"Correctly failed to mark as watched online and added to backlog: {movie['title']}")
             
             # Check the backlog after watching
             offline_backlog_count = len(scrobbler.backlog.get_pending())
@@ -394,18 +555,17 @@ class SimklMovieTrackerTester:
                 logger.info(f"  {idx}. '{item.get('title')}' (ID: {item.get('simkl_id')}, Added: {item.get('timestamp')})")
             
             test_result.details["offline_backlog_count"] = offline_backlog_count
-            test_result.details["backlog_items"] = backlog_items
             
             # Now simulate coming back online
             logger.info("\nSIMULATING COMING BACK ONLINE")
-            simkl_movie_tracker.simkl_api.is_internet_connected = lambda: True
+            simkl_api.is_internet_connected = lambda: True
             logger.info("Internet connectivity check will now return True")
             
             # Override mark_as_watched to avoid actual API calls in test mode
             original_mark_as_watched = None
             if self.test_mode:
-                original_mark_as_watched = simkl_movie_tracker.simkl_api.mark_as_watched
-                simkl_movie_tracker.simkl_api.mark_as_watched = lambda simkl_id, client_id, access_token: True
+                original_mark_as_watched = simkl_api.mark_as_watched
+                simkl_api.mark_as_watched = lambda simkl_id, client_id, access_token: True
             
             # Process the backlog
             logger.info("Processing backlog...")
@@ -419,17 +579,17 @@ class SimklMovieTrackerTester:
             test_result.details["final_backlog_count"] = final_backlog_count
             
             # Restore original functions
-            simkl_movie_tracker.simkl_api.is_internet_connected = original_is_connected
+            simkl_api.is_internet_connected = original_is_connected
             if original_mark_as_watched:
-                simkl_movie_tracker.simkl_api.mark_as_watched = original_mark_as_watched
+                simkl_api.mark_as_watched = original_mark_as_watched
             
             # Test passes if backlog was filled and then emptied
             success = initial_backlog_count == 0 and offline_backlog_count > 0 and final_backlog_count == 0
             
             if success:
-                logger.info("✅ OFFLINE TRACKING TEST PASSED: Movies were correctly added to backlog when offline and synced when online")
+                logger.info("[PASSED] OFFLINE TRACKING TEST: Movies were correctly added to backlog when offline and synced when online")
             else:
-                logger.error("❌ OFFLINE TRACKING TEST FAILED: Offline tracking did not work as expected")
+                logger.error("[FAILED] OFFLINE TRACKING TEST FAILED: Offline tracking did not work as expected")
                 test_result.add_error("Offline tracking flow did not complete as expected")
             
             test_result.complete(success)
@@ -442,109 +602,286 @@ class SimklMovieTrackerTester:
         self.results.append(test_result)
         return test_result.success
     
-    def _simulate_movie_watch(self, scrobbler, movie_title, simkl_id, duration):
-        """Helper method to simulate watching a movie for offline tracking test"""
-        logger.info(f"Simulating watching: {movie_title}")
-        
-        # Create a fake window info to pass to the scrobbler
-        fake_window = {
-            'title': f"{movie_title} - VLC media player",
-            'process_name': 'vlc.exe',
-            'hwnd': 12345  # Fake HWND
-        }
-        
-        # Start tracking this movie
-        scrobbler.process_window(fake_window)
-        
-        # Cache movie info
-        scrobbler.cache_movie_info(movie_title, simkl_id, movie_title, duration//60)
-        
-        # Simulate movie playback
-        total_watch_time = 0
-        target_time = int(duration * 0.85)  # Watch 85% of the movie
-        
-        while total_watch_time < target_time and scrobbler.currently_tracking:
-            # Update every second but simulate faster playback
-            increment = 10
-            scrobbler.current_position_seconds += increment
-            scrobbler.watch_time += increment
-            total_watch_time += increment
-            
-            # Process window again to trigger progress checks
-            scrobbler.process_window(fake_window)
-            
-            # Display progress periodically
-            if total_watch_time % 30 == 0:
-                percentage = scrobbler._calculate_percentage()
-                logger.info(f"Simulated progress: {percentage:.1f}% of {movie_title}")
-            
-            # Short delay
-            time.sleep(0.2)
-        
-        # Complete the movie (should trigger marking as finished)
-        logger.info(f"Completed watching: {movie_title} - {total_watch_time}/{duration} seconds")
-        
-        # Stop tracking
-        scrobbler.stop_tracking()
-    
     def test_movie_completion(self, movie_title=None):
         """Test movie completion detection and marking as watched"""
-        movie_title = movie_title or "The Matrix"
+        movie_title = movie_title or "Inception"
         test_result = TestResult(f"Movie Completion: {movie_title}")
         logger.info(f"Starting movie completion test for: {movie_title}")
         
+        # Use shared scrobbler instance
+        scrobbler = self.scrobbler
+        scrobbler.stop_tracking()  # Reset state
+        
         try:
-            # Create simulator
-            simulator = MoviePlaybackSimulator(
-                movie_title, 
-                self.client_id, 
-                self.access_token,
-                use_monitor=True,
-                test_mode=self.test_mode
-            )
+            # Get real movie data if possible
+            simkl_id = None
+            runtime_min = 120  # Default in minutes
+            movie_name = movie_title
             
-            # Set up the simulator
-            if self.test_mode:
-                logger.info("Running movie completion test in TEST MODE")
-                simulator.simkl_id = 12345  # Fake ID for testing
-                simulator.movie_name = movie_title
-                simulator.runtime = 10  # Use a short runtime for fast testing
-                simulator._setup_scrobbler_with_test_data()
-            else:
-                if not simulator.setup():
-                    logger.error("Failed to set up movie simulator")
-                    test_result.add_error("Failed to set up movie simulator")
-                    test_result.complete(False)
-                    self.results.append(test_result)
-                    return False
+            if not self.test_mode and is_internet_connected():
+                logger.info(f"Fetching movie data for: {movie_title}")
+                movie_result = search_movie(movie_title, self.client_id, self.access_token)
                 
-                # Override runtime to be shorter for faster testing
-                if simulator.runtime > 10:
-                    logger.info(f"Reducing runtime from {simulator.runtime} to 10 minutes for fast testing")
-                    simulator.runtime = 10
-                    simulator.scrobbler.estimated_duration = 10
+                if movie_result:
+                    if isinstance(movie_result, list):
+                        movie_data = movie_result[0]
+                    else:
+                        movie_data = movie_result
+                        
+                    if 'movie' in movie_data:
+                        movie_data = movie_data['movie']
+                        
+                    if 'ids' in movie_data and 'simkl_id' in movie_data['ids']:
+                        simkl_id = movie_data['ids']['simkl_id']
+                        movie_name = movie_data.get('title', movie_data.get('name', movie_title))
+                        
+                        details = get_movie_details(simkl_id, self.client_id, self.access_token)
+                        if details and 'runtime' in details:
+                            runtime_min = details['runtime']
+                            logger.info(f"Got details for '{movie_name}': Runtime = {runtime_min} min")
+                        else:
+                            logger.warning(f"Could not get runtime for '{movie_name}', using default: {runtime_min} min")
+                    else:
+                        logger.warning(f"No valid Simkl ID found for '{movie_title}'")
+                else:
+                    logger.warning(f"Could not find movie: '{movie_title}'")
             
-            # Run the simulation
-            result = simulator.simulate_playback(
-                target_percentage=85, 
-                speed_factor=PLAYBACK_SPEED_FACTOR
-            )
+            if not simkl_id:
+                simkl_id = 12345  # Test ID
+                logger.warning(f"Using test ID {simkl_id} for '{movie_title}'")
             
-            if result:
-                logger.info("✅ MOVIE COMPLETION TEST PASSED: Movie was marked as watched")
-                test_result.details["movie_marked_as_watched"] = True
-                test_result.details["simkl_id"] = simulator.simkl_id
-                test_result.details["movie_name"] = simulator.movie_name
-                test_result.details["runtime"] = simulator.runtime
-                test_result.complete(True)
+            # Make runtime shorter for testing
+            if runtime_min > 10:
+                original_runtime = runtime_min
+                runtime_min = 10
+                logger.info(f"Reducing runtime from {original_runtime} to 10 minutes for faster testing")
+            
+            # Setup scrobbler
+            duration_sec = runtime_min * 60
+            threshold_sec = duration_sec * (COMPLETION_THRESHOLD / 100.0)
+            
+            scrobbler.currently_tracking = movie_title
+            scrobbler.simkl_id = simkl_id
+            scrobbler.movie_name = movie_name
+            scrobbler.start_time = time.time()
+            scrobbler.last_update_time = time.time()
+            scrobbler.watch_time = 0
+            scrobbler.current_position_seconds = 0
+            scrobbler.total_duration_seconds = duration_sec
+            scrobbler.state = PLAYING
+            scrobbler.completed = False
+            
+            logger.info(f"Test setup - Movie: '{movie_name}' (ID: {simkl_id}), Duration: {duration_sec}s, Threshold: {threshold_sec}s ({COMPLETION_THRESHOLD}%)")
+            
+            # Check completion at 75% (below threshold)
+            below_threshold_pos = duration_sec * 0.75
+            scrobbler.watch_time = below_threshold_pos
+            scrobbler.current_position_seconds = below_threshold_pos
+            
+            below_threshold_complete = scrobbler.is_complete()
+            logger.info(f"At 75% ({below_threshold_pos}s) - is_complete(): {below_threshold_complete}")
+            
+            # Check completion at 85% (above threshold)
+            above_threshold_pos = duration_sec * 0.85
+            scrobbler.watch_time = above_threshold_pos
+            scrobbler.current_position_seconds = above_threshold_pos
+            
+            above_threshold_complete = scrobbler.is_complete()
+            logger.info(f"At 85% ({above_threshold_pos}s) - is_complete(): {above_threshold_complete}")
+            
+            # Mark as finished
+            logger.info(f"Attempting to mark '{movie_name}' (ID: {simkl_id}) as finished")
+            
+            # Override mark_as_watched to avoid API calls in test mode
+            original_mark_as_watched = None
+            if self.test_mode:
+                original_mark_as_watched = simkl_api.mark_as_watched
+                simkl_api.mark_as_watched = lambda simkl_id, client_id, access_token: True
+            
+            # Try to mark as finished
+            marked_finished = scrobbler.mark_as_finished(simkl_id, movie_name)
+            
+            # Restore original function if needed
+            if original_mark_as_watched:
+                simkl_api.mark_as_watched = original_mark_as_watched
+            
+            # Check completion flag
+            completion_flag_set = scrobbler.completed
+            
+            # Test passes if below threshold is not complete, above threshold is complete,
+            # and mark_as_finished returns True
+            success = (not below_threshold_complete and 
+                      above_threshold_complete and 
+                      marked_finished and
+                      completion_flag_set)
+            
+            test_result.details.update({
+                "movie_name": movie_name,
+                "simkl_id": simkl_id,
+                "duration_seconds": duration_sec,
+                "threshold_seconds": threshold_sec,
+                "below_threshold_complete": below_threshold_complete,
+                "above_threshold_complete": above_threshold_complete,
+                "marked_finished_result": marked_finished,
+                "completion_flag_set": completion_flag_set
+            })
+            
+            if success:
+                logger.info("[PASS] MOVIE COMPLETION TEST PASSED: Completion detection and marking worked correctly")
             else:
-                logger.error("❌ MOVIE COMPLETION TEST FAILED: Movie was not marked as watched")
-                test_result.add_error("Movie was not marked as watched")
-                test_result.details["movie_marked_as_watched"] = False
-                test_result.complete(False)
+                logger.error("[FAILED] MOVIE COMPLETION TEST FAILED")
+                if below_threshold_complete:
+                    test_result.add_error("Movie incorrectly marked as complete below threshold")
+                if not above_threshold_complete:
+                    test_result.add_error("Movie not marked as complete above threshold")
+                if not marked_finished:
+                    test_result.add_error("Failed to mark movie as finished")
+                if not completion_flag_set:
+                    test_result.add_error("Completion flag not set after marking as finished")
+            
+            test_result.complete(success)
             
         except Exception as e:
             logger.error(f"Movie completion test error: {e}", exc_info=True)
+            test_result.add_error(str(e))
+            test_result.complete(False)
+        finally:
+            # Reset scrobbler state
+            scrobbler.stop_tracking()
+        
+        self.results.append(test_result)
+        return test_result.success
+    
+    def test_cache_functionality(self):
+        """Test the MediaCache class"""
+        test_result = TestResult("Cache Functionality")
+        logger.info("Starting cache functionality test...")
+        
+        try:
+            # Use a test file to avoid interfering with real cache
+            test_cache_file = "test_cache.json"
+            test_cache_path = os.path.join(project_root, "simkl_movie_tracker", test_cache_file)
+            
+            # Create cache instance
+            cache = MediaCache(cache_file=test_cache_file)
+            
+            # Test cache set and get
+            test_title = "Test Movie 2025"
+            test_info = {
+                "simkl_id": 12345,
+                "movie_name": "Test Movie 2025",
+                "duration_seconds": 7200
+            }
+            
+            logger.info(f"Setting cache for '{test_title}'")
+            cache.set(test_title, test_info)
+            
+            # Test retrieval
+            retrieved_info = cache.get(test_title)
+            logger.info(f"Retrieved info for '{test_title}': {retrieved_info}")
+            
+            # Test case insensitivity
+            case_insensitive_info = cache.get(test_title.lower())
+            logger.info(f"Retrieved info with different case: {case_insensitive_info}")
+            
+            # Test get_all
+            all_cache = cache.get_all()
+            has_title = test_title.lower() in all_cache
+            logger.info(f"All cache entries: {len(all_cache)}, Has test title: {has_title}")
+            
+            # Check results
+            success = (retrieved_info == test_info and 
+                       case_insensitive_info == test_info and
+                       has_title)
+            
+            test_result.details.update({
+                "cache_set_get_works": retrieved_info == test_info,
+                "case_insensitive_works": case_insensitive_info == test_info,
+                "get_all_works": has_title
+            })
+            
+            if success:
+                logger.info("[PASS] CACHE FUNCTIONALITY TEST PASSED")
+            else:
+                logger.error("[FAILED] CACHE FUNCTIONALITY TEST FAILED")
+                if retrieved_info != test_info:
+                    test_result.add_error("Cache get after set failed")
+                if case_insensitive_info != test_info:
+                    test_result.add_error("Case insensitive cache lookup failed")
+                if not has_title:
+                    test_result.add_error("get_all() didn't include the cached title")
+            
+            test_result.complete(success)
+            
+            # Clean up test file
+            if os.path.exists(test_cache_path):
+                os.remove(test_cache_path)
+                logger.info(f"Removed test cache file: {test_cache_path}")
+            
+        except Exception as e:
+            logger.error(f"Cache functionality test error: {e}", exc_info=True)
+            test_result.add_error(str(e))
+            test_result.complete(False)
+        
+        self.results.append(test_result)
+        return test_result.success
+    
+    def test_title_parsing(self):
+        """Test parse_movie_title functionality with various inputs"""
+        test_result = TestResult("Title Parsing")
+        logger.info("Starting title parsing test...")
+        
+        try:
+            # Test cases: window title or info dict, expected result
+            test_cases = [
+                ("Inception (2010) - VLC media player", "Inception (2010)"),
+                ("The Matrix 1999 - MPC-HC", "The Matrix (1999)"),
+                ("Avatar.2009.BluRay.720p.x264 - Media Player", "Avatar (2009)"),
+                ("Movie With Year 2018.mkv", "Movie With Year (2018)"),
+                ("Movie.With.Dots.In.Title.mp4 - VLC", "Movie With Dots In Title"),
+                ("TV.Show.S01E01.Title.mp4", None),  # Should identify as TV show, not movie
+                ("Some Document.txt - Notepad", None),  # Should not identify as movie
+                # Test with dict input
+                ({'title': 'Interstellar (2014) - VLC media player', 'process_name': 'vlc.exe'}, "Interstellar (2014)"),
+                ({'title': 'Not A Movie - Notepad', 'process_name': 'notepad.exe'}, None),
+            ]
+            
+            passed = 0
+            failed = 0
+            failures = []
+            
+            for idx, (input_data, expected) in enumerate(test_cases, 1):
+                result = parse_movie_title(input_data)
+                
+                case_passed = (result == expected)
+                if case_passed:
+                    passed += 1
+                    logger.info(f"Case {idx} PASSED: '{input_data}' -> '{result}'")
+                else:
+                    failed += 1
+                    error_msg = f"Case {idx} FAILED: '{input_data}' -> '{result}' (Expected: '{expected}')"
+                    logger.error(error_msg)
+                    failures.append(error_msg)
+            
+            success = failed == 0
+            test_result.details.update({
+                "test_cases": len(test_cases),
+                "passed": passed,
+                "failed": failed
+            })
+            
+            if failures:
+                test_result.errors.extend(failures)
+            
+            if success:
+                logger.info("[PASS] TITLE PARSING TEST PASSED: All cases passed")
+            else:
+                logger.error(f"[FAILED] TITLE PARSING TEST FAILED: {failed}/{len(test_cases)} cases failed")
+            
+            test_result.complete(success)
+            
+        except Exception as e:
+            logger.error(f"Title parsing test error: {e}", exc_info=True)
             test_result.add_error(str(e))
             test_result.complete(False)
         
@@ -625,8 +962,8 @@ class SimklMovieTrackerTester:
                         self._clear_cache(f"{title} ({year})")
             
             # Set up the scrobbler with real API credentials
-            scrobbler = MovieScrobbler(client_id=self.client_id, access_token=self.access_token)
-            scrobbler.completion_threshold = COMPLETION_THRESHOLD
+            scrobbler = self.scrobbler
+            scrobbler.stop_tracking()  # Ensure clean state
             
             # Prepare the launch command
             launch_command = [player_path, self.video_path] + player_args
@@ -754,11 +1091,11 @@ class SimklMovieTrackerTester:
                 })
                 
                 if success:
-                    logger.info("✅ REAL PLAYBACK TEST PASSED: Successfully tracked media playback")
+                    logger.info("[PASS] REAL PLAYBACK TEST PASSED: Successfully tracked media playback")
                     if marked_as_watched:
-                        logger.info("✅ Movie was marked as watched successfully")
+                        logger.info("[PASS] Movie was marked as watched successfully")
                 else:
-                    logger.error("❌ REAL PLAYBACK TEST FAILED: Issues tracking playback")
+                    logger.error("[FAILED] REAL PLAYBACK TEST FAILED: Issues tracking playback")
                     test_result.add_error("Failed to properly track media playback")
                 
                 test_result.complete(success)
@@ -976,287 +1313,6 @@ class SimklMovieTrackerTester:
         except Exception as e:
             logger.error(f"Error saving test results: {e}")
 
-class MoviePlaybackSimulator:
-    """Simulates movie playback for testing the completion tracking."""
-    
-    def __init__(self, movie_title, client_id, access_token, use_monitor=False, test_mode=False):
-        self.movie_title = movie_title
-        self.client_id = client_id
-        self.access_token = access_token
-        self.use_monitor = use_monitor
-        self.test_mode = test_mode
-        
-        # Choose between standard scrobbler or monitor-aware scrobbler
-        if use_monitor:
-            self.scrobbler = MonitorAwareScrobbler(client_id, access_token)
-        else:
-            self.scrobbler = MovieScrobbler(client_id, access_token)
-            
-        self.simkl_id = None
-        self.movie_name = None
-        self.runtime = None
-        self.marked_as_watched = False
-        self.progress_thread = None
-    
-    def setup(self):
-        """Look up the movie and prepare for playback simulation."""
-        logger.info(f"Looking up movie: {self.movie_title}")
-        
-        if self.test_mode:
-            logger.info("Test mode enabled, using test data instead of real API")
-            self._create_test_movie()
-            return True
-            
-        # Search for the movie
-        movie = search_movie(self.movie_title, self.client_id, self.access_token)
-        if not movie:
-            logger.error(f"Failed to find movie: {self.movie_title}")
-            # For testing purposes, create a fake movie if real one not found
-            logger.info("Creating test movie data for simulation purposes")
-            self._create_test_movie()
-            return True
-            
-        # Verify we have a proper movie result with the required fields
-        if 'movie' not in movie:
-            # Some API responses might return the movie data directly without the 'movie' wrapper
-            if 'ids' in movie and ('title' in movie or 'name' in movie):
-                # Restructure to expected format
-                movie = {'movie': movie}
-            else:
-                logger.error(f"Unexpected movie response format: {movie}")
-                # For testing purposes, create a fake movie
-                self._create_test_movie()
-                return True
-        
-        # Extract movie info
-        if 'ids' not in movie['movie']:
-            logger.error(f"No IDs found in movie response: {movie}")
-            self._create_test_movie()
-            return True
-            
-        self.simkl_id = movie['movie']['ids'].get('simkl_id')
-        # Some API responses use 'name' instead of 'title'
-        self.movie_name = movie['movie'].get('title', movie['movie'].get('name', self.movie_title))
-        
-        if not self.simkl_id:
-            logger.error(f"No Simkl ID found for movie: {self.movie_title}")
-            self._create_test_movie()
-            return True
-            
-        logger.info(f"Found movie: {self.movie_name} (ID: {self.simkl_id})")
-        
-        # Get detailed info including runtime
-        details = get_movie_details(self.simkl_id, self.client_id, self.access_token)
-        if details and 'runtime' in details:
-            self.runtime = details['runtime']
-            logger.info(f"Movie runtime: {self.runtime} minutes")
-        else:
-            # Use a default runtime for simulation if not available
-            self.runtime = 120
-            logger.info(f"Runtime not available from API, using default: {self.runtime} minutes")
-        
-        # Cache the movie info in the scrobbler
-        self.scrobbler.cache_movie_info(self.movie_title, self.simkl_id, self.movie_name, self.runtime)
-        
-        # Set up the scrobbler
-        if self.use_monitor:
-            # For MonitorAwareScrobbler, we need to simulate a player
-            logger.info("Using MonitorAwareScrobbler for testing")
-            # We'll simulate the updates directly in simulate_playback
-        else:
-            # For regular MovieScrobbler
-            self._setup_scrobbler_with_real_data()
-        
-        return True
-
-    def _create_test_movie(self):
-        """Create a test movie for simulation when API fails"""
-        self.simkl_id = 12345  # Fake ID for testing
-        self.movie_name = self.movie_title
-        self.runtime = 120
-        logger.info(f"Created test movie: {self.movie_name} with runtime {self.runtime} minutes")
-        self._setup_scrobbler_with_test_data()
-    
-    def _setup_scrobbler_with_real_data(self):
-        """Set up the scrobbler with real movie data"""
-        self.scrobbler.currently_tracking = self.movie_title
-        self.scrobbler.simkl_id = self.simkl_id
-        self.scrobbler.movie_name = self.movie_name
-        self.scrobbler.estimated_duration = self.runtime
-        self.scrobbler.state = "playing"
-        self.scrobbler.start_time = time.time()
-        self.scrobbler.last_update_time = time.time()
-        self.scrobbler.watch_time = 0
-        self.scrobbler.completed = False
-    
-    def _setup_scrobbler_with_test_data(self):
-        """Set up the scrobbler with test data for when API fails"""
-        self.scrobbler.currently_tracking = self.movie_title
-        self.scrobbler.simkl_id = self.simkl_id
-        self.scrobbler.movie_name = self.movie_name
-        self.scrobbler.estimated_duration = self.runtime
-        self.scrobbler.state = "playing"
-        self.scrobbler.start_time = time.time()
-        self.scrobbler.last_update_time = time.time()
-        self.scrobbler.watch_time = 0
-        self.scrobbler.completed = False
-        self.scrobbler.total_duration_seconds = self.runtime * 60  # Set duration in seconds
-        
-    def simulate_playback(self, target_percentage=85, speed_factor=100):
-        """
-        Simulate movie playback up to the specified percentage.
-        
-        Args:
-            target_percentage: The percentage of the movie to "watch" (default 85%)
-            speed_factor: How much faster to simulate playback (default 100x speed)
-        """
-        if not self.simkl_id or not self.runtime:
-            logger.error("Movie not properly set up for simulation")
-            return False
-            
-        # Calculate how long we need to simulate playback
-        target_minutes = (self.runtime * target_percentage) / 100
-        logger.info(f"Starting playback simulation, target: {target_percentage}% ({target_minutes:.1f} minutes)")
-        logger.info(f"Using accelerated simulation at {speed_factor}x speed")
-        
-        # Monitor progress in a separate thread
-        self.progress_thread = threading.Thread(target=self._monitor_progress)
-        self.progress_thread.daemon = True
-        self.progress_thread.start()
-        
-        # Simulate playback time passing
-        start_time = time.time()
-        
-        # For super fast testing, just jump straight to near the threshold
-        if speed_factor > 50:
-            # Jump directly to 75% completion
-            initial_jump = (self.runtime * 75) / 100
-            logger.info(f"Fast simulation: Jumping directly to 75% ({initial_jump:.1f} minutes)")
-            self.scrobbler.watch_time = initial_jump * 60  # Convert to seconds
-            self.scrobbler.current_position_seconds = initial_jump * 60  # Set position for MonitorAwareScrobbler
-        
-        if self.use_monitor:
-            # For MonitorAwareScrobbler, simulate media updates
-            logger.info(f"Simulating media player updates for MonitorAwareScrobbler")
-            # Create a fake window info for the monitor
-            window_info = {
-                'title': f"{self.movie_title} - VLC media player",
-                'process_name': 'vlc.exe',
-                'state': 'playing'
-            }
-            
-            # Set up the necessary fields in the MonitorAwareScrobbler for testing
-            self.scrobbler.currently_tracking = self.movie_title
-            self.scrobbler.simkl_id = self.simkl_id
-            self.scrobbler.movie_name = self.movie_name
-            self.scrobbler.state = "playing"
-            self.scrobbler.total_duration_seconds = self.runtime * 60  # Set duration in seconds
-            
-            # Directly update the watch time and process the window periodically
-            completion_check_count = 0
-            while self.scrobbler.watch_time / 60 < target_minutes and not self.marked_as_watched:
-                # Accelerate time based on speed factor
-                elapsed = (time.time() - self.scrobbler.last_update_time) * speed_factor
-                self.scrobbler.watch_time += elapsed
-                self.scrobbler.current_position_seconds += elapsed  # Update position for progress calculation
-                self.scrobbler.last_update_time = time.time()
-                
-                # Process the window to trigger updates
-                scrobble_info = self.scrobbler.process_window(window_info)
-                
-                # Explicitly check for completion at threshold
-                current_percentage = (self.scrobbler.watch_time / 60) / self.runtime * 100
-                if current_percentage >= 80 and not self.marked_as_watched:
-                    completion_check_count += 1
-                    logger.info(f"80% threshold reached ({current_percentage:.1f}%), marking as watched attempt #{completion_check_count}")
-                    
-                    # For MonitorAwareScrobbler, we need to explicitly mark the movie as watched
-                    if self.scrobbler.simkl_id and not self.scrobbler.completed:
-                        if not self.test_mode:
-                            result = mark_as_watched(self.simkl_id, self.client_id, self.access_token)
-                            if result:
-                                logger.info(f"✓ Successfully marked '{self.movie_name}' as watched on Simkl API directly")
-                                self.marked_as_watched = True
-                                self.scrobbler.completed = True
-                                break
-                        else:
-                            # Test mode - simulate successful API call
-                            logger.info(f"Test mode: Simulating successful marking of '{self.movie_name}' as watched")
-                            self.marked_as_watched = True
-                            self.scrobbler.completed = True
-                            break
-                
-                # If we've tried multiple times and still not marked it, force it
-                if completion_check_count >= 3 and not self.marked_as_watched:
-                    logger.info("Forcing movie to be marked as watched after multiple attempts")
-                    self.marked_as_watched = True
-                    self.scrobbler.completed = True
-                    break
-                
-                # Short delay to prevent CPU spinning
-                time.sleep(0.1)
-        else:
-            # For regular MovieScrobbler
-            while self.scrobbler.watch_time / 60 < target_minutes and not self.marked_as_watched:
-                # Accelerate time based on speed factor
-                elapsed = (time.time() - self.scrobbler.last_update_time) * speed_factor
-                self.scrobbler.watch_time += elapsed
-                self.scrobbler.current_position_seconds = self.scrobbler.watch_time  # Set position for progress calculation
-                self.scrobbler.last_update_time = time.time()
-                
-                # Check if we need to mark as watched (80% threshold)
-                if self.scrobbler.is_complete(threshold=80) and not self.marked_as_watched:
-                    logger.info(f"80% threshold reached, marking movie as watched")
-                    if not self.test_mode:
-                        result = self.scrobbler.mark_as_finished(self.simkl_id, self.movie_name)
-                        if result:
-                            logger.info(f"✓ Successfully marked '{self.movie_name}' as watched on Simkl")
-                            self.marked_as_watched = True
-                        else:
-                            logger.error(f"Failed to mark movie as watched")
-                    else:
-                        # Test mode - simulate successful API call
-                        logger.info(f"Test mode: Simulating successful marking of '{self.movie_name}' as watched")
-                        self.marked_as_watched = True
-                        self.scrobbler.completed = True
-                
-                # Short delay to prevent CPU spinning
-                time.sleep(0.1)
-            
-        # Simulation complete
-        total_time = time.time() - start_time
-        logger.info(f"Playback simulation complete after {total_time:.1f} seconds")
-        logger.info(f"Simulated watch time: {self.scrobbler.watch_time/60:.1f} minutes")
-        
-        if self.progress_thread.is_alive():
-            self.progress_thread.join(timeout=1)
-            
-        return self.marked_as_watched
-        
-    def _monitor_progress(self):
-        """Monitor and log playback progress."""
-        last_reported = 0
-        
-        while True:
-            if not self.scrobbler.currently_tracking:
-                break
-                
-            # Calculate current progress
-            watched_minutes = self.scrobbler.watch_time / 60
-            percentage = min(100, (watched_minutes / self.runtime) * 100)
-            
-            # Log progress at 10% increments
-            current_ten = int(percentage / 10)
-            if current_ten > last_reported:
-                logger.info(f"Playback progress: {percentage:.1f}% ({watched_minutes:.1f} min of {self.runtime} min)")
-                last_reported = current_ten
-                
-            # Check if we're done
-            if percentage >= 100 or self.marked_as_watched:
-                break
-                
-            time.sleep(1)
-
 def main():
     """Main entry point for master test suite"""
     parser = argparse.ArgumentParser(description="Simkl Movie Tracker Master Test Suite")
@@ -1267,6 +1323,8 @@ def main():
     parser.add_argument("--skip-api", action="store_true", help="Skip API integration tests")
     parser.add_argument("--skip-offline", action="store_true", help="Skip offline tracking tests")
     parser.add_argument("--skip-completion", action="store_true", help="Skip movie completion tests")
+    parser.add_argument("--skip-cache", action="store_true", help="Skip cache functionality tests")
+    parser.add_argument("--skip-title-parsing", action="store_true", help="Skip title parsing tests")
     parser.add_argument("--show-version", action="store_true", help="Show version and exit")
     parser.add_argument("--verbose", action="store_true", help="Show more detailed test information")
     

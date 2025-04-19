@@ -447,11 +447,13 @@ class MovieScrobbler:
             # Reset the check timer
             self.last_progress_check = current_time 
 
-        # Scrobble update (consider adjusting frequency/logic based on Simkl needs)
+        # Always return scrobble data on state change or every 10 seconds,
+        # even if simkl_id is missing - this will let the main app search for the movie
         should_scrobble = state_changed or (current_time - self.last_scrobble_time > DEFAULT_POLL_INTERVAL)
-        if should_scrobble and self.simkl_id:
+        if should_scrobble:
             self.last_scrobble_time = current_time
             self._log_playback_event("scrobble_update") # Log before returning data
+            # Return data even if simkl_id is not set yet - IMPORTANT CHANGE
             return {
                 "title": self.currently_tracking,
                 "movie_name": self.movie_name,
@@ -932,6 +934,12 @@ class MonitorAwareScrobbler(MovieScrobbler):
         self.monitoring = False
         self.last_window_info = None
         self.check_all_windows = True  # Whether to check all windows or just active window
+        self.scrobble_callback = None  # Add callback for handling scrobble updates
+
+    def set_scrobble_callback(self, callback_function):
+        """Set a callback function to be called with scrobble update data"""
+        self.scrobble_callback = callback_function
+        logger.info("Scrobble callback function registered")
 
     def set_poll_interval(self, seconds):
         """Set the polling interval for window checks"""
@@ -973,10 +981,49 @@ class MonitorAwareScrobbler(MovieScrobbler):
                     scrobble_data = self.process_window(active_window_info)
                     self.last_window_info = active_window_info
                     
+                    # Send data to callback if available
+                    if scrobble_data and self.scrobble_callback:
+                        try:
+                            self.scrobble_callback(scrobble_data)
+                        except Exception as e:
+                            logger.error(f"Error in scrobble callback: {e}")
+                    
                     # Check if we need to update movie info (for movies not in cache)
-                    if scrobble_data:
-                        # This would be handled by the main app's _handle_scrobble_update
-                        # but we log it here in case someone uses this class directly
+                    elif scrobble_data and not self.scrobble_callback:
+                        # Only do this direct API call if no callback is registered
+                        # Import here to avoid circular import
+                        from simkl_movie_tracker.simkl_api import search_movie, get_movie_details
+                        
+                        # If we don't have a Simkl ID but have a title, search for it
+                        title = scrobble_data.get("title")
+                        if not self.simkl_id and title and self.client_id and self.access_token:
+                            logger.info(f"Searching for movie in monitor loop: {title}")
+                            movie = search_movie(title, self.client_id, self.access_token)
+                            
+                            if movie and 'movie' in movie and 'ids' in movie['movie']:
+                                simkl_id = movie['movie']['ids'].get('simkl')
+                                # Alternate way to get ID if 'simkl' key is not found
+                                if not simkl_id:
+                                    simkl_id = movie['movie']['ids'].get('simkl_id')
+                                movie_name = movie['movie'].get('title', title)
+                                
+                                if simkl_id:
+                                    logger.info(f"Found movie: '{movie_name}' (ID: {simkl_id})")
+                                    
+                                    movie_details = get_movie_details(simkl_id, self.client_id, self.access_token)
+                                    
+                                    runtime = None
+                                    if movie_details and 'runtime' in movie_details:
+                                        runtime = movie_details['runtime']
+                                        logger.info(f"Retrieved actual runtime: {runtime} minutes")
+                                    
+                                    # Cache the movie info with the runtime and update current tracking
+                                    self.cache_movie_info(title, simkl_id, movie_name, runtime)
+                                else:
+                                    logger.warning(f"Movie found but no Simkl ID available: {movie}")
+                            else:
+                                logger.warning(f"No matching movie found for '{title}'")
+                        
                         logger.debug(f"Scrobble update: {scrobble_data.get('title')} - {scrobble_data.get('progress'):.1f}%")
                 
                 # Optionally check all windows (more resource intensive)
@@ -992,7 +1039,47 @@ class MonitorAwareScrobbler(MovieScrobbler):
                         scrobble_data = self.process_window(window_info)
                         self.last_window_info = window_info
                         
-                        if scrobble_data:
+                        # Send data to callback if available
+                        if scrobble_data and self.scrobble_callback:
+                            try:
+                                self.scrobble_callback(scrobble_data)
+                            except Exception as e:
+                                logger.error(f"Error in scrobble callback: {e}")
+                        
+                        # Use direct search if no callback (fallback)
+                        elif scrobble_data and not self.scrobble_callback:
+                            # Same search code as above, but for non-active windows
+                            from simkl_movie_tracker.simkl_api import search_movie, get_movie_details
+                            
+                            title = scrobble_data.get("title")
+                            if not self.simkl_id and title and self.client_id and self.access_token:
+                                logger.info(f"Searching for movie in monitor loop (non-active window): {title}")
+                                movie = search_movie(title, self.client_id, self.access_token)
+                                
+                                if movie and 'movie' in movie and 'ids' in movie['movie']:
+                                    simkl_id = movie['movie']['ids'].get('simkl')
+                                    # Alternate way to get ID if 'simkl' key is not found
+                                    if not simkl_id:
+                                        simkl_id = movie['movie']['ids'].get('simkl_id')
+                                    movie_name = movie['movie'].get('title', title)
+                                    
+                                    if simkl_id:
+                                        logger.info(f"Found movie: '{movie_name}' (ID: {simkl_id})")
+                                        
+                                        movie_details = get_movie_details(simkl_id, self.client_id, self.access_token)
+                                        
+                                        runtime = None
+                                        if movie_details and 'runtime' in movie_details:
+                                            runtime = movie_details['runtime']
+                                            logger.info(f"Retrieved actual runtime: {runtime} minutes")
+                                        
+                                        # Cache the movie info with the runtime
+                                        self.cache_movie_info(title, simkl_id, movie_name, runtime)
+                                    else:
+                                        logger.warning(f"Movie found but no Simkl ID available: {movie}")
+                                else:
+                                    logger.warning(f"No matching movie found for '{title}'")
+                            
                             logger.debug(f"Scrobble update (non-active window): {scrobble_data.get('title')} - {scrobble_data.get('progress'):.1f}%")
                     
                     # If no players found but we were tracking something, process null to stop

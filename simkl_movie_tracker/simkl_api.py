@@ -69,15 +69,56 @@ def search_movie(title, client_id, access_token):
         
         logger.info(f"Found {len(results) if results else 0} results for '{title}'")
         
+        # Dump the raw search results to the log for debugging
+        if results and len(results) > 0:
+            logger.debug(f"Raw search results: {results}")
+        
         if not results:
             return _fallback_search_movie(title, client_id, access_token)
+        
+        # Log the structure of the first result to help with debugging
+        if results and len(results) > 0:
+            # Check if the expected structure exists, if not, fix the structure
+            first_result = results[0]
+            logger.debug(f"First result structure: {first_result}")
+            
+            # Sometimes SIMKL returns results in a different format than expected
+            # Check for both possible structures and reshape if needed
+            if 'movie' not in first_result:
+                if 'type' in first_result and first_result.get('type') == 'movie':
+                    # Reshape the result to expected format
+                    movie_data = first_result
+                    # Create a new structure matching the expected format
+                    reshaped_result = {
+                        'movie': movie_data
+                    }
+                    logger.info(f"Reshaped search result for '{title}' to match expected format")
+                    return reshaped_result
+                
+            # The originally expected structure
+            if 'movie' in first_result and 'ids' in first_result['movie']:
+                ids = first_result['movie']['ids']
+                logger.debug(f"ID structure found: {ids}")
+                
+                # Check both potential ID keys
+                simkl_id = ids.get('simkl')
+                simkl_id_alt = ids.get('simkl_id')
+                
+                if simkl_id:
+                    logger.info(f"Found SIMKL ID under 'simkl' key: {simkl_id}")
+                elif simkl_id_alt:
+                    logger.info(f"Found SIMKL ID under 'simkl_id' key: {simkl_id_alt}")
+                    # If the ID is under 'simkl_id', add it under 'simkl' too for consistency
+                    first_result['movie']['ids']['simkl'] = simkl_id_alt
+                else:
+                    logger.warning("No SIMKL ID found in response under expected keys")
             
         return results[0]
         
     except requests.exceptions.RequestException as e:
         logger.error(f"Error searching Simkl for '{title}': {e}")
         return None
-        
+
 def _fallback_search_movie(title, client_id, access_token):
     """Fallback search method using the general search endpoint."""
     logger.info(f"Trying fallback search for '{title}'")

@@ -95,6 +95,9 @@ class SimklMovieTracker:
                 signal.signal(signal.SIGINT, self._signal_handler)
                 signal.signal(signal.SIGTERM, self._signal_handler)
             
+            # Register the scrobble callback function
+            self.scrobbler.set_scrobble_callback(self._handle_scrobble_update)
+            
             # Use the enhanced monitoring system
             self.scrobbler.start_monitoring()
             self._backlog_check_loop()
@@ -140,9 +143,42 @@ class SimklMovieTracker:
             logger.info(f"Searching for movie: {title}")
             movie = search_movie(title, self.client_id, self.access_token)
             
-            if movie and 'movie' in movie and 'ids' in movie['movie']:
-                simkl_id = movie['movie']['ids'].get('simkl_id')
-                movie_name = movie['movie'].get('title', title)
+            if movie:
+                # The search_movie function can return results in different formats
+                # Let's handle both possible structures
+                
+                # If it has a 'movie' key, use that structure
+                if 'movie' in movie:
+                    movie_data = movie['movie']
+                    
+                    # Check for IDs in the movie data
+                    if 'ids' in movie_data:
+                        ids = movie_data['ids']
+                        # Try both possible ID keys
+                        simkl_id = ids.get('simkl')
+                        if not simkl_id:
+                            simkl_id = ids.get('simkl_id')
+                        
+                        movie_name = movie_data.get('title', title)
+                    else:
+                        # If no IDs section, check if the top level has an ID
+                        simkl_id = movie_data.get('simkl_id')
+                        movie_name = movie_data.get('title', title)
+                        
+                # If no 'movie' key, the result might be the movie object directly        
+                else:
+                    # Try to get ID from the top level
+                    simkl_id = movie.get('simkl_id')
+                    
+                    # Or check if there's an 'ids' section
+                    if 'ids' in movie:
+                        ids = movie['ids']
+                        if not simkl_id:
+                            simkl_id = ids.get('simkl')
+                        if not simkl_id:
+                            simkl_id = ids.get('simkl_id')
+                            
+                    movie_name = movie.get('title', title)
                 
                 if simkl_id:
                     logger.info(f"Found movie: '{movie_name}' (ID: {simkl_id})")
@@ -157,9 +193,10 @@ class SimklMovieTracker:
                     # Cache the movie info with the runtime
                     self.scrobbler.cache_movie_info(title, simkl_id, movie_name, runtime)
                 else:
-                    logger.warning(f"Movie found but no Simkl ID available: {movie}")
+                    logger.warning(f"Movie found but no Simkl ID available in any expected format: {movie}")
             else:
                 logger.warning(f"No matching movie found for '{title}'")
+                # Try fallback search (the API module already does this, but we could add more here)
         
         if simkl_id:
             # Log progress at 10% increments or when we're near completion threshold
