@@ -47,7 +47,7 @@ simkl-scrobbler start
 
 - **Zero Configuration** - Works with most Windows media players out of the box
 - **Smart Detection** - Intelligent movie recognition using guessit library
-- *Background Operation (Still Working on it)* - Runs silently in the background without a GUI 
+- *Background Operation (Still Working on it)* - Runs silently in the background
 - **Progress Tracking** - Monitors viewing progress across sessions
 - **Automatic Scrobbling** - Marks movies as watched after 80% completion
 - **Offline Support** - Maintains sync backlog when offline
