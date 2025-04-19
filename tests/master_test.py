@@ -15,6 +15,12 @@ import winreg
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 import unittest.mock as mock
+import colorama
+from colorama import Fore, Style, Back
+import platform
+
+# Initialize colorama for Windows terminal
+colorama.init(autoreset=True)
 
 # Add project root to path
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -42,23 +48,54 @@ from simkl_movie_tracker.media_tracker import (
 )
 import simkl_movie_tracker.simkl_api as simkl_api  # For modifying functions during tests
 
-# Configure logging with both file and console output
+# Configure logging with both file and console output with modern formatting
 log_file = os.path.join(project_root, "master_test.log")
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(name)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler(log_file, mode='w')
-    ]
-)
+
+# Custom formatter for colorized console output
+class ColorizedFormatter(logging.Formatter):
+    COLORS = {
+        'DEBUG': Fore.CYAN,
+        'INFO': Fore.GREEN,
+        'WARNING': Fore.YELLOW,
+        'ERROR': Fore.RED,
+        'CRITICAL': Fore.RED + Style.BRIGHT + Back.WHITE
+    }
+    
+    def format(self, record):
+        log_message = super().format(record)
+        if record.levelname in self.COLORS:
+            return f"{self.COLORS[record.levelname]}{log_message}{Style.RESET_ALL}"
+        return log_message
+
+# Set up console handler with color formatting
+console_handler = logging.StreamHandler()
+console_formatter = ColorizedFormatter('%(levelname)s - %(message)s')
+console_handler.setFormatter(console_formatter)
+
+# Set up file handler with more detailed info
+file_handler = logging.FileHandler(log_file, mode='w')
+file_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(name)s - %(message)s')
+file_handler.setFormatter(file_formatter)
+
+# Configure root logger
+logging.basicConfig(level=logging.INFO, handlers=[console_handler, file_handler])
 logger = logging.getLogger("MasterTest")
+
+# Add a section delimiter for console output
+def print_header(text, width=80, char='='):
+    header_text = f" {text} "
+    padding = char * ((width - len(header_text)) // 2)
+    print(f"{Fore.CYAN}{Style.BRIGHT}{padding}{header_text}{padding}{Style.RESET_ALL}")
 
 # Define test constants
 TEST_DURATION_SECONDS = 120
 POLL_INTERVAL_SECONDS = 2
 COMPLETION_THRESHOLD = 80
 PLAYBACK_SPEED_FACTOR = 100
+
+# Add version info
+VERSION = "1.1.0"
+BUILD_DATE = "2025-04-19"
 
 # List of potential media player paths (Windows)
 PLAYER_PATHS = {
@@ -326,12 +363,6 @@ class SimklMovieTrackerTester:
         # 3. API TESTS
         if not args.skip_api:
             self.test_api_integration()
-        
-        # 3b. API ERROR HANDLING TESTS
-        if not args.skip_api_errors:
-            self.test_search_movie_api_error()
-            self.test_get_movie_details_api_error()
-            self.test_mark_as_watched_api_error()
         
         # 3b. API ERROR HANDLING TESTS
         if not args.skip_api_errors:
@@ -1338,30 +1369,75 @@ class SimklMovieTrackerTester:
         return args
     
     def _print_results_summary(self):
-        """Print a summary of all test results"""
-        logger.info("\n" + "=" * 70)
-        logger.info("TEST RESULTS SUMMARY")
-        logger.info("=" * 70)
+        """Print a summary of all test results with modern, colorful formatting"""
+        print("\n")
+        print_header("TEST RESULTS SUMMARY", 80, "=")
         
         passed = sum(1 for result in self.results if result.success)
         failed = len(self.results) - passed
+        total = len(self.results)
         
-        for result in self.results:
-            logger.info(result)
+        # Create a visual progress bar for overall success
+        if total > 0:
+            success_percentage = (passed / total) * 100
+            bar_length = 40
+            filled_length = int(bar_length * passed // total)
+            bar_color = Fore.GREEN if success_percentage >= 80 else (Fore.YELLOW if success_percentage >= 50 else Fore.RED)
+            bar = f"{bar_color}{'█' * filled_length}{Fore.WHITE}{'░' * (bar_length - filled_length)}"
+            print(f"\n{Style.BRIGHT}Overall Progress: {bar} {success_percentage:.1f}%{Style.RESET_ALL}")
         
-        logger.info("-" * 70)
-        logger.info(f"TOTAL: {len(self.results)} tests, {passed} passed, {failed} failed")
-        logger.info("=" * 70)
+        # System info
+        print(f"\n{Style.BRIGHT}{Fore.CYAN}System Information:{Style.RESET_ALL}")
+        print(f"  OS: {platform.system()} {platform.release()}")
+        print(f"  Python: {platform.python_version()}")
+        print(f"  Test Suite Version: {VERSION}")
+        print(f"  Test Run: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         
+        # Header for test results table
+        print(f"\n{Style.BRIGHT}{Fore.CYAN}Test Results:{Style.RESET_ALL}")
+        print(f"{Fore.WHITE}{Style.BRIGHT}{'Status':<10} {'Test Name':<35} {'Duration':<12} {'Errors':<5}{Style.RESET_ALL}")
+        print(f"{Fore.WHITE}{'-' * 70}{Style.RESET_ALL}")
+        
+        # Sort results by status (failures first)
+        sorted_results = sorted(self.results, key=lambda r: r.success)
+        
+        for result in sorted_results:
+            status_color = Fore.GREEN if result.success else Fore.RED
+            status_text = f"{status_color}[{'PASS' if result.success else 'FAIL'}]{Style.RESET_ALL}"
+            duration = f"{result.duration_seconds():.2f}s"
+            errors = str(len(result.errors)) if result.errors else "-"
+            
+            print(f"{status_text:<10} {result.test_name:<35} {duration:<12} {errors:<5}")
+            
+            # Show error details for failed tests
+            if not result.success and result.errors:
+                for idx, error in enumerate(result.errors[:3], 1):  # Show only first 3 errors
+                    print(f"{' '*10} {Fore.YELLOW}└─ Error {idx}: {error[:70] + '...' if len(error) > 70 else error}{Style.RESET_ALL}")
+                if len(result.errors) > 3:
+                    print(f"{' '*10} {Fore.YELLOW}└─ ... {len(result.errors) - 3} more errors{Style.RESET_ALL}")
+        
+        # Summary footer
+        print(f"\n{Fore.WHITE}{'-' * 70}{Style.RESET_ALL}")
+        summary_color = Fore.GREEN if failed == 0 else (Fore.YELLOW if failed <= total / 4 else Fore.RED)
+        print(f"{Style.BRIGHT}{summary_color}SUMMARY: {total} tests, {passed} passed, {failed} failed{Style.RESET_ALL}")
+        print(f"{Fore.CYAN}{'=' * 70}{Style.RESET_ALL}\n")
+        
+        # Export results to JSON
         results_file = os.path.join(project_root, "test_results.json")
         try:
             with open(results_file, 'w') as f:
                 json.dump({
                     "timestamp": datetime.now().isoformat(),
+                    "system_info": {
+                        "os": f"{platform.system()} {platform.release()}",
+                        "python": platform.python_version(),
+                        "test_suite_version": VERSION
+                    },
                     "summary": {
-                        "total": len(self.results),
+                        "total": total,
                         "passed": passed,
-                        "failed": failed
+                        "failed": failed,
+                        "success_percentage": float(f"{success_percentage:.1f}") if total > 0 else 0
                     },
                     "results": [result.to_dict() for result in self.results]
                 }, f, indent=2)
@@ -1781,7 +1857,7 @@ class SimklMovieTrackerTester:
         """Test the poll_for_token function including success, pending, and timeout."""
         test_result = TestResult("Auth Flow - Poll For Token")
         logger.info("Starting poll_for_token flow test...")
-        
+
         test_user_code = 'GHIJKL'
         test_interval = 1
         test_expires_in = 3
