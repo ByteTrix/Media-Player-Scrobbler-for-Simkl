@@ -23,8 +23,10 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install safety
+        # Use pip-audit instead of safety which doesn't require interactive login
+        pip install pip-audit
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
         
     - name: Check dependencies for security vulnerabilities
       run: |
-        safety scan -r requirements.txt
+        pip-audit
