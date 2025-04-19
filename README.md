@@ -41,23 +41,26 @@ python main.py
 - **Offline Support** - Maintains sync backlog when offline
 - **Resource Efficient** - Minimal CPU and memory footprint
 - **Runtime Detection** - Uses actual movie runtime from Simkl API
+- **Multi-Window Monitoring** - Can detect and track movies even in non-active windows
+- **Enhanced Position Tracking** - Monitors actual player position for better completion detection
+- **Comprehensive Logging** - Detailed playback events for debugging and analysis
 
 ## 🎥 Supported Media Players
 
 The following media players are supported on Windows:
 
-| Media Player | Support Status |
-|-------------|----------------|
-| VLC Media Player | ✅ Fully Supported |
-| MPC-HC/BE | ✅ Fully Supported |
-| Windows Media Player | ✅ Fully Supported |
-| MPV Player | ✅ Fully Supported |
-| PotPlayer | ✅ Fully Supported |
-| SMPlayer | ✅ Fully Supported |
-| KMPlayer | ✅ Fully Supported |
-| GOM Player | ✅ Fully Supported |
+| Media Player | Support Status | Position Detection |
+|-------------|----------------|-------------------|
+| VLC Media Player | ✅ Fully Supported | ✅ (with web interface) |
+| MPC-HC/BE | ✅ Fully Supported | ✅ (with web interface) |
+| Windows Media Player | ✅ Fully Supported | ⚠️ Title only |
+| MPV Player | ✅ Fully Supported | ⚠️ Title only |
+| PotPlayer | ✅ Fully Supported | ⚠️ Title only |
+| SMPlayer | ✅ Fully Supported | ⚠️ Title only |
+| KMPlayer | ✅ Fully Supported | ⚠️ Title only |
+| GOM Player | ✅ Fully Supported | ⚠️ Title only |
 
-The scrobbler monitors the window titles of these players to detect media files currently being played.
+The scrobbler monitors the window titles of these players to detect media files currently being played. For VLC and MPC-HC/BE with web interfaces enabled, it can also get precise playback position information.
 
 ## 🛠️ Setup Guide
 
@@ -98,8 +101,8 @@ psutil          # For process monitoring
 
 3. **Run the Application:**
    ```bash
-   # Console mode (for testing)
-   python test_movie_completion.py
+   # Run automated test with real media player and API integration
+   python test_real_playback.py
    
    # Run the tracker (it will run in the background)
    python main.py
@@ -121,11 +124,14 @@ To have the tracker start automatically with Windows:
 The tracker runs silently in the background, automatically detecting and tracking movie playback in supported media players. For testing:
 
 ```bash
-# Test with specific movie
-python test_movie_completion.py -t "Movie Title"
+# Test real playback with media player launch
+python test_real_playback.py
 
 # Monitor log file
 type simkl_tracker.log
+
+# Check detailed playback events
+type simkl_movie_tracker\playback_log.jsonl
 ```
 
 ## ⚙️ Advanced Configuration
@@ -133,9 +139,26 @@ type simkl_tracker.log
 Key settings in `media_tracker.py`:
 ```python
 DEFAULT_POLL_INTERVAL = 10  # Player check interval (seconds)
-COMPLETION_THRESHOLD = 0.80  # Mark as watched threshold
-VIDEO_EXTENSIONS = ['.mp4', '.mkv', '.avi', ...]
+COMPLETION_THRESHOLD = 80   # Mark as watched threshold (percent)
+VIDEO_PLAYER_EXECUTABLES = ['vlc.exe', 'mpc-hc64.exe', ...] # Supported players
 ```
+
+### Player Web Interface Setup (for position tracking)
+
+For enhanced position tracking with VLC and MPC-HC/BE:
+
+**VLC Media Player:**
+1. Go to Tools > Preferences
+2. Select "All" settings mode (bottom left)
+3. Navigate to Interface > Main interfaces
+4. Check "Web" option
+5. Set a password if desired (optional)
+6. Default port is 8080
+
+**MPC-HC/BE:**
+1. Go to View > Options > Player > Web Interface
+2. Check "Listen on port:" (default 13579)
+3. No authentication needed
 
 ## 🔍 How It Works
 
@@ -151,12 +174,13 @@ graph LR
     G -->|No| F
 ```
 
-1. **Window Detection**: Uses Windows API to monitor active windows for supported media players
+1. **Window Detection**: Uses Windows API to monitor active and non-active windows for supported media players
 2. **Title Extraction**: Parses window title for filename/movie info
 3. **Smart Parsing**: Uses guessit library to intelligently extract movie title and year
 4. **Movie Matching**: Queries Simkl API to identify the movie
-5. **Progress Tracking**: Monitors playback position
+5. **Progress Tracking**: Monitors playback position directly from player (when available) or estimates based on time
 6. **Auto-marking**: Updates Simkl when 80% threshold reached
+7. **Offline Handling**: Queues failed updates in backlog for future retry
 
 ## 🔧 Troubleshooting
 
@@ -170,11 +194,18 @@ graph LR
 | Player not detected | Verify player is in supported list |
 | Windows permission error | Run as administrator |
 | Movie title parsing failed | Use standard naming: "Movie.Name.2023.mp4" |
+| Position tracking not working | Enable web interface in VLC or MPC-HC/BE |
 
-### Debug Mode
+### Logs and Debugging
 ```bash
-# Enable debug logging
-python main.py --debug
+# Check main application log
+type simkl_tracker.log
+
+# Check detailed playback events
+type simkl_movie_tracker\playback_log.jsonl
+
+# Run test with detailed output
+python test_real_playback.py
 ```
 
 ## 📄 License
@@ -203,4 +234,8 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 - [ ] Add Linux support
 - [ ] Add macOS support
 - [ ] Create native Windows installer
-- [ ] Create automated tests
+- [x] Add real-time position tracking for supported players
+- [x] Implement multi-window monitoring
+- [x] Create automated playback tests
+- [ ] Add support for more media players
+- [ ] Create GUI configuration tool
