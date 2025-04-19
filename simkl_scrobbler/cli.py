@@ -17,23 +17,18 @@ def init_command(args):
     print(f"{Fore.CYAN}=== SIMKL Scrobbler Initialization ==={Style.RESET_ALL}")
     print(f"{Fore.YELLOW}This will set up SIMKL Scrobbler on your system.{Style.RESET_ALL}\n")
     
-    # Get or create SIMKL Client ID
-    client_id = os.getenv("SIMKL_CLIENT_ID")
-    if not client_id:
-        print(f"{Fore.YELLOW}You need a SIMKL Client ID to use this application.{Style.RESET_ALL}")
-        print("You can obtain one by registering an application at https://simkl.com/settings/developer/")
-        print("When registering, use the following settings:")
-        print("  - Redirect URI: https://simkl.com/apps/oauth/")
-        print("  - Permissions: 'Scrobbling'")
-        print()
-        
-        client_id = input(f"{Fore.GREEN}Enter your SIMKL Client ID: {Style.RESET_ALL}").strip()
-        
-        if not client_id:
-            print(f"{Fore.RED}SIMKL Client ID is required to continue.{Style.RESET_ALL}")
-            return 1
+    # Import the default client ID from simkl_api module
+    from .simkl_api import DEFAULT_CLIENT_ID
     
-    # Authenticate with SIMKL
+    # Use the embedded client ID by default
+    client_id = DEFAULT_CLIENT_ID
+    
+    print(f"{Fore.CYAN}Using application client ID: {client_id[:8]}...{client_id[-8:]}{Style.RESET_ALL}")
+    print(f"{Fore.YELLOW}You'll need to authenticate with your own Simkl account.{Style.RESET_ALL}")
+    print("This will allow the application to track your watched movies.")
+    print()
+    
+    # Authenticate with SIMKL using the embedded client ID
     print(f"\n{Fore.CYAN}Authenticating with SIMKL...{Style.RESET_ALL}")
     
     access_token = authenticate(client_id)
@@ -57,6 +52,7 @@ def init_command(args):
     scrobbler.set_credentials(client_id, access_token)
     
     print(f"\n{Fore.GREEN}✓ SIMKL Scrobbler has been successfully configured!{Style.RESET_ALL}")
+    print(f"{Fore.GREEN}✓ Your personal Simkl account is now connected!{Style.RESET_ALL}")
     print(f"\n{Fore.CYAN}Supported media players:{Style.RESET_ALL}")
     print("- VLC Media Player")
     print("- MPC-HC")

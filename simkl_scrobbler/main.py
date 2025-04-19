@@ -33,19 +33,22 @@ def load_configuration():
     else:
         # Fallback to local .env file
         load_dotenv()
-        
-    client_id = os.getenv("SIMKL_CLIENT_ID")
+    
+    # Import the default client ID from simkl_api module
+    from .simkl_api import DEFAULT_CLIENT_ID
+    
+    # Get client ID from environment or use default
+    client_id = os.getenv("SIMKL_CLIENT_ID", DEFAULT_CLIENT_ID)
     access_token = os.getenv("SIMKL_ACCESS_TOKEN")
 
     if not client_id:
-        logger.error("SIMKL_CLIENT_ID not found in environment variables.")
-        print("Error: SIMKL_CLIENT_ID not found in environment variables.")
-        print("Please run 'simkl-scrobbler init' to set up your credentials.")
-        sys.exit(1)
+        logger.error("Client ID not found. Using default client ID.")
+        client_id = DEFAULT_CLIENT_ID
 
     if not access_token:
         logger.info("Access token not found, attempting device authentication...")
         print("Access token not found, attempting device authentication...")
+        print("You'll need to authenticate with your Simkl account.")
         access_token = authenticate(client_id)
         if access_token:
             logger.info("Authentication successful.")
@@ -53,7 +56,7 @@ def load_configuration():
             print(f"SIMKL_ACCESS_TOKEN={access_token}")
         else:
             logger.error("Authentication failed.")
-            print("Authentication failed. Please check your client ID and ensure you complete the authorization step on Simkl.")
+            print("Authentication failed. Please check your internet connection and ensure you complete the authorization step on Simkl.")
             sys.exit(1)
 
     return client_id, access_token

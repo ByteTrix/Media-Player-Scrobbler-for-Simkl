@@ -1,0 +1,52 @@
+name: Dependency Updates
+
+on:
+  schedule:
+    - cron: '0 9 * * 1'  # Run every Monday at 9 AM UTC
+  workflow_dispatch:  # Allow manual triggering
+
+jobs:
+  update-deps:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pip-tools
+        
+    - name: Update dependencies
+      id: update
+      run: |
+        # Generate updated requirements
+        pip-compile --upgrade --output-file=requirements.txt.new requirements.in
+        
+        # Check if there are changes
+        if ! cmp -s requirements.txt requirements.txt.new; then
+          echo "changes=true" >> $GITHUB_OUTPUT
+          mv requirements.txt.new requirements.txt
+        else
+          echo "changes=false" >> $GITHUB_OUTPUT
+          rm requirements.txt.new
+        fi
+        
+    - name: Create Pull Request
+      if: steps.update.outputs.changes == 'true'
+      uses: peter-evans/create-pull-request@v5
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        commit-message: Update dependencies
+        title: 'chore: Update dependencies'
+        body: |
+          Automated dependency updates by [Dependency Updates workflow](https://github.com/${{ github.repository }}/actions/workflows/dependencies.yml)
+          
+          When merging this PR, please check for breaking changes in the updated dependencies.
+        branch: dependency-updates
+        base: master

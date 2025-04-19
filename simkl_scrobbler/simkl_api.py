@@ -8,6 +8,9 @@ logger = logging.getLogger(__name__)
 
 SIMKL_API_BASE_URL = 'https://api.simkl.com'
 
+# This is your application's client ID that will be used for all users
+DEFAULT_CLIENT_ID = "063e363a1596eb693066cf3b9848be8d2c4a6d9ef300666c9f19ef5980312b27"
+
 def is_internet_connected():
     """
     Check if there's a working internet connection by attempting to connect to Simkl's API.
@@ -370,22 +373,34 @@ def poll_for_token(client_id, user_code, interval, expires_in):
     print("\n✗ Authentication timed out")
     return None
 
-def authenticate(client_id):
-    """Handles the full device authentication flow."""
-    if not client_id:
+def authenticate(client_id=None):
+    """
+    Handles the full device authentication flow.
+    Uses the default client ID if none is provided.
+    """
+    # Always use the embedded client ID for the application identity
+    actual_client_id = DEFAULT_CLIENT_ID if client_id is None else client_id
+
+    if not actual_client_id:
         logger.error("Client ID is required for authentication.")
         return None
 
     print("Requesting device code from Simkl...")
-    device_info = get_device_code(client_id)
+    device_info = get_device_code(actual_client_id)
     if not device_info:
         print("Failed to get device code.")
         return None
 
     user_code = device_info.get('user_code')
     verification_url = device_info.get('verification_url')
-    interval = max(device_info.get('interval', 5), 10)  
-    expires_in = max(device_info.get('expires_in', 900), 900)  
+    # Increase the minimum polling interval (minimum 5 seconds between requests)
+    interval = max(device_info.get('interval', 5), 5)  
+    
+    # Significantly increase the expiration time to give users more time to authenticate
+    # Use 1800 seconds (30 minutes) as the minimum timeout, or more if API provides it
+    expires_in = max(device_info.get('expires_in', 900), 1800)
+    
+    logger.info(f"Using authentication timeout of {expires_in} seconds (30 minutes)")
 
     if not all([user_code, verification_url]):
         logger.error("Incomplete device information received.")
@@ -394,9 +409,10 @@ def authenticate(client_id):
     print("\n" + "=" * 60)
     print(f"Please go to: {verification_url}")
     print(f"And enter the code: {user_code}")
+    print(f"This code will be valid for {int(expires_in/60)} minutes")
     print("=" * 60 + "\n")
 
-    access_token_info = poll_for_token(client_id, user_code, interval, expires_in)
+    access_token_info = poll_for_token(actual_client_id, user_code, interval, expires_in)
 
     if access_token_info and 'access_token' in access_token_info:
         token = access_token_info['access_token']
