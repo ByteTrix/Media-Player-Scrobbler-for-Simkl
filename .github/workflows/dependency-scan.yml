@@ -27,4 +27,4 @@ jobs:
         
     - name: Check dependencies for security vulnerabilities
       run: |
-        safety check -r requirements.txt
+        safety scan -r requirements.txt
