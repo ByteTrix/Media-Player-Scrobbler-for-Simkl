@@ -27,14 +27,14 @@ project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, project_root)
 
 # Import components from our package - use existing functions directly
-from simkl_movie_tracker.simkl_api import (
+from simkl_scrobbler.simkl_api import (
     search_movie, 
     get_movie_details, 
     mark_as_watched, 
     authenticate,
     is_internet_connected
 )
-from simkl_movie_tracker.media_tracker import (
+from simkl_scrobbler.media_tracker import (
     MovieScrobbler, 
     MonitorAwareScrobbler,
     MediaCache,
@@ -46,7 +46,7 @@ from simkl_movie_tracker.media_tracker import (
     PAUSED,
     STOPPED
 )
-import simkl_movie_tracker.simkl_api as simkl_api  # For modifying functions during tests
+import simkl_scrobbler.simkl_api as simkl_api  # For modifying functions during tests
 
 # Configure logging with both file and console output with modern formatting
 log_file = os.path.join(project_root, "master_test.log")
@@ -230,7 +230,7 @@ class SimklMovieTrackerTester:
     
     def _clear_cache(self, movie_title=None):
         """Clear cache and backlog files for testing"""
-        cache_file = os.path.join(project_root, "simkl_movie_tracker", "media_cache.json")
+        cache_file = os.path.join(project_root, "simkl_scrobbler", "media_cache.json")
         
         # Clear media cache
         if os.path.exists(cache_file):
@@ -261,7 +261,7 @@ class SimklMovieTrackerTester:
     
     def _clear_backlog(self):
         """Clear backlog for testing"""
-        backlog_file = os.path.join(project_root, "simkl_movie_tracker", "backlog.json")
+        backlog_file = os.path.join(project_root, "simkl_scrobbler", "backlog.json")
         if os.path.exists(backlog_file):
             with open(backlog_file, 'w') as f:
                 json.dump([], f)
@@ -784,7 +784,7 @@ class SimklMovieTrackerTester:
         
         try:
             test_cache_file = "test_cache.json"
-            test_cache_path = os.path.join(project_root, "simkl_movie_tracker", test_cache_file)
+            test_cache_path = os.path.join(project_root, "simkl_scrobbler", test_cache_file)
             
             cache = MediaCache(cache_file=test_cache_file)
             
@@ -1447,7 +1447,7 @@ class SimklMovieTrackerTester:
     def test_backlog_cleaner(self):
         """Intensive test for BacklogCleaner: edge cases, error handling, and all methods."""
         test_result = TestResult("Backlog Cleaner (Intensive)")
-        backlog_file = os.path.join(project_root, "simkl_movie_tracker", "backlog.json")
+        backlog_file = os.path.join(project_root, "simkl_scrobbler", "backlog.json")
         backup_file = backlog_file + ".bak"
         # Backup existing backlog
         try:
@@ -1614,7 +1614,7 @@ class SimklMovieTrackerTester:
         return success
 
 
-    @mock.patch('simkl_movie_tracker.simkl_api.requests.get')
+    @mock.patch('simkl_scrobbler.simkl_api.requests.get')
     def test_search_movie_api_error(self, mock_get):
         """Test search_movie handles API errors gracefully."""
         test_result = TestResult("API Search Error Handling")
@@ -1653,7 +1653,7 @@ class SimklMovieTrackerTester:
         self.results.append(test_result)
         return success
 
-    @mock.patch('simkl_movie_tracker.simkl_api.requests.get')
+    @mock.patch('simkl_scrobbler.simkl_api.requests.get')
     def test_get_movie_details_api_error(self, mock_get):
         """Test get_movie_details handles API errors gracefully."""
         test_result = TestResult("API Details Error Handling")
@@ -1693,7 +1693,7 @@ class SimklMovieTrackerTester:
         self.results.append(test_result)
         return success
 
-    @mock.patch('simkl_movie_tracker.simkl_api.requests.post')
+    @mock.patch('simkl_scrobbler.simkl_api.requests.post')
     def test_mark_as_watched_api_error(self, mock_post):
         """Test mark_as_watched handles API errors gracefully."""
         test_result = TestResult("API Mark Watched Error Handling")
@@ -1729,8 +1729,8 @@ class SimklMovieTrackerTester:
                 logger.error(f"Unexpected exception during {status} test: {e}", exc_info=True)
                 test_result.add_error(f"Unexpected exception for error {status}: {e}")
 
-    @mock.patch('simkl_movie_tracker.media_tracker.get_all_windows_info')
-    @mock.patch('simkl_movie_tracker.media_tracker.time.sleep', return_value=None) # Mock sleep to speed up test
+    @mock.patch('simkl_scrobbler.media_tracker.get_all_windows_info')
+    @mock.patch('simkl_scrobbler.media_tracker.time.sleep', return_value=None) # Mock sleep to speed up test
     @mock.patch.object(MovieScrobbler, 'process_window') # Mock the parent's method
     def test_monitor_aware_scrobbler(self, mock_process_window, mock_sleep, mock_get_all_windows):
         """Test MonitorAwareScrobbler background monitoring loop."""
@@ -1741,57 +1741,67 @@ class SimklMovieTrackerTester:
         monitor_scrobbler.set_poll_interval(0.1)
         monitor_scrobbler.set_check_all_windows(True)
 
-        player_window_info = {'title': 'Test Movie (2024) - mpc-hc64.exe', 'process_name': 'mpc-hc64.exe', 'hwnd': 123}
-        non_player_window_info = {'title': 'Document - notepad.exe', 'process_name': 'notepad.exe', 'hwnd': 456}
+        # Create a realistic window info dictionary with a properly formatted title
+        player_window_info = {'hwnd': 123, 'title': 'Test Movie (2024) - MPC-HC', 'process_name': 'mpc-hc64.exe'}
+        non_player_window_info = {'hwnd': 456, 'title': 'Document - Notepad', 'process_name': 'notepad.exe'}
+        
+        # Set up mock to return appropriate window info in sequence
         mock_get_all_windows.side_effect = [
-            [player_window_info],
-            [non_player_window_info],
-            [],
-            Exception("Stop loop")
+            [player_window_info],  # First call - has player window
+            [non_player_window_info],  # Second call - no player window
+            [],  # Third call - no windows
+            Exception("Stop loop")  # Fourth call - exception to stop loop
         ]
 
+        # Set up mock process_window to return a scrobble info dictionary
+        mock_process_window.return_value = {
+            "title": "Test Movie (2024)",
+            "movie_name": "Test Movie",
+            "simkl_id": 12345,
+            "state": "playing",
+            "progress": 10.0
+        }
+
         try:
-            logger.info("Starting monitoring thread...")
-            monitor_scrobbler.start_monitoring()
-            time.sleep(0.5)
-
-            logger.info("Stopping monitoring thread...")
-            monitor_scrobbler.stop_monitoring()
-
-            calls = mock_process_window.call_args_list
-            logger.info(f"process_window calls: {calls}")
-
-            called_with_player = any(call[0][0] == player_window_info for call in calls)
-
-            if called_with_player:
-                logger.info("[PASS] process_window was called with player window info.")
-                test_result.complete(True, {"process_window_calls": len(calls), "called_with_player": True})
+            # Start monitoring in the same thread (no daemon thread for testing)
+            monitor_scrobbler.monitoring = True
+            
+            # Call the monitor loop directly (won't return until monitoring is set to False or exception)
+            with self.assertRaises(Exception) as context:
+                monitor_scrobbler._monitor_loop()
+                
+            logger.info(f"Monitor loop stopped with expected exception: {context.exception}")
+            
+            # Verify process_window was called with the player window info
+            mock_process_window.assert_called_with(player_window_info)
+            logger.info(f"process_window calls: {mock_process_window.call_args_list}")
+            
+            # Check that process_window was called at least once with the player window
+            player_window_call = False
+            for call in mock_process_window.call_args_list:
+                args, kwargs = call
+                if args and args[0] == player_window_info:
+                    player_window_call = True
+                    break
+                    
+            if player_window_call:
+                logger.info("[PASS] process_window was called with player window info")
             else:
                 logger.error("[FAIL] process_window was NOT called with player window info.")
-                test_result.add_error("process_window not called with expected player info")
-                test_result.complete(False, {"process_window_calls": len(calls), "called_with_player": False})
-
+                
+            test_result.complete(player_window_call)
         except Exception as e:
-            if str(e) == "Stop loop":
-                logger.info("Mock loop stopped as expected.")
-                calls = mock_process_window.call_args_list
-                called_with_player = any(call[0][0] == player_window_info for call in calls)
-                if called_with_player:
-                    logger.info("[PASS] process_window was called with player window info before loop stop.")
-                    test_result.complete(True, {"process_window_calls": len(calls), "called_with_player": True})
-                else:
-                    logger.error("[FAIL] process_window was NOT called with player window info before loop stop.")
-                    test_result.add_error("process_window not called with expected player info")
-                    test_result.complete(False, {"process_window_calls": len(calls), "called_with_player": False})
-            else:
-                logger.error(f"Monitor Aware Scrobbler test error: {e}", exc_info=True)
-                test_result.add_error(str(e))
-                test_result.complete(False)
+            logger.error(f"Monitor aware scrobbler test error: {e}")
+            test_result.add_error(str(e))
+            test_result.complete(False)
         finally:
-            if monitor_scrobbler.monitoring and monitor_scrobbler._monitor_thread and monitor_scrobbler._monitor_thread.is_alive():
-                monitor_scrobbler.stop_monitoring()
+            monitor_scrobbler.monitoring = False
+            monitor_scrobbler.stop_monitoring()
 
-    @mock.patch('simkl_movie_tracker.simkl_api.requests.post')
+        self.results.append(test_result)
+        return test_result.success
+
+    @mock.patch('simkl_scrobbler.simkl_api.requests.post')
     def test_get_device_code_flow(self, mock_post):
         """Test the get_device_code function including error handling."""
         test_result = TestResult("Auth Flow - Get Device Code")
@@ -1850,8 +1860,8 @@ class SimklMovieTrackerTester:
         self.results.append(test_result)
         return overall_success
 
-    @mock.patch('simkl_movie_tracker.simkl_api.requests.post')
-    @mock.patch('simkl_movie_tracker.simkl_api.time.sleep', return_value=None) # Mock sleep
+    @mock.patch('simkl_scrobbler.simkl_api.requests.post')
+    @mock.patch('simkl_scrobbler.simkl_api.time.sleep', return_value=None) # Mock sleep
     def test_poll_for_token_flow(self, mock_sleep, mock_post):
         """Test the poll_for_token function including success, pending, and timeout."""
         test_result = TestResult("Auth Flow - Poll For Token")
@@ -1950,7 +1960,7 @@ class SimklMovieTrackerTester:
     def test_playback_log_validation(self):
         """Test that playback_log.jsonl contains all expected playback events and correct structure."""
         test_result = TestResult("Playback Log Validation")
-        log_path = os.path.join(project_root, "simkl_movie_tracker", "playback_log.jsonl")
+        log_path = os.path.join(project_root, "simkl_scrobbler", "playback_log.jsonl")
         expected_events = {"start_tracking", "progress_update", "seek", "state_change", "completion_threshold_reached", "scrobble_update", "marked_as_finished_test_mode", "marked_as_finished_api_fail", "marked_as_finished_api_error", "backlog_sync_success", "backlog_sync_fail", "backlog_sync_error"}
         found_events = set()
         try:
@@ -1986,7 +1996,7 @@ class SimklMovieTrackerTester:
     def test_stress_playback_events(self):
         """Stress test: simulate rapid playback events and ensure tracker stability and log integrity."""
         test_result = TestResult("Stress Playback Events")
-        from simkl_movie_tracker.media_tracker import MovieScrobbler
+        from simkl_scrobbler.media_tracker import MovieScrobbler
         import random
         scrobbler = MovieScrobbler(testing_mode=True)
         scrobbler.currently_tracking = "Stress Movie"
@@ -2023,7 +2033,7 @@ class SimklMovieTrackerTester:
     def test_api_structure_robustness(self):
         """Test API methods with malformed/unexpected responses."""
         test_result = TestResult("API Structure Robustness")
-        from simkl_movie_tracker import simkl_api
+        from simkl_scrobbler import simkl_api
         import types
         class FakeResponse:
             def __init__(self, data, status_code=200):
@@ -2061,7 +2071,7 @@ class SimklMovieTrackerTester:
         test_result = TestResult("Cache Concurrent Access & Recovery")
         import threading
         cache_file = "test_cache_concurrent.json"
-        cache_path = os.path.join(project_root, "simkl_movie_tracker", cache_file)
+        cache_path = os.path.join(project_root, "simkl_scrobbler", cache_file)
         cache = MediaCache(cache_file=cache_file)
         def writer():
             for i in range(50):

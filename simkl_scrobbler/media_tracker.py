@@ -128,7 +128,17 @@ class BacklogCleaner:
         if os.path.exists(self.backlog_file):
             try:
                 with open(self.backlog_file, 'r') as f:
-                    return json.load(f)
+                    content = f.read().strip()
+                    if content:  # Only try to parse if file is not empty
+                        return json.load(f)
+                    else:
+                        logger.info("Backlog file exists but is empty. Starting with empty backlog.")
+                        return []
+            except json.JSONDecodeError as e:
+                logger.error(f"Error loading backlog: {e}")
+                logger.info("Creating new empty backlog due to loading error")
+                # Create a new empty backlog file
+                self._save_backlog([])
             except Exception as e:
                 logger.error(f"Error loading backlog: {e}")
         return []
@@ -615,7 +625,7 @@ class MovieScrobbler:
 
         try:
             # Import inside method to avoid circular imports
-            from simkl_movie_tracker.simkl_api import mark_as_watched, is_internet_connected
+            from simkl_scrobbler.simkl_api import mark_as_watched, is_internet_connected
             
             # First check if we're online
             if not is_internet_connected():
@@ -650,7 +660,7 @@ class MovieScrobbler:
         if not self.client_id or not self.access_token:
             return 0
 
-        from simkl_movie_tracker.simkl_api import mark_as_watched # Keep import local
+        from simkl_scrobbler.simkl_api import mark_as_watched # Keep import local
 
         success_count = 0
         pending = self.backlog.get_pending()
@@ -941,6 +951,25 @@ def parse_movie_title(window_title_or_info):
     for pattern in non_video_patterns:
         if re.search(pattern, window_title, re.IGNORECASE):
             return None
+            
+    # Reject player names with no file - these are usually just the player UI with no movie loaded
+    player_only_patterns = [
+        r'^VLC( media player)?$',
+        r'^MPC-HC$',
+        r'^MPC-BE$',
+        r'^Windows Media Player$',
+        r'^mpv$',
+        r'^PotPlayer.*$',
+        r'^SMPlayer.*$',
+        r'^KMPlayer.*$',
+        r'^GOM Player.*$',
+        r'^Media Player Classic.*$',
+    ]
+    
+    for pattern in player_only_patterns:
+        if re.search(pattern, window_title, re.IGNORECASE):
+            logger.debug(f"Ignoring player-only window title: '{window_title}'")
+            return None
 
     # --- Initial check if it's likely a movie ---
     # This check is important to avoid trying to parse titles from non-movie windows
@@ -971,6 +1000,10 @@ def parse_movie_title(window_title_or_info):
     for pattern in player_patterns:
         cleaned_title = re.sub(pattern, '', cleaned_title, flags=re.IGNORECASE).strip()
 
+    # Ensure we're not left with just a tiny title after cleanup
+    if len(cleaned_title) < 3:
+        logger.debug(f"Title too short after cleanup: '{cleaned_title}' from '{window_title}'")
+        return None
 
     # Use guessit to get the core title if possible
     try:
@@ -1070,7 +1103,7 @@ class MonitorAwareScrobbler(MovieScrobbler):
                     elif scrobble_data and not self.scrobble_callback:
                         # Only do this direct API call if no callback is registered
                         # Import here to avoid circular import
-                        from simkl_movie_tracker.simkl_api import search_movie, get_movie_details
+                        from simkl_scrobbler.simkl_api import search_movie, get_movie_details
                         
                         # If we don't have a Simkl ID but have a title, search for it
                         title = scrobble_data.get("title")
@@ -1127,7 +1160,7 @@ class MonitorAwareScrobbler(MovieScrobbler):
                         # Use direct search if no callback (fallback)
                         elif scrobble_data and not self.scrobble_callback:
                             # Same search code as above, but for non-active windows
-                            from simkl_movie_tracker.simkl_api import search_movie, get_movie_details
+                            from simkl_scrobbler.simkl_api import search_movie, get_movie_details
                             
                             title = scrobble_data.get("title")
                             if not self.simkl_id and title and self.client_id and self.access_token:

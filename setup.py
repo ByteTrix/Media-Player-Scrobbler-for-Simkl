@@ -4,13 +4,13 @@ with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 setup(
-    name="simkl-movie-tracker",
+    name="simkl-scrobbler",
     version="1.0.0",
     author="kavinthangavel",
-    description="Automatic movie tracking and scrobbling for Simkl",
+    description="Automatic movie scrobbling for Simkl",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/kavinthangavel/simkl-movie-tracker",
+    url="https://github.com/kavinthangavel/simkl-scrobbler",
     packages=find_packages(),
     classifiers=[
         "Programming Language :: Python :: 3",
@@ -25,10 +25,11 @@ setup(
         "python-dotenv>=0.15.0",
         "pywin32>=300",
         "psutil>=5.8.0",
+        "colorama>=0.4.4",  # For colorized terminal output
     ],
     entry_points={
         "console_scripts": [
-            "simkl-tracker=simkl_movie_tracker.main:main",
+            "simkl-scrobbler=simkl_scrobbler.cli:main",
         ],
     },
 )

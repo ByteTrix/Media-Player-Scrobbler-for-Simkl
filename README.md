@@ -19,7 +19,7 @@ A powerful Windows-based automatic scrobbler for [Simkl](https://simkl.com) that
 - [Quick Start](#-quick-start)
 - [Features](#-features)
 - [Supported Media Players](#-supported-media-players)
-- [Setup Guide](#️-setup-guide)
+- [Installation](#-installation)
 - [Usage](#-usage)
 - [Advanced Configuration](#️-advanced-configuration)
 - [How It Works](#-how-it-works)
@@ -33,19 +33,14 @@ A powerful Windows-based automatic scrobbler for [Simkl](https://simkl.com) that
 ## ⚡ Quick Start
 
 ```bash
-# Clone repository
-git clone https://github.com/kavinthangavel/simkl-movie-tracker.git
-cd simkl-movie-tracker
+# Install with pipx (recommended)
+pipx install simkl-movie-tracker
 
-# Install dependencies
-pip install -r requirements.txt
+# Initialize the tracker
+simkl-tracker init
 
-# Set up your Simkl credentials in .env file
-cp .env.example .env
-# Edit .env with your credentials
-
-# Run the background tracker
-python main.py
+# Start tracking your movies
+simkl-tracker start
 ```
 
 ## 🚀 Features
@@ -79,76 +74,117 @@ The following media players are supported on Windows:
 
 The scrobbler monitors the window titles of these players to detect media files currently being played. For VLC and MPC-HC/BE with web interfaces enabled, it can also get precise playback position information.
 
-## 🛠️ Setup Guide
+## 📥 Installation
 
-### System Requirements
+### Installation Steps
 
-- Windows 7/8/10/11
-- Python 3.7 or higher
-- Simkl account and API credentials
+1. **Ensure you have Python 3.7 or higher installed, and in your system PATH.**
 
-### Required Dependencies
+   Check by running:
+   ```
+   python --version
+   ```
 
-```txt
-requests>=2.25.0     # HTTP API communication with Simkl
-pygetwindow>=0.0.9   # For Windows window detection
-guessit>=3.3.0       # For intelligent movie name parsing
-python-dotenv>=0.15.0 # For configuration management
-pywin32>=300         # For Windows API integration
-psutil>=5.8.0        # For process monitoring
-pytest>=6.2.5        # For running unit tests
-colorama>=0.4.4      # For colorized terminal output in tests
+2. **Ensure pip is installed.**
+
+   Check by running:
+   ```
+   pip --version
+   ```
+
+3. **Install pipx:**
+
+   **Windows:**
+   ```
+   python -m pip install --user pipx
+   python -m pipx ensurepath
+   ```
+   (You may need to restart your terminal or system after this step)
+
+   **macOS:**
+   ```
+   brew install pipx
+   pipx ensurepath
+   ```
+
+   **Linux:**
+   ```
+   python3 -m pip install --user pipx
+   python3 -m pipx ensurepath
+   ```
+
+4. **Install SIMKL Movie Tracker:**
+   ```
+   pipx install simkl-movie-tracker
+   ```
+   You will now have the `simkl-tracker` command available!
+
+5. **Initialize SIMKL Movie Tracker:**
+   ```
+   simkl-tracker init
+   ```
+   You will be prompted to:
+   - Enter your SIMKL Client ID (obtain one at https://simkl.com/settings/developer/)
+   - Authorize the app to access the SIMKL API by following the on-screen instructions
+
+6. **Start tracking your movies:**
+   ```
+   simkl-tracker start
+   ```
+
+### Installing as a Windows Service (Optional)
+
+To have SIMKL Movie Tracker start automatically with Windows:
+
+```
+simkl-tracker install-service
 ```
 
-### Detailed Installation
+Follow the on-screen instructions to complete the service installation.
 
-1. **Get Simkl API Credentials:**
-   - Create a [Simkl](https://simkl.com) account
-   - Go to [Settings > Developer](https://simkl.com/settings/dev)
-   - Create new client to get your Client ID
-   - First run will guide you through access token generation
+### Manual Installation (Development)
 
-2. **Configure Environment:**
-   ```bash
-   # Copy example environment file
-   cp .env.example .env
-   
-   # Add your credentials to .env:
-   SIMKL_CLIENT_ID=your_client_id
-   SIMKL_ACCESS_TOKEN=your_access_token
-   ```
+If you want to install from source:
 
-3. **Run the Application:**
-   ```bash
-   # Run automated test with real media player and API integration
-   python test_real_playback.py
-   
-   # Run the tracker (it will run in the background)
-   python main.py
-   ```
+```bash
+# Clone repository
+git clone https://github.com/kavinthangavel/simkl-movie-tracker.git
+cd simkl-movie-tracker
 
-### Auto-Start Setup
+# Install the package in development mode
+pip install -e .
 
-To have the tracker start automatically with Windows:
-
-1. Press `Win+R` and type `shell:startup`
-2. Create a shortcut with these properties:
-   ```
-   Target: python.exe "path\to\main.py"  # Or pythonw.exe to hide console
-   Start in: path\to\simkl-movie-tracker
-   ```
+# Initialize and run
+simkl-tracker init
+simkl-tracker start
+```
 
 ## 🎮 Usage
 
-The tracker runs silently in the background, automatically detecting and tracking movie playback in supported media players. For testing:
+The tracker runs silently in the background, automatically detecting and tracking movie playback in supported media players. Basic commands:
 
 ```bash
+# Initialize the tracker (first-time setup)
+simkl-tracker init
 
+# Start tracking in the foreground
+simkl-tracker start
+
+# Install as a Windows service
+simkl-tracker install-service
+
+# Show help
+simkl-tracker --help
+```
+
+### Monitoring and Logs
+
+```bash
 # Monitor log file
 type simkl_tracker.log
 
 # Check detailed playback events
-type simkl_movie_tracker\playback_log.jsonl
+type simkl_scrobbler\playback_log.jsonl
 ```
 
 ## ⚙️ Advanced Configuration
@@ -270,7 +306,7 @@ The master test suite automatically discovers and configures media players insta
 type simkl_tracker.log
 
 # Check detailed playback events
-type simkl_movie_tracker\playback_log.jsonl
+type simkl_scrobbler\playback_log.jsonl
 
 # Run tests with verbose output
 python tests/master_test.py --test-mode --verbose
