@@ -29,7 +29,7 @@ pywin32 = { version = ">=300", markers = "sys_platform == 'win32'" }
 
 [tool.poetry.group.dev.dependencies]
 pytest = ">=6.2.5"
-flake8 = ">=6.0.0" # Added flake8 as it's used in CI
+flake8 = "^5.0" # Use v5 for Python 3.7 compatibility
 
 [tool.poetry.scripts]
 simkl-scrobbler = "simkl_scrobbler.cli:main"
