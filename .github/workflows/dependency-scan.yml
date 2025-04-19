@@ -23,11 +23,20 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
+        # Install secure setuptools version
+        python -m pip install "setuptools>=65.5.1"
         # Use pip-audit instead of safety which doesn't require interactive login
         pip install pip-audit
         # Filter out Windows-specific dependencies
         sed '/pywin32/d; /pygetwindow/d' requirements.txt > requirements_linux.txt
         pip install -r requirements_linux.txt
+        
+        # Create a stub module for pygetwindow on Linux
+        mkdir -p pygetwindow
+        echo 'def getAllTitles(): return []' > pygetwindow/__init__.py
+        
+        # Install the package in development mode
+        pip install -e . --config-settings editable_mode=compat
         
     - name: Check dependencies for security vulnerabilities
       run: |
