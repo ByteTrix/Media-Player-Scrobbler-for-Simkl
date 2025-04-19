@@ -16,7 +16,7 @@ from datetime import datetime
 from dotenv import load_dotenv
 
 # Add project root to path
-project_root = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, project_root)
 
 # Import components from our package - use existing functions directly
