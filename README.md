@@ -36,9 +36,6 @@ A powerful Windows-based automatic scrobbler for [Simkl](https://simkl.com) that
 # Install with pip (standard)
 pip install simkl-scrobbler
 
-# Or install with pipx (isolates dependencies)
-# pipx install simkl-scrobbler
-
 # Initialize the tracker
 simkl-scrobbler init
 
