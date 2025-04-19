@@ -47,7 +47,7 @@ simkl-scrobbler start
 
 - **Zero Configuration** - Works with most Windows media players out of the box
 - **Smart Detection** - Intelligent movie recognition using guessit library
-- **Background Operation** - Runs silently in the background without a GUI
+- **Background Operation** - Runs silently in the background without a GUI (Still Working on it)
 - **Progress Tracking** - Monitors viewing progress across sessions
 - **Automatic Scrobbling** - Marks movies as watched after 80% completion
 - **Offline Support** - Maintains sync backlog when offline
@@ -357,13 +357,9 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## 📝 Roadmap
 
-- [ ] Add Linux support
-- [ ] Add macOS support
-- [ ] Create native Windows installer
+- [ ] Tray or Background Service with Notification
+- [ ] Add Linux and Macos support
 - [x] Add real-time position tracking for supported players
 - [x] Implement multi-window monitoring
-- [x] Create automated playback tests
-- [x] Enhance test suite with visual output and comprehensive coverage
-- [ ] Add support for more media players
-- [ ] Create GUI configuration tool
+- [ ] Create automated tests
 
