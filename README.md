@@ -100,19 +100,7 @@ The scrobbler monitors the window titles of these players to detect media files 
    python -m pipx ensurepath
    ```
    (You may need to restart your terminal or system after this step)
-
-   **macOS:**
-   ```
-   brew install pipx
-   pipx ensurepath
-   ```
-
-   **Linux:**
-   ```
-   python3 -m pip install --user pipx
-   python3 -m pipx ensurepath
-   ```
-
+   
 4. **Install SIMKL Movie Tracker:**
    ```
    pipx install simkl-movie-tracker
@@ -124,7 +112,8 @@ The scrobbler monitors the window titles of these players to detect media files 
    simkl-tracker init
    ```
    You will be prompted to:
-   - Enter your SIMKL Client ID (obtain one at https://simkl.com/settings/developer/)
+   - Copy you Generated Pin
+   - Enter your SIMKL at Pin (https://simkl.com/pin/)
    - Authorize the app to access the SIMKL API by following the on-screen instructions
 
 6. **Start tracking your movies:**
