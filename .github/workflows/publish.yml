@@ -28,6 +28,6 @@ jobs:
     - name: Publish package to PyPI
       uses: pypa/gh-action-pypi-publish@release/v1
       # No API token needed if using trusted publishing
-      with:
-        user: __token__
-        password: ${{ secrets.PYPI_API_TOKEN }} # Store your PyPI token as a GitHub secret
+      # with:
+      #   user: __token__
+      #   password: ${{ secrets.PYPI_API_TOKEN }} # Store your PyPI token as a GitHub secret
