@@ -16,21 +16,19 @@ import requests # For player web interfaces
 import re # For parsing MPC variables.html
 from datetime import datetime
 
-# Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
+# Configure module logging
 logger = logging.getLogger(__name__)
 
-
-# Setup Playback Logger
+# Setup Playback Logger - for detailed playback events
 playback_log_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'playback_log.jsonl')
 playback_logger = logging.getLogger('PlaybackLogger')
 playback_logger.setLevel(logging.INFO)
 # Use a rotating file handler (5MB per file, keep 3 backups)
-formatter = logging.Formatter('{"timestamp": "%(asctime)s", "level": "%(levelname)s", "message": %(message)s}') # Raw JSON message
+formatter = logging.Formatter('{"timestamp": "%(asctime)s", "level": "%(levelname)s", "message": %(message)s}')
 handler = logging.handlers.RotatingFileHandler(playback_log_file, maxBytes=5*1024*1024, backupCount=3, encoding='utf-8')
 handler.setFormatter(formatter)
 playback_logger.addHandler(handler)
-playback_logger.propagate = False # Prevent double logging to root logger
+playback_logger.propagate = False  # Prevent double logging to root logger
 
 # List of supported video player executable names
 VIDEO_PLAYER_EXECUTABLES = [
@@ -431,16 +429,23 @@ class MovieScrobbler:
 
         # Check completion threshold
         # Use self.is_complete() which handles the logic including the flag
-        if not self.completed and (current_time - self.last_progress_check > 30):
-            if self.is_complete(): # Check if threshold is met based on current state
+        if not self.completed and (current_time - self.last_progress_check > 5): # Reduced from 30 to 5 seconds
+            # Calculate completion percentage
+            completion_pct = self._calculate_percentage(use_position=position_updated)
+            
+            # Check if the movie has reached completion threshold
+            if completion_pct and completion_pct >= self.completion_threshold:
                  logger.info(f"Completion threshold ({self.completion_threshold}%) met for '{self.movie_name or self.currently_tracking}'")
                  self._log_playback_event("completion_threshold_reached")
                  if self.simkl_id:
+                     # Try to mark as finished, if it fails due to being offline, it will add to backlog
                      self.mark_as_finished(self.simkl_id, self.movie_name or self.currently_tracking)
                  else:
                      logger.warning("Cannot mark as finished: Simkl ID unknown.")
                      # Consider adding to backlog even without ID? Maybe not useful.
-            self.last_progress_check = time.time() # Reset check timer regardless
+            
+            # Reset the check timer
+            self.last_progress_check = current_time 
 
         # Scrobble update (consider adjusting frequency/logic based on Simkl needs)
         should_scrobble = state_changed or (current_time - self.last_scrobble_time > DEFAULT_POLL_INTERVAL)
@@ -544,12 +549,20 @@ class MovieScrobbler:
         if not self.client_id or not self.access_token:
             logger.error("Cannot mark movie as finished: missing API credentials")
             self._log_playback_event("marked_as_finished_fail_credentials")
+            logger.info(f"Adding '{title}' (ID: {simkl_id}) to backlog due to missing credentials")
             self.backlog.add(simkl_id, title) # Backlog add logs itself
             return False
 
         try:
             # Import inside method to avoid circular imports
-            from simkl_movie_tracker.simkl_api import mark_as_watched
+            from simkl_movie_tracker.simkl_api import mark_as_watched, is_internet_connected
+            
+            # First check if we're online
+            if not is_internet_connected():
+                logger.warning(f"System appears to be offline. Adding '{title}' (ID: {simkl_id}) to backlog for future syncing")
+                self._log_playback_event("marked_as_finished_offline")
+                self.backlog.add(simkl_id, title)
+                return False
             
             result = mark_as_watched(simkl_id, self.client_id, self.access_token)
             if result:
@@ -568,6 +581,7 @@ class MovieScrobbler:
             logger.error(f"Error marking movie as watched: {e}")
             # Log exception and backlog add
             self._log_playback_event("marked_as_finished_api_error", {"error": str(e)})
+            logger.info(f"Adding '{title}' (ID: {simkl_id}) to backlog due to error: {e}")
             self.backlog.add(simkl_id, title) # Backlog add logs itself
             return False
 

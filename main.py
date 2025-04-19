@@ -8,16 +8,17 @@ from simkl_movie_tracker.media_tracker import get_active_window_info, MonitorAwa
 from simkl_movie_tracker.simkl_api import search_movie, mark_as_watched, authenticate, get_movie_details
 import logging
 
-# Configure logging
+# Configure logging with mode='w' to clear the log file on startup
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
         logging.StreamHandler(),
-        logging.FileHandler("simkl_tracker.log")
+        logging.FileHandler("simkl_tracker.log", mode='w')
     ]
 )
 logger = logging.getLogger(__name__)
+logger.info("Starting Simkl Movie Tracker application")
 
 # Default polling interval in seconds
 DEFAULT_POLL_INTERVAL = 10
@@ -31,17 +32,21 @@ def load_configuration():
     access_token = os.getenv("SIMKL_ACCESS_TOKEN")
 
     if not client_id:
+        logger.error("SIMKL_CLIENT_ID not found in environment variables.")
         print("Error: SIMKL_CLIENT_ID not found in environment variables.")
         print("Please ensure you have a .env file with this value.")
         sys.exit(1)
 
     if not access_token:
+        logger.info("Access token not found, attempting device authentication...")
         print("Access token not found, attempting device authentication...")
         access_token = authenticate(client_id)
         if access_token:
+            logger.info("Authentication successful.")
             print("Authentication successful. You should add the following line to your .env file to avoid authenticating next time:")
             print(f"SIMKL_ACCESS_TOKEN={access_token}")
         else:
+            logger.error("Authentication failed.")
             print("Authentication failed. Please check your client ID and ensure you complete the authorization step on Simkl.")
             sys.exit(1)
 
@@ -53,7 +58,6 @@ class SimklMovieTracker:
     def __init__(self):
         self.poll_interval = DEFAULT_POLL_INTERVAL
         self.running = False
-        # Use the enhanced MonitorAwareScrobbler instead of basic MovieScrobbler
         self.scrobbler = MonitorAwareScrobbler()
         self.backlog_counter = 0
         self.client_id = None
@@ -91,7 +95,7 @@ class SimklMovieTracker:
                 signal.signal(signal.SIGINT, self._signal_handler)
                 signal.signal(signal.SIGTERM, self._signal_handler)
             
-            # Use the enhanced monitoring system instead of the basic polling loop
+            # Use the enhanced monitoring system
             self.scrobbler.start_monitoring()
             self._backlog_check_loop()
             
@@ -164,9 +168,6 @@ class SimklMovieTracker:
                     logger.info(f"Watching '{movie_name}' - Progress: {progress:.1f}%")
             elif state == "paused":
                 logger.info(f"Paused '{movie_name}' at {progress:.1f}%")
-            
-            # The automatic marking at 80% is now handled in the MovieScrobbler class
-            # We no longer need to manually check for the 80% threshold and mark as watched here
 
 def run_as_background_service():
     """Run the tracker as a background service"""
@@ -180,6 +181,7 @@ def run_as_background_service():
 
 def main():
     """Main entry point for the application"""
+    logger.info("Starting main application")
     tracker = SimklMovieTracker()
     if tracker.initialize():
         tracker.start()

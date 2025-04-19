@@ -1,0 +1,9 @@
+2025-04-19 12:11:56,117 - INFO - Starting Simkl Movie Tracker application
+2025-04-19 12:11:56,117 - INFO - Starting main application
+2025-04-19 12:11:56,118 - INFO - Initializing Simkl Movie Tracker...
+2025-04-19 12:11:56,121 - INFO - Starting Simkl Movie Tracker...
+2025-04-19 12:11:56,121 - INFO - Monitoring for supported video players...
+2025-04-19 12:11:56,121 - INFO - Supported players: VLC, MPC-HC, Windows Media Player, MPV, etc.
+2025-04-19 12:11:56,122 - INFO - Movies will be marked as watched after viewing 80% of their estimated duration
+2025-04-19 12:11:56,123 - INFO - Monitor loop started
+2025-04-19 12:11:56,123 - INFO - Started window monitoring thread

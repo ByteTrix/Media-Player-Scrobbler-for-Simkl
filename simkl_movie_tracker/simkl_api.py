@@ -1,11 +1,27 @@
 import requests
 import time
 import logging
+import socket
 
 # Set up logging
 logger = logging.getLogger(__name__)
 
 SIMKL_API_BASE_URL = 'https://api.simkl.com'
+
+def is_internet_connected():
+    """
+    Check if there's a working internet connection by attempting to connect to Simkl's API.
+    
+    Returns:
+        bool: True if internet is connected, False otherwise
+    """
+    try:
+        # Try to connect to Simkl API with a timeout of 2 seconds
+        requests.get(SIMKL_API_BASE_URL, timeout=2)
+        return True
+    except (requests.ConnectionError, requests.Timeout, socket.error) as e:
+        logger.debug(f"Internet connectivity check failed: {e}")
+        return False
 
 def search_movie(title, client_id, access_token):
     """
@@ -19,6 +35,11 @@ def search_movie(title, client_id, access_token):
     Returns:
         dict: The first matching movie result or None if not found
     """
+    # First check internet connectivity
+    if not is_internet_connected():
+        logger.warning(f"Cannot search for movie '{title}': No internet connection")
+        return None
+        
     if not client_id or not access_token:
         logger.error("Missing Client ID or Access Token for search_movie.")
         return None
@@ -102,6 +123,11 @@ def mark_as_watched(simkl_id, client_id, access_token):
     Returns:
         bool: True if successfully marked as watched, False otherwise
     """
+    # First check internet connectivity
+    if not is_internet_connected():
+        logger.warning(f"Cannot mark movie ID {simkl_id} as watched: No internet connection")
+        return False
+    
     if not client_id or not access_token:
         logger.error("Missing Client ID or Access Token for mark_as_watched.")
         return False
@@ -141,6 +167,10 @@ def mark_as_watched(simkl_id, client_id, access_token):
             logger.error(f"Failed to mark movie as watched. Status code: {response.status_code}")
             response.raise_for_status()
             return False
+    except requests.exceptions.ConnectionError as e:
+        logger.error(f"Connection error marking movie ID {simkl_id} as watched: {e}")
+        logger.info(f"Movie ID {simkl_id} will be added to backlog for future syncing")
+        return False
     except requests.exceptions.RequestException as e:
         logger.error(f"Error marking Simkl ID {simkl_id} as watched: {e}")
     
