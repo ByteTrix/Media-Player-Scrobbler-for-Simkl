@@ -1,6 +1,6 @@
-# Contributing to Simkl Movie Tracker
+# Contributing to SIMKL Scrobbler
 
-Thank you for considering contributing to Simkl Movie Tracker! This document provides guidelines and instructions for contributing.
+Thank you for considering contributing to SIMKL Scrobbler! This document provides guidelines and instructions for contributing.
 
 ## Code of Conduct
 

@@ -168,7 +168,7 @@ class TestResult:
         }
 
 class SimklMovieTrackerTester:
-    """Master tester class for Simkl Movie Tracker functionality"""
+    """Master tester class for SIMKL Scrobbler functionality"""
     
     def __init__(self):
         self.client_id = None
@@ -345,7 +345,7 @@ class SimklMovieTrackerTester:
     def run_all_tests(self, args):
         """Run all tests and collect results"""
         logger.info("=" * 70)
-        logger.info("SIMKL MOVIE TRACKER - MASTER TEST SUITE")
+        logger.info("SIMKL Scrobbler - MASTER TEST SUITE")
         logger.info("=" * 70)
         
         # Store command line arguments
@@ -2183,7 +2183,7 @@ class SimklMovieTrackerTester:
 
 def main():
     """Main entry point for master test suite"""
-    parser = argparse.ArgumentParser(description="Simkl Movie Tracker Master Test Suite")
+    parser = argparse.ArgumentParser(description="SIMKL Scrobbler Master Test Suite")
     parser.add_argument("-t", "--test-mode", action="store_true", help="Run in test mode without real API calls")
     parser.add_argument("-m", "--movie-title", help="Specific movie title to test with", default="Inception")
     parser.add_argument("-v", "--video-file", help="Path to a video file for real playback testing")
@@ -2203,7 +2203,7 @@ def main():
     args = parser.parse_args()
     
     if args.show_version:
-        print("Simkl Movie Tracker - Master Test Suite v1.0.0")
+        print("SIMKL Scrobbler - Master Test Suite v1.0.0")
         return 0
     
     if args.verbose:

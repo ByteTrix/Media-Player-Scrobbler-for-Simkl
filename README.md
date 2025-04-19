@@ -101,15 +101,15 @@ The scrobbler monitors the window titles of these players to detect media files 
    ```
    (You may need to restart your terminal or system after this step)
    
-4. **Install SIMKL Movie Tracker:**
+4. **Install SIMKL Scrobbler:**
    ```
-   pipx install simkl-movie-tracker
+   pipx install simkl-scrobbler
    ```
-   You will now have the `simkl-tracker` command available!
+   You will now have the `simkl-scrobbler` command available!
 
-5. **Initialize SIMKL Movie Tracker:**
+5. **Initialize SIMKL Scrobbler:**
    ```
-   simkl-tracker init
+   simkl-scrobbler init
    ```
    You will be prompted to:
    - Copy you Generated Pin
@@ -118,15 +118,15 @@ The scrobbler monitors the window titles of these players to detect media files 
 
 6. **Start tracking your movies:**
    ```
-   simkl-tracker start
+   simkl-scrobbler start
    ```
 
 ### Installing as a Windows Service (Optional)
 
-To have SIMKL Movie Tracker start automatically with Windows:
+To have SIMKL Scrobbler start automatically with Windows:
 
 ```
-simkl-tracker install-service
+simkl-scrobbler install-service
 ```
 
 Follow the on-screen instructions to complete the service installation.
@@ -137,15 +137,15 @@ If you want to install from source:
 
 ```bash
 # Clone repository
-git clone https://github.com/kavinthangavel/simkl-movie-tracker.git
-cd simkl-movie-tracker
+git clone https://github.com/kavinthangavel/simkl-scrobbler.git
+cd simkl-scrobbler
 
 # Install the package in development mode
 pip install -e .
 
 # Initialize and run
-simkl-tracker init
-simkl-tracker start
+simkl-scrobbler init
+simkl-scrobbler start
 ```
 
 ## 🎮 Usage
@@ -154,23 +154,23 @@ The tracker runs silently in the background, automatically detecting and trackin
 
 ```bash
 # Initialize the tracker (first-time setup)
-simkl-tracker init
+simkl-scrobbler init
 
 # Start tracking in the foreground
-simkl-tracker start
+simkl-scrobbler start
 
 # Install as a Windows service
-simkl-tracker install-service
+simkl-scrobbler install-service
 
 # Show help
-simkl-tracker --help
+simkl-scrobbler --help
 ```
 
 ### Monitoring and Logs
 
 ```bash
 # Monitor log file
-type simkl_tracker.log
+type simkl_scrobbler.log
 
 # Check detailed playback events
 type simkl_scrobbler\playback_log.jsonl
@@ -225,7 +225,7 @@ graph LR
 
 ## 🧪 Testing
 
-Simkl Movie Tracker includes a comprehensive test suite to ensure reliability and functionality:
+SIMKL Scrobbler includes a comprehensive test suite to ensure reliability and functionality:
 
 ```bash
 # Run the full test suite with mock API responses
@@ -280,7 +280,7 @@ The master test suite automatically discovers and configures media players insta
 | Issue | Solution |
 |-------|----------|
 | Movie not detected | Ensure media player shows filename in window title |
-| No auto-marking | Check `simkl_tracker.log` for API errors |
+| No auto-marking | Check `simkl_scrobbler.log` for API errors |
 | Incorrect movie | Include year in filename: "Movie (2023).mp4" |
 | Player not detected | Verify player is in supported list |
 | Windows permission error | Run as administrator |
@@ -292,7 +292,7 @@ The master test suite automatically discovers and configures media players insta
 ### Logs and Debugging
 ```bash
 # Check main application log
-type simkl_tracker.log
+type simkl_scrobbler.log
 
 # Check detailed playback events
 type simkl_scrobbler\playback_log.jsonl
@@ -338,7 +338,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [Simkl](https://simkl.com) for their excellent API
 - [iamkroot's Trakt Scrobbler](https://github.com/iamkroot/trakt-scrobbler/) for inspiration
 - [guessit](https://github.com/guessit-io/guessit) for powerful video filename parsing
-<!-- - All [contributors](https://github.com/kavinthangavel/simkl-movie-tracker/graphs/contributors) -->
+<!-- - All [contributors](https://github.com/kavinthangavel/simkl-scrobbler/graphs/contributors) -->
 
 ## 🤝 Contributing
 
