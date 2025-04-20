@@ -3,21 +3,41 @@ import os
 import sys
 import signal
 import threading
+import pathlib  # Import pathlib
 from dotenv import load_dotenv
 from .media_tracker import get_active_window_info, MonitorAwareScrobbler
 from .simkl_api import search_movie, mark_as_watched, authenticate, get_movie_details
 import logging
 
+# Define the application data directory in the user's home folder
+APP_NAME = "simkl-scrobbler"
+USER_SUBDIR = "kavinthangavel" # As requested by the user
+APP_DATA_DIR = pathlib.Path.home() / USER_SUBDIR / APP_NAME
+APP_DATA_DIR.mkdir(parents=True, exist_ok=True) # Ensure the directory exists
+
 # Configure logging when the module is loaded
+log_file_path = APP_DATA_DIR / "simkl_scrobbler.log"
+
+# Create handlers
+stream_handler = logging.StreamHandler()
+stream_handler.setLevel(logging.WARNING) # Only show WARNING and above in terminal
+stream_handler.setFormatter(logging.Formatter('%(levelname)s - %(name)s - %(message)s')) # Simpler format for terminal
+
+file_handler = logging.FileHandler(log_file_path, mode='w', encoding='utf-8')
+file_handler.setLevel(logging.INFO) # Log INFO and above to file
+file_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(name)s - %(message)s'))
+
+# Configure the root logger
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
+    level=logging.INFO, # Root logger level captures INFO and above
     handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler("simkl_scrobbler.log", mode='w')
+        stream_handler, # Add configured stream handler
+        file_handler    # Add configured file handler
     ]
 )
 logger = logging.getLogger(__name__)
+logger.info(f"Main application log file configured at: {log_file_path}") # Logged to file only
+logger.info(f"Using application data directory: {APP_DATA_DIR}") # Logged to file only
 
 # Default polling interval in seconds
 DEFAULT_POLL_INTERVAL = 10
@@ -26,13 +46,14 @@ BACKLOG_PROCESS_INTERVAL = 30
 
 def load_configuration():
     """Loads configuration from .env file and validates required variables."""
-    # First try to load from user home directory
-    user_env_path = os.path.join(os.path.expanduser("~"), ".simkl_scrobbler.env")
-    if os.path.exists(user_env_path):
-        load_dotenv(user_env_path)
+    # Load .env file ONLY from the application data directory
+    env_path = APP_DATA_DIR / ".simkl_scrobbler.env"
+    if env_path.exists():
+        logger.info(f"Loading configuration from: {env_path}")
+        load_dotenv(env_path)
     else:
-        # Fallback to local .env file
-        load_dotenv()
+        logger.warning(f"Configuration file not found at: {env_path}")
+        # No fallback, proceed without loading if not found
     
     # Import the default client ID from simkl_api module
     from .simkl_api import DEFAULT_CLIENT_ID
@@ -67,7 +88,8 @@ class SimklScrobbler:
     def __init__(self):
         self.poll_interval = DEFAULT_POLL_INTERVAL
         self.running = False
-        self.scrobbler = MonitorAwareScrobbler()
+        # Pass the app data directory to the scrobbler
+        self.scrobbler = MonitorAwareScrobbler(app_data_dir=APP_DATA_DIR)
         self.backlog_counter = 0
         self.client_id = None
         self.access_token = None

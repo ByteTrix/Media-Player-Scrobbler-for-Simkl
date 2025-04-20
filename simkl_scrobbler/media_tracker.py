@@ -10,6 +10,7 @@ import logging
 import time
 import os
 import json
+import pathlib # Import pathlib
 import threading
 import logging.handlers
 import requests # For player web interfaces
@@ -19,16 +20,7 @@ from datetime import datetime
 # Configure module logging
 logger = logging.getLogger(__name__)
 
-# Setup Playback Logger - for detailed playback events
-playback_log_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'playback_log.jsonl')
-playback_logger = logging.getLogger('PlaybackLogger')
-playback_logger.setLevel(logging.INFO)
-# Use a rotating file handler (5MB per file, keep 3 backups)
-formatter = logging.Formatter('{"timestamp": "%(asctime)s", "level": "%(levelname)s", "message": %(message)s}')
-handler = logging.handlers.RotatingFileHandler(playback_log_file, maxBytes=5*1024*1024, backupCount=3, encoding='utf-8')
-handler.setFormatter(formatter)
-playback_logger.addHandler(handler)
-playback_logger.propagate = False  # Prevent double logging to root logger
+# Playback Logger will be configured inside MovieScrobbler where app_data_dir is available
 
 # List of supported video player executable names
 VIDEO_PLAYER_EXECUTABLES = [
@@ -80,16 +72,20 @@ STOPPED = "stopped"
 class MediaCache:
     """Cache for storing identified media to avoid repeated searches"""
 
-    def __init__(self, cache_file="media_cache.json"):
-        self.cache_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), cache_file)
+    def __init__(self, app_data_dir: pathlib.Path, cache_file="media_cache.json"):
+        self.app_data_dir = app_data_dir
+        self.cache_file = self.app_data_dir / cache_file # Use app_data_dir
         self.cache = self._load_cache()
 
     def _load_cache(self):
         """Load the cache from file"""
         if os.path.exists(self.cache_file):
             try:
-                with open(self.cache_file, 'r') as f:
+                # Specify encoding for reading JSON
+                with open(self.cache_file, 'r', encoding='utf-8') as f:
                     return json.load(f)
+            except json.JSONDecodeError as e:
+                logger.error(f"Error decoding cache file {self.cache_file}: {e}")
             except Exception as e:
                 logger.error(f"Error loading cache: {e}")
         return {}
@@ -97,8 +93,9 @@ class MediaCache:
     def _save_cache(self):
         """Save the cache to file"""
         try:
-            with open(self.cache_file, 'w') as f:
-                json.dump(self.cache, f)
+            # Specify encoding for writing JSON
+            with open(self.cache_file, 'w', encoding='utf-8') as f:
+                json.dump(self.cache, f, indent=4) # Add indent for readability
         except Exception as e:
             logger.error(f"Error saving cache: {e}")
 
@@ -118,8 +115,9 @@ class MediaCache:
 class BacklogCleaner:
     """Manages a backlog of watched movies to sync when connection is restored"""
 
-    def __init__(self, backlog_file="backlog.json", threshold_days=None):
-        self.backlog_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), backlog_file)
+    def __init__(self, app_data_dir: pathlib.Path, backlog_file="backlog.json", threshold_days=None):
+        self.app_data_dir = app_data_dir
+        self.backlog_file = self.app_data_dir / backlog_file # Use app_data_dir
         self.backlog = self._load_backlog()
         self.threshold_days = threshold_days  # New parameter for old entries threshold
 
@@ -127,13 +125,14 @@ class BacklogCleaner:
         """Load the backlog from file"""
         if os.path.exists(self.backlog_file):
             try:
-                with open(self.backlog_file, 'r') as f:
+                # Specify encoding for reading JSON
+                with open(self.backlog_file, 'r', encoding='utf-8') as f:
                     content = f.read().strip()
                     if content:  # Only try to parse if file is not empty
                         f.seek(0) # Reset file pointer before reading again for JSON parsing
                         return json.load(f)
                     else:
-                        logger.info("Backlog file exists but is empty. Starting with empty backlog.")
+                        logger.debug("Backlog file exists but is empty. Starting with empty backlog.") # Changed to debug
                         return []
             except json.JSONDecodeError as e:
                 logger.error(f"Error loading backlog: {e}")
@@ -149,8 +148,9 @@ class BacklogCleaner:
     def _save_backlog(self):
         """Save the backlog to file"""
         try:
-            with open(self.backlog_file, 'w') as f:
-                json.dump(self.backlog, f)
+            # Specify encoding for writing JSON
+            with open(self.backlog_file, 'w', encoding='utf-8') as f:
+                json.dump(self.backlog, f, indent=4) # Add indent for readability
         except Exception as e:
             logger.error(f"Error saving backlog: {e}")
 
@@ -188,7 +188,8 @@ class BacklogCleaner:
 class MovieScrobbler:
     """Tracks movie viewing and scrobbles to Simkl"""
 
-    def __init__(self, client_id=None, access_token=None, testing_mode=False):
+    def __init__(self, app_data_dir: pathlib.Path, client_id=None, access_token=None, testing_mode=False):
+        self.app_data_dir = app_data_dir # Store app_data_dir
         self.client_id = client_id
         self.access_token = access_token
         self.testing_mode = testing_mode # Add testing mode flag
@@ -202,14 +203,41 @@ class MovieScrobbler:
         self.simkl_id = None
         self.movie_name = None
         self.last_scrobble_time = 0
-        self.media_cache = MediaCache()
-        self.backlog = BacklogCleaner()
+        # Pass app_data_dir to cache and backlog
+        self.media_cache = MediaCache(app_data_dir=self.app_data_dir)
+        self.backlog = BacklogCleaner(app_data_dir=self.app_data_dir)
         self.last_progress_check = 0  # Time of last progress threshold check
         self.completion_threshold = 80  # Default completion threshold (percent)
         self.completed = False  # Flag to track if movie has been marked as complete
         self.current_position_seconds = 0 # Current playback position in seconds
         self.total_duration_seconds = None # Total duration in seconds (if known)
         self._last_connection_error_log = {} # Track player connection errors
+
+        # --- Setup Playback Logger ---
+        # --- Setup Playback Logger ---
+        self.playback_log_file = self.app_data_dir / 'playback_log.jsonl'
+        # Explicitly get the logger instance first
+        self.playback_logger = logging.getLogger('PlaybackLogger')
+        # Ensure propagation is set correctly *before* adding handlers might help
+        self.playback_logger.propagate = False # Prevent double logging to root logger
+
+        # Check if handlers already exist to prevent duplicates if re-initialized
+        if not self.playback_logger.hasHandlers():
+            self.playback_logger.setLevel(logging.INFO) # Set level on the logger itself
+            formatter = logging.Formatter('{"timestamp": "%(asctime)s", "level": "%(levelname)s", "message": %(message)s}')
+            try:
+                # Use RotatingFileHandler with the correct path
+                handler = logging.handlers.RotatingFileHandler(
+                    self.playback_log_file, maxBytes=5*1024*1024, backupCount=3, encoding='utf-8'
+                )
+                handler.setFormatter(formatter)
+                self.playback_logger.addHandler(handler)
+                logger.info(f"Successfully configured PlaybackLogger handler for: {self.playback_log_file}")
+            except Exception as e:
+                # Log error to the *main* logger if handler creation fails
+                logger.error(f"!!! Failed to create RotatingFileHandler for PlaybackLogger at {self.playback_log_file}: {e}", exc_info=True)
+
+        # --- End Playback Logger Setup ---
 
     def _log_playback_event(self, event_type, extra_data=None):
         """Logs a structured playback event to the playback log file."""
@@ -232,7 +260,8 @@ class MovieScrobbler:
 
         # Use json.dumps to ensure proper JSON formatting within the log message
         try:
-            playback_logger.info(json.dumps(log_entry))
+            # Use the instance's playback_logger
+            self.playback_logger.info(json.dumps(log_entry))
         except Exception as e:
             logger.error(f"Failed to log playback event: {e} - Data: {log_entry}")
 
@@ -1040,10 +1069,11 @@ class MonitorAwareScrobbler(MovieScrobbler):
     Enhanced version of MovieScrobbler that handles its own monitoring of windows.
     This class adds window monitoring functionality on top of the basic scrobbling.
     """
-
-    def __init__(self, client_id=None, access_token=None, testing_mode=False):
-        super().__init__(client_id, access_token, testing_mode)
-        self._monitor_thread = None  # Changed from monitor_thread to _monitor_thread
+ 
+    # Accept app_data_dir and pass it to the parent class
+    def __init__(self, app_data_dir: pathlib.Path, client_id=None, access_token=None, testing_mode=False):
+        super().__init__(app_data_dir=app_data_dir, client_id=client_id, access_token=access_token, testing_mode=testing_mode)
+        self._monitor_thread = None
         self.poll_interval = 10  # Default polling interval in seconds
         self.monitoring = False
         self.last_window_info = None

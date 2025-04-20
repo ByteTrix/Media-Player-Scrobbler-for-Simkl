@@ -1,10 +1,13 @@
 import argparse
 import os
 import sys
+import pathlib # Import pathlib
 import colorama
 from colorama import Fore, Style
+from dotenv import load_dotenv # Import load_dotenv
 from .simkl_api import authenticate
-from .media_tracker import MonitorAwareScrobbler
+# Import APP_DATA_DIR from main module
+from .main import APP_DATA_DIR, SimklScrobbler # Import SimklScrobbler too for verification step
 import logging
 
 # Initialize colorama for cross-platform colored terminal output
@@ -19,37 +22,69 @@ def init_command(args):
     
     # Import the default client ID from simkl_api module
     from .simkl_api import DEFAULT_CLIENT_ID
+
+    # Define env path
+    env_path = APP_DATA_DIR / ".simkl_scrobbler.env"
+    client_id = None
+    access_token = None
+
+    # Check if .env file exists and load it
+    if env_path.exists():
+        print(f"{Fore.YELLOW}Found existing configuration file: {env_path}{Style.RESET_ALL}")
+        load_dotenv(env_path)
+        client_id = os.getenv("SIMKL_CLIENT_ID")
+        access_token = os.getenv("SIMKL_ACCESS_TOKEN")
+
+    # Check if credentials are valid
+    if client_id and access_token:
+        print(f"{Fore.GREEN}✓ Existing credentials loaded successfully.{Style.RESET_ALL}")
+        # Optionally add a check here to verify token validity with Simkl API if needed
+        # For now, assume they are valid if present.
+        print(f"{Fore.YELLOW}Skipping authentication as credentials already exist.{Style.RESET_ALL}")
+        # Use existing credentials
+    else:
+        if env_path.exists():
+            print(f"{Fore.YELLOW}Existing configuration file is incomplete or invalid.{Style.RESET_ALL}")
+        else:
+            print(f"{Fore.YELLOW}No existing configuration file found.{Style.RESET_ALL}")
+
+        # Use the embedded client ID by default for new authentication
+        client_id = DEFAULT_CLIENT_ID
+        print(f"\n{Fore.CYAN}Using application client ID: {client_id[:8]}...{client_id[-8:]}{Style.RESET_ALL}")
+        print(f"{Fore.YELLOW}You'll need to authenticate with your Simkl account.{Style.RESET_ALL}")
+        print("This will allow the application to track your watched movies.")
+        print()
+
+        # Authenticate with SIMKL using the embedded client ID
+        print(f"\n{Fore.CYAN}Authenticating with SIMKL...{Style.RESET_ALL}")
+        access_token = authenticate(client_id)
+
+        if not access_token:
+            print(f"{Fore.RED}Authentication failed. Please try again.{Style.RESET_ALL}")
+            return 1
+
+        # Save the newly obtained credentials
+        print(f"\n{Fore.CYAN}Saving new credentials...{Style.RESET_ALL}")
+        # Ensure the directory exists (though main.py should also do this)
+        APP_DATA_DIR.mkdir(parents=True, exist_ok=True)
+        # Write credentials to the correct path, specifying encoding
+        with open(env_path, "w", encoding='utf-8') as env_file:
+            env_file.write(f"SIMKL_CLIENT_ID={client_id}\n")
+            env_file.write(f"SIMKL_ACCESS_TOKEN={access_token}\n")
+        print(f"{Fore.GREEN}Successfully saved credentials to {env_path}{Style.RESET_ALL}")
+
+    # --- Verification Step (remains the same) ---
     
-    # Use the embedded client ID by default
-    client_id = DEFAULT_CLIENT_ID
-    
-    print(f"{Fore.CYAN}Using application client ID: {client_id[:8]}...{client_id[-8:]}{Style.RESET_ALL}")
-    print(f"{Fore.YELLOW}You'll need to authenticate with your own Simkl account.{Style.RESET_ALL}")
-    print("This will allow the application to track your watched movies.")
-    print()
-    
-    # Authenticate with SIMKL using the embedded client ID
-    print(f"\n{Fore.CYAN}Authenticating with SIMKL...{Style.RESET_ALL}")
-    
-    access_token = authenticate(client_id)
-    
-    if not access_token:
-        print(f"{Fore.RED}Authentication failed. Please try again.{Style.RESET_ALL}")
-        return 1
-    
-    # Create/update .env file with credentials
-    env_path = os.path.join(os.path.expanduser("~"), ".simkl_scrobbler.env")
-    
-    with open(env_path, "w") as env_file:
-        env_file.write(f"SIMKL_CLIENT_ID={client_id}\n")
-        env_file.write(f"SIMKL_ACCESS_TOKEN={access_token}\n")
-    
-    print(f"\n{Fore.GREEN}Successfully saved credentials to {env_path}{Style.RESET_ALL}")
-    
-    # Initialize the scrobbler to verify configuration
+    # Initialize the main scrobbler class to verify configuration properly
     print(f"\n{Fore.CYAN}Verifying configuration...{Style.RESET_ALL}")
-    scrobbler = MonitorAwareScrobbler()
-    scrobbler.set_credentials(client_id, access_token)
+    # Use the main SimklScrobbler class which handles loading config from the correct path
+    # It will use the credentials loaded/saved above
+    verifier_scrobbler = SimklScrobbler()
+    if not verifier_scrobbler.initialize():
+         print(f"{Fore.RED}Configuration verification failed. Check logs for details.{Style.RESET_ALL}")
+         # If verification fails with existing token, maybe prompt to re-init?
+         print(f"{Fore.YELLOW}Hint: If the token expired, run 'simkl-scrobbler init' again to re-authenticate.{Style.RESET_ALL}")
+         return 1
     
     print(f"\n{Fore.GREEN}✓ SIMKL Scrobbler has been successfully configured!{Style.RESET_ALL}")
     print(f"{Fore.GREEN}✓ Your personal Simkl account is now connected!{Style.RESET_ALL}")
