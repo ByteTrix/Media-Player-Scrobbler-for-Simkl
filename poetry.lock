@@ -359,6 +359,24 @@ dev = ["pre-commit", "tox"]
 testing = ["pytest", "pytest-benchmark"]
 
 [[package]]
+name = "plyer"
+version = "2.1.0"
+description = "Platform-independent wrapper for platform-dependent APIs"
+optional = false
+python-versions = "*"
+groups = ["main"]
+files = [
+    {file = "plyer-2.1.0-py2.py3-none-any.whl", hash = "sha256:1b1772060df8b3045ed4f08231690ec8f7de30f5a004aa1724665a9074eed113"},
+    {file = "plyer-2.1.0.tar.gz", hash = "sha256:65b7dfb7e11e07af37a8487eb2aa69524276ef70dad500b07228ce64736baa61"},
+]
+
+[package.extras]
+android = ["pyjnius"]
+dev = ["flake8", "mock"]
+ios = ["pyobjus"]
+macosx = ["pyobjus"]
+
+[[package]]
 name = "psutil"
 version = "7.0.0"
 description = "Cross-platform lib for process and system monitoring in Python.  NOTE: the syntax of this script MUST be kept compatible with Python 2.7."
@@ -4125,4 +4143,4 @@ macos = ["pyobjc"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.9"
-content-hash = "20531914a5df7e95792e0717ea3cca476ad2c5670a258cc2a55a6841e4445382"
+content-hash = "4001ded880c8acd34eb50134eb4eaba404735b781f0dd6c65d4b38c8db33d3dc"
