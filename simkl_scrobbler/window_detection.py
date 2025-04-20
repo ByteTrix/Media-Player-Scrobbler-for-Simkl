@@ -497,10 +497,10 @@ def is_video_player(window_info):
         if any(player.lower() in app_name for player in platform_players):
             return True
             
-    # As a fallback, check against window title keywords
-    for keyword in VIDEO_PLAYER_KEYWORDS:
-        if keyword.lower() in title:
-            return True
+    # Fallback based on title keywords removed as it was causing false positives
+    # for keyword in VIDEO_PLAYER_KEYWORDS:
+    #     if keyword.lower() in title:
+    #         return True
             
     return False
 
