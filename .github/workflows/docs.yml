@@ -37,9 +37,14 @@ jobs:
           python-version: '3.11' # Consistent with other workflows
           cache: 'poetry' # Cache poetry dependencies
 
+      # Use snok/install-poetry action
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          virtualenvs-create: false # Optional: configure poetry settings
+
       - name: Install dependencies
         run: |
-          pip install poetry
           # Install project dependencies including mkdocs and plugins (assuming they are in dev group)
           poetry install --with dev --no-interaction
 

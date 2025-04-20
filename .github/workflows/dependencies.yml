@@ -49,9 +49,11 @@ jobs:
           python-version: '3.11' # Consistent with other workflows
           cache: 'poetry' # Cache poetry dependencies
 
+      # Use snok/install-poetry action
       - name: Install Poetry
-        run: |
-          pipx install poetry>=1.6.0 # Use pipx for tool installation
+        uses: snok/install-poetry@v1
+        with:
+          virtualenvs-create: false
 
       - name: Check Poetry Configuration and Update Lock File # Renamed step
         id: check
@@ -96,7 +98,7 @@ jobs:
           # Push changes
           git push origin ${BRANCH}
 
-          # Create PR
+          # Create PR (requires pull-requests: write permission for the job)
           gh pr create --title "chore: Update Poetry configuration and lock file" \
                        --body "This PR updates the poetry configuration (if needed) and regenerates the lock file based on the current \`pyproject.toml\`." \
                        --label "dependencies,automation" # Combine labels

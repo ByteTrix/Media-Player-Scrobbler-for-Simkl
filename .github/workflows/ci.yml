@@ -34,15 +34,17 @@ jobs:
           cache: 'poetry' # Use poetry cache
           # check-latest: true # Removed, can cause unexpected issues
 
+      # Use snok/install-poetry action
       - name: Install Poetry
-        run: |
-          pipx install poetry>=1.6.0 # Use pipx for tool installation
+        uses: snok/install-poetry@v1
+        with:
+          virtualenvs-create: false
 
       - name: Install dependencies
         run: |
           # Ensure poetry.lock is up-to-date - This should ideally be handled by a separate dependency update workflow
           # poetry lock --check # Check if lock file is consistent
-          poetry config virtualenvs.create false
+          # poetry config virtualenvs.create false # Config moved to poetry action
           # Install with dev dependencies, excluding the root package itself if it's not installable/needed for linting
           poetry install --with dev --no-interaction # --no-root removed as it might be needed depending on tools
 
@@ -72,13 +74,15 @@ jobs:
         python-version: ${{ matrix.python-version }}
         cache: 'poetry' # Use poetry cache
 
+    # Use snok/install-poetry action
     - name: Install Poetry
-      run: |
-        pipx install poetry>=1.6.0 # Use pipx for tool installation
+      uses: snok/install-poetry@v1
+      with:
+        virtualenvs-create: false
 
     - name: Install dependencies
       run: |
-        poetry config virtualenvs.create false
+        # poetry config virtualenvs.create false # Config moved to poetry action
         poetry install --with dev --no-interaction
 
     - name: Install Linux dependencies
