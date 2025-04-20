@@ -329,7 +329,7 @@ class SimklScrobbler:
                 
                 # Check if there's an available duration and significant progress (indicating a likely movie)
                 duration = scrobble_info.get("total_duration_seconds")
-                watched_seconds = scrobbler_info.get("watched_seconds", 0)
+                watched_seconds = scrobble_info.get("watched_seconds", 0)
                 watched_enough = False
                 
                 # If we have duration info, check if watched enough to consider adding to backlog
