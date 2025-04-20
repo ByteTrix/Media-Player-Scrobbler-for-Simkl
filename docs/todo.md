@@ -14,7 +14,7 @@ This document tracks both completed features and planned improvements for Simkl 
 - [x] 📦 Package distribution via PyPI
 
 ## 🚧 In Progress
-
+- [ ] 🪜 Testing Cross-Platform
 - [ ] 📱 Improve notification system
 - [ ] 🔐 Enhanced authentication flow
 
