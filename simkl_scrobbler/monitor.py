@@ -89,7 +89,7 @@ class Monitor:
 
     def _monitor_loop(self):
         """Main monitoring loop"""
-        logger.info("Monitor loop started")
+        logger.info("Media monitoring service initialized and running")
         check_count = 0
 
         while self.running:
@@ -103,7 +103,7 @@ class Monitor:
                     if is_video_player(win):
                         window_info = win
                         found_player = True
-                        logger.debug(f"Found video player window: {win.get('title', 'Unknown')}")
+                        logger.debug(f"Active media player detected: {win.get('title', 'Unknown')}")
                         
                         # Process this player window
                         with self._lock:  # Use lock when accessing shared resources
@@ -112,7 +112,7 @@ class Monitor:
                         # If we get scrobble info and need to search for the movie
                         if scrobble_info and self.search_callback and not scrobble_info.get("simkl_id"):
                             title = scrobble_info.get("title", "Unknown")
-                            logger.info(f"Movie needs identification: {title}")
+                            logger.info(f"Media identification required: '{title}'")
                             # Call the search callback
                             self.search_callback(title)
                         
@@ -121,7 +121,7 @@ class Monitor:
                 
                 # Only stop tracking if no player window found
                 if not found_player and self.scrobbler.currently_tracking:
-                    logger.info("No player window detected among all windows, stopping tracking")
+                    logger.info("Media playback ended: No active players detected")
                     with self._lock:
                         self.scrobbler.stop_tracking()
 
@@ -129,23 +129,23 @@ class Monitor:
                 check_count += 1
                 current_time = time.time()
                 if current_time - self.last_backlog_check > self.backlog_check_interval:
-                    logger.debug("Checking backlog...")
+                    logger.debug("Performing backlog synchronization...")
                     with self._lock:
                         synced_count = self.scrobbler.process_backlog()
                     
                     if synced_count > 0:
-                        logger.info(f"Synced {synced_count} items from backlog")
+                        logger.info(f"Backlog sync completed: {synced_count} items successfully synchronized")
                     self.last_backlog_check = current_time
 
                 # Sleep until next poll
                 time.sleep(self.poll_interval)
                 
             except Exception as e:
-                logger.error(f"Error in monitor loop: {e}", exc_info=True)
+                logger.error(f"Monitoring service encountered an error: {e}", exc_info=True)
                 # Sleep a bit longer on error to avoid spamming logs
                 time.sleep(max(5, self.poll_interval))
 
-        logger.info("Monitor loop exited")
+        logger.info("Media monitoring service stopped")
 
     def set_credentials(self, client_id, access_token):
         """Set API credentials"""

@@ -225,63 +225,50 @@ class MovieScrobbler:
 
     def process_window(self, window_info):
         """Process the current window and update scrobbling state"""
+        # Check if window is a video player
         if not is_video_player(window_info):
-            if self.state != STOPPED:
-                logger.info(f"Media player closed or changed, stopping tracking for: {self.currently_tracking}")
+            if self.currently_tracking:
+                logger.info(f"Media playback ended: Player closed or changed")
                 self.stop_tracking()
             return None
 
-        # Get the movie title
-        movie_title = parse_movie_title(window_info)
+        # Parse movie title from window title
+        movie_title = parse_movie_title(window_info.get('title', ''))
         if not movie_title:
-             if self.state != STOPPED:
-                 logger.debug(f"Could not parse movie title from '{window_info.get('title', '')}', stopping tracking.")
+            if self.currently_tracking:
+                 logger.debug(f"Unable to identify media in '{window_info.get('title', '')}'")
                  self.stop_tracking()
-             return None
+            return None
 
-        # Check if it's a new movie
-        if self.currently_tracking != movie_title:
-            if self.currently_tracking: # Stop previous before starting new
-                 logger.info(f"New movie detected ('{movie_title}'), stopping tracking for '{self.currently_tracking}'")
-                 self.stop_tracking()
+        # If we're tracking a different movie, stop the previous one
+        if self.currently_tracking and self.currently_tracking != movie_title:
+             logger.info(f"Media change detected: '{movie_title}' now playing")
+             self.stop_tracking()
+             
+        # Start tracking if we're not already tracking this movie
+        if not self.currently_tracking:
             self._start_new_movie(movie_title)
-
-        # It's the same movie (or just started), update tracking
-        return self._update_tracking(window_info)
+            
+        # Update tracking data for the current movie
+        self._update_tracking(window_info)
+        
+        # Return basic scrobble info
+        return {
+            "title": movie_title,
+            "simkl_id": self.simkl_id
+        }
 
     def _start_new_movie(self, movie_title):
         """Start tracking a new movie"""
-        logger.info(f"Starting to track: {movie_title}")
-
-        # Check if we've seen this movie before in our cache
-        cached_info = self.media_cache.get(movie_title)
-
-        if cached_info:
-            self.simkl_id = cached_info.get("simkl_id")
-            self.movie_name = cached_info.get("movie_name", movie_title)
-            self.total_duration_seconds = cached_info.get("duration_seconds") # Get duration from cache if available
-            self.estimated_duration = self.total_duration_seconds # Align estimated with known, if available
-            logger.info(f"Using cached info for '{movie_title}' (Simkl ID: {self.simkl_id}, Duration: {self.total_duration_seconds}s)")
-        else:
-            # Will be populated later by the main app after search or player query
-            self.simkl_id = None
-            self.movie_name = None
-            self.estimated_duration = None # Duration is unknown initially
-            self.total_duration_seconds = None
-
+        logger.info(f"Starting media tracking: '{movie_title}'")
         self.currently_tracking = movie_title
+        # Reset tracking state
         self.start_time = time.time()
         self.last_update_time = self.start_time
         self.watch_time = 0
-        self.current_position_seconds = 0 # Reset position
-        # total_duration_seconds is set above based on cache or None
-        self.state = PLAYING # Assume playing initially
-        self.previous_state = STOPPED
-        self.completed = False  # Reset completed flag for new movie
-        self.last_progress_check = time.time()
-
-        # Log start event
-        self._log_playback_event("start_tracking")
+        self.state = PLAYING
+        self.simkl_id = None
+        self.movie_name = None
 
     def _update_tracking(self, window_info=None):
         """Update tracking for the current movie, including position and duration if possible."""
@@ -523,7 +510,7 @@ class MovieScrobbler:
 
         # First check if we're online - if not, exit early
         if not is_internet_connected():
-            logger.info("Cannot process backlog - no internet connection")
+            logger.info("Backlog synchronization deferred: No internet connection available")
             return 0
 
         success_count = 0
@@ -532,7 +519,7 @@ class MovieScrobbler:
         if not pending:
             return 0
 
-        logger.info(f"Processing backlog: {len(pending)} items")
+        logger.info(f"Backlog synchronization started: Processing {len(pending)} items")
 
         # Process in reverse order? Or keep order? Keep order for now.
         items_to_process = list(pending) # Create copy to iterate over while modifying original
@@ -546,7 +533,7 @@ class MovieScrobbler:
             is_temp_id = False
             if simkl_id and isinstance(simkl_id, str) and simkl_id.startswith("temp_"):
                 is_temp_id = True
-                logger.info(f"Backlog: Found temporary ID for '{title}', searching for real Simkl ID")
+                logger.info(f"Resolving temporary ID for '{title}'")
                 # Search for the real movie ID
                 movie_result = search_movie(title, self.client_id, self.access_token)
                 
@@ -561,22 +548,22 @@ class MovieScrobbler:
                         real_simkl_id = ids.get('simkl') or ids.get('simkl_id')
                     
                     if real_simkl_id:
-                        logger.info(f"Backlog: Found real Simkl ID {real_simkl_id} for '{title}'")
+                        logger.info(f"Successfully resolved ID for '{title}': {real_simkl_id}")
                         # Update to use the real ID
                         simkl_id = real_simkl_id
                     else:
-                        logger.warning(f"Backlog: Could not find real Simkl ID for '{title}', skipping")
+                        logger.warning(f"Unable to resolve permanent ID for '{title}', skipping")
                         continue
                 else:
-                    logger.warning(f"Backlog: Could not find movie '{title}' on Simkl, skipping")
+                    logger.warning(f"Unable to find '{title}' on Simkl API, skipping")
                     continue
 
             if simkl_id:
-                logger.info(f"Backlog: Attempting to mark '{title}' (ID: {simkl_id}, Added: {timestamp}) as watched")
+                logger.info(f"Synchronizing: '{title}' (ID: {simkl_id})")
                 try:
                     result = mark_as_watched(simkl_id, self.client_id, self.access_token)
                     if result:
-                        logger.info(f"Backlog: Successfully marked '{title}' as watched")
+                        logger.info(f"Successfully marked '{title}' as watched")
                         # If it was a temp ID, remove it using the original temp ID
                         if is_temp_id:
                             original_id = item.get("simkl_id")
@@ -586,21 +573,21 @@ class MovieScrobbler:
                         success_count += 1
                         self._log_playback_event("backlog_sync_success", {"backlog_simkl_id": simkl_id, "backlog_title": title})
                     else:
-                        logger.warning(f"Backlog: Failed to mark '{title}' as watched via API")
+                        logger.warning(f"API sync failed for '{title}', will retry later")
                         self._log_playback_event("backlog_sync_fail", {"backlog_simkl_id": simkl_id, "backlog_title": title})
                         # Keep item in backlog for next try
                 except Exception as e:
-                    logger.error(f"Backlog: Error processing '{title}': {e}")
+                    logger.error(f"Synchronization error for '{title}': {e}")
                     self._log_playback_event("backlog_sync_error", {"backlog_simkl_id": simkl_id, "backlog_title": title, "error": str(e)})
                     # Keep item in backlog for next try
             else:
-                logger.warning(f"Backlog: Skipping item with missing Simkl ID: {item}")
+                logger.warning(f"Invalid backlog entry (missing ID): {item}")
                 # Optionally remove invalid items? For now, keep them.
 
         if success_count > 0:
-            logger.info(f"Backlog processing finished: {success_count} items synced.")
+            logger.info(f"Backlog synchronization completed: {success_count} of {len(items_to_process)} items synchronized")
         elif items_to_process:
-            logger.info("Backlog processing finished: No items synced successfully.")
+            logger.info("Backlog synchronization completed: No items synchronized successfully")
 
         return success_count
 
