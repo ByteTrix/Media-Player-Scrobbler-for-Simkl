@@ -49,7 +49,7 @@ jobs:
     - name: Install dependencies
       run: |
         # Update lock file if needed
-        poetry lock --no-update
+        poetry lock
         poetry install --with dev
 
     - name: Perform CodeQL Analysis

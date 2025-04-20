@@ -29,7 +29,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install poetry
           # Update lock file if needed
-          poetry lock --no-update
+          poetry lock
           poetry install --with dev
           pip install mkdocs mkdocs-material pymdown-extensions mkdocs-mermaid2-plugin
           

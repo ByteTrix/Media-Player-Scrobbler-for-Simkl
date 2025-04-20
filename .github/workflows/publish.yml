@@ -78,7 +78,7 @@ jobs:
     - name: Update lock file
       run: |
         # Update lock file after changing version
-        poetry lock --no-update
+        poetry lock
 
     - name: Build package
       run: |
