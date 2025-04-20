@@ -10,11 +10,27 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
+      issues: write      # Required for labeling issues
     steps:
-    - uses: actions/labeler@v4
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Verify labeler config exists
+      id: check_labeler_config
+      run: |
+        if [ -f ".github/labeler.yml" ]; then
+          echo "labeler_config_exists=true" >> $GITHUB_OUTPUT
+        else
+          echo "labeler_config_exists=false" >> $GITHUB_OUTPUT
+          echo "::warning::The .github/labeler.yml file doesn't exist. Skipping label assignment."
+        fi
+        
+    - name: PR Labeler
+      if: steps.check_labeler_config.outputs.labeler_config_exists == 'true'
+      uses: actions/labeler@v4
       with:
         repo-token: ${{ secrets.GITHUB_TOKEN }}
-        sync-labels: true
+        sync-labels: false  # Set to false to prevent label creation attempts
         
     - name: PR Size Labeler
       uses: codelytv/pr-size-labeler@v1

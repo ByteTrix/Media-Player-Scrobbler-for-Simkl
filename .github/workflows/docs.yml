@@ -46,12 +46,14 @@ jobs:
         run: |
           # Make sure the lock file is up-to-date before installing
           poetry lock
-          # Install project dependencies including mkdocs and plugins
+          # Install project dependencies including docs dependencies
           poetry install --with dev --no-interaction
+          # Install mkdocs and required plugins directly since they're not in pyproject.toml
+          pip install mkdocs mkdocs-material mkdocs-git-revision-date-localized-plugin
 
       - name: Build documentation
         run: |
-          poetry run mkdocs build # Use poetry run
+          mkdocs build # Run directly without poetry since we installed globally
 
       - name: Deploy to GitHub Pages
         if: github.ref == 'refs/heads/main'
