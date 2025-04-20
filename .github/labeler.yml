@@ -1,0 +1,27 @@
+# Configuration for the PR Labeler
+# Add 'feature' label to any PR that modifies files in the main package
+feature:
+- changed-files:
+  - any-glob-to-any-file: 'simkl_scrobbler/**/*.py'
+  
+# Add 'documentation' label to any PR that modifies docs or markdown files
+documentation:
+- changed-files:
+  - any-glob-to-any-file: 'docs/**/*'
+  - any-glob-to-any-file: '**/*.md'
+
+# Add 'workflow' label to any PR that modifies GitHub Actions
+workflow:
+- changed-files:
+  - any-glob-to-any-file: '.github/workflows/**/*'
+
+# Add 'test' label to any PR that modifies test files
+test:
+- changed-files:
+  - any-glob-to-any-file: 'tests/**/*'
+
+# Add 'dependencies' label to PRs that modify dependency files
+dependencies:
+- changed-files:
+  - any-glob-to-any-file: 'pyproject.toml'
+  - any-glob-to-any-file: 'poetry.lock'

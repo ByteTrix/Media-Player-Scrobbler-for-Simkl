@@ -3,18 +3,18 @@ name: "CodeQL"
 on:
   push:
     branches: [ main ]
+    paths:
+      - '**.py'
   pull_request:
-    # The branches below must be a subset of the branches above
     branches: [ main ]
+    paths:
+      - '**.py'
   schedule:
     - cron: '30 1 * * 0' # Run weekly on Sunday at 1:30 UTC
 
 jobs:
   analyze:
     name: Analyze
-    # Runner size impacts CodeQL analysis time. To learn more, see:
-    # https://gh.io/recommended-hardware-resources-for-running-codeql
-    # Consider using larger runners for larger projects.
     runs-on: ubuntu-latest # CodeQL runs efficiently on Linux
     permissions:
       actions: read
@@ -25,8 +25,6 @@ jobs:
       fail-fast: false
       matrix:
         language: [ 'python' ]
-        # CodeQL supports the following Python versions: 3.7, 3.8, 3.9, 3.10, 3.11
-        # Use the latest supported version for analysis.
         python-version: ['3.11']
 
     steps:
@@ -38,25 +36,6 @@ jobs:
       uses: github/codeql-action/init@v3
       with:
         languages: ${{ matrix.language }}
-        # If you wish to specify custom queries, you can do so here or in a config file.
-        # By default, queries listed here will override any specified in a config file.
-        # Prefix the list here with "+" to use these queries and those in the config file.
-
-        # For more details on CodeQL's query packs, refer to:
-        # https://docs.github.com/en/code-security/code-scanning/automatically-scanning-your-code-for-vulnerabilities-and-errors/configuring-code-scanning#using-queries-in-ql-packs
-        # queries: security-extended,security-and-quality
-
-
-    # Autobuild attempts to build any compiled languages (C/C++, C#, Go, Java, Swift).
-    # If this step fails, then you should remove it and run the build manually (see below)
-    # - name: Autobuild
-    #   uses: github/codeql-action/autobuild@v3
-
-    # ℹ️ Command-line programs to run using the OS shell.
-    # 📚 https://git.io/JvXDl
-
-    # ✏️ If the Autobuild fails above, remove it and uncomment the following three lines.
-    #    modify them (or add more) to build your code if your project, please refer to the EXAMPLE below for guidance.
 
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v5
@@ -69,8 +48,6 @@ jobs:
 
     - name: Install dependencies
       run: |
-        # Install project dependencies using Poetry for CodeQL analysis context
-        # Include dev dependencies if linters/etc. are needed for analysis
         poetry install --with dev
 
     - name: Perform CodeQL Analysis

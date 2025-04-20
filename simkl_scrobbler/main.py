@@ -100,6 +100,14 @@ class SimklScrobbler:
 
     def initialize(self):
         """Initialize the monitor and authenticate with Simkl"""
+        # Check for credentials in the correct file
+        env_path = APP_DATA_DIR / ".simkl_scrobbler.env"
+        
+        if env_path.exists():
+            load_dotenv(env_path)
+            self.client_id = os.getenv("SIMKL_CLIENT_ID")
+            self.access_token = os.getenv("SIMKL_ACCESS_TOKEN")
+        
         logger.info("Initializing Simkl Scrobbler...")
 
         self.client_id, self.access_token = load_configuration()

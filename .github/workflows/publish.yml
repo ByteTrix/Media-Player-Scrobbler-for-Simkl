@@ -1,33 +1,83 @@
-name: Publish Python Package
+name: Release & Publish
 
 on:
   push:
     tags:
       - 'v*.*.*' # Trigger on version tags like v1.0.0
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (without v prefix)'
+        required: true
+        default: ''
 
 jobs:
+  release:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.get_version.outputs.version }}
+      changelog: ${{ steps.generate_changelog.outputs.changelog }}
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # We need full history for changelog
+
+    - name: Get version
+      id: get_version
+      run: |
+        if [[ "${{ github.event_name }}" == "push" ]]; then
+          VERSION=${GITHUB_REF#refs/tags/v}
+        else
+          VERSION=${{ github.event.inputs.version }}
+        fi
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "Release version: $VERSION"
+
+    - name: Generate changelog
+      id: generate_changelog
+      uses: mikepenz/release-changelog-builder-action@v4
+      with:
+        configuration: .github/changelog-config.json
+        outputFile: .github/CHANGELOG.md
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        body_path: .github/CHANGELOG.md
+        tag_name: v${{ steps.get_version.outputs.version }}
+        prerelease: false
+        files: |
+          LICENSE
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   deploy:
+    needs: release
     runs-on: ubuntu-latest
     permissions:
-      # IMPORTANT: this permission is mandatory for trusted publishing
-      id-token: write
+      id-token: write  # IMPORTANT: this permission is mandatory for trusted publishing
     steps:
     - uses: actions/checkout@v4
 
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
-        python-version: '3.x' # Use a recent Python version for building
+        python-version: '3.x'
 
-    - name: Install Poetry
-      run: pip install poetry
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install poetry
+
+    - name: Update version in pyproject.toml
+      run: |
+        poetry version ${{ needs.release.outputs.version }}
 
     - name: Build package
-      run: poetry build
+      run: |
+        poetry build
 
     - name: Publish package to PyPI
       uses: pypa/gh-action-pypi-publish@release/v1
-      # No API token needed if using trusted publishing
-      # with:
-      #   user: __token__
-      #   password: ${{ secrets.PYPI_API_TOKEN }} # Store your PyPI token as a GitHub secret

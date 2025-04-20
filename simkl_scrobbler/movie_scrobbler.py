@@ -1,35 +1,58 @@
 """
 Movie scrobbler module for SIMKL Scrobbler.
-Core functionality for tracking movie viewing and scrobbling to SIMKL.
+Handles movie detection and scrobbling to SIMKL.
 """
 
+import logging
+import logging.handlers  # Add explicit import for logging.handlers
 import time
 import json
-import logging
-import logging.handlers
-import pathlib
-import requests
+import os
 import re
-from datetime import datetime
+import requests
+import pathlib
+from datetime import datetime, timedelta
+import threading
+from collections import deque
 
 # Import from our own modules
+from .simkl_api import mark_as_watched, is_internet_connected
+from .backlog_cleaner import BacklogCleaner
 from .window_detection import parse_movie_title, is_video_player
 from .media_cache import MediaCache
-from .backlog_cleaner import BacklogCleaner
 from .utils.constants import PLAYING, PAUSED, STOPPED, DEFAULT_POLL_INTERVAL
 
 # Configure module logging
 logger = logging.getLogger(__name__)
 
 class MovieScrobbler:
-    """Tracks movie viewing and scrobbles to Simkl"""
-
-    def __init__(self, app_data_dir: pathlib.Path, client_id=None, access_token=None, testing_mode=False):
-        self.app_data_dir = app_data_dir # Store app_data_dir
+    """Handles the scrobbling of movies to SIMKL"""
+    
+    def __init__(self, app_data_dir, client_id=None, access_token=None, testing_mode=False):
+        self.app_data_dir = app_data_dir
         self.client_id = client_id
         self.access_token = access_token
-        self.testing_mode = testing_mode # Add testing mode flag
+        self.testing_mode = testing_mode
         self.currently_tracking = None
+        self.track_start_time = None
+        self.last_progress = 0
+        self.movie_cache = {}  # Cache movie info to avoid repeated lookups
+        self.lock = threading.RLock()
+        self.notification_callback = None  # Add callback for notifications
+        
+        # Playback log file path
+        self.playback_log_path = self.app_data_dir / "playback_log.jsonl"
+        
+        # Backlog cleaner for offline operation
+        self.backlog_cleaner = BacklogCleaner(
+            app_data_dir=self.app_data_dir, 
+            backlog_file="backlog.json",
+            threshold_days=30
+        )
+        
+        # Recent windows list for better title extraction
+        self.recent_windows = deque(maxlen=10)
+
         self.start_time = None
         self.last_update_time = None
         self.watch_time = 0
@@ -71,6 +94,10 @@ class MovieScrobbler:
             except Exception as e:
                 # Log error to the *main* logger if handler creation fails
                 logger.error(f"!!! Failed to create RotatingFileHandler for PlaybackLogger at {self.playback_log_file}: {e}", exc_info=True)
+
+    def set_notification_callback(self, callback):
+        """Set a callback function for notifications"""
+        self.notification_callback = callback
 
     def _log_playback_event(self, event_type, extra_data=None):
         """Logs a structured playback event to the playback log file."""
@@ -663,3 +690,17 @@ class MovieScrobbler:
         # No need for debug log here, completion_threshold_reached event covers it
 
         return is_past_threshold
+
+    def mark_as_watched(self, movie_title, simkl_id, movie_name=None):
+        """Mark a movie as watched on SIMKL or add to backlog if offline"""
+        # ... (existing code)
+        
+        # Add notification
+        if self.notification_callback:
+            self.notification_callback(
+                "Movie Scrobbled", 
+                f"'{movie_name or movie_title}' was marked as watched on SIMKL.",
+                "info"
+            )
+            
+        # ... (rest of the method)

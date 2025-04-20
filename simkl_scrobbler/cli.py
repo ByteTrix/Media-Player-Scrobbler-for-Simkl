@@ -1,13 +1,15 @@
 import argparse
 import os
 import sys
-import pathlib # Import pathlib
+import pathlib
 import colorama
+import subprocess
 from colorama import Fore, Style
-from dotenv import load_dotenv # Import load_dotenv
-from .simkl_api import authenticate, DEFAULT_CLIENT_ID # Moved DEFAULT_CLIENT_ID import here
-# Import APP_DATA_DIR from main module
-from .main import APP_DATA_DIR, SimklScrobbler # Import SimklScrobbler too for verification step
+from dotenv import load_dotenv
+from .simkl_api import authenticate, DEFAULT_CLIENT_ID
+from .main import APP_DATA_DIR, SimklScrobbler
+from .tray_app import run_tray_app
+from .service_manager import install_service, uninstall_service, service_status
 import logging
 
 # Initialize colorama for cross-platform colored terminal output
@@ -100,11 +102,85 @@ def init_command(args):
     return 0
 
 def start_command(args):
-    """Start the SIMKL scrobbler."""
-    # SimklScrobbler imported at top
+    """Start the SIMKL scrobbler as a persistent process with tray that survives terminal close."""
+    # Check if credentials exist
+    env_path = APP_DATA_DIR / ".simkl_scrobbler.env"
+    if not env_path.exists():
+        print(f"{Fore.RED}No credentials found. Please run 'simkl-scrobbler init' first.{Style.RESET_ALL}")
+        return 1
     
     print(f"{Fore.CYAN}Starting SIMKL Scrobbler...{Style.RESET_ALL}")
-    print(f"{Fore.YELLOW}The scrobbler will run in the foreground. Press Ctrl+C to stop.{Style.RESET_ALL}\n")
+    print(f"{Fore.GREEN}Installing as a background service that runs at system startup...{Style.RESET_ALL}")
+    
+    # First, install the service for automatic startup
+    try:
+        from .service_manager import install_service
+        success = install_service()
+        if success:
+            print(f"{Fore.GREEN}Successfully installed SIMKL Scrobbler as a startup service!{Style.RESET_ALL}")
+            print(f"{Fore.GREEN}The service will automatically start when you boot your computer.{Style.RESET_ALL}")
+        else:
+            print(f"{Fore.YELLOW}Warning: Failed to install as a startup service. The application will still run but won't start automatically at boot.{Style.RESET_ALL}")
+    except Exception as e:
+        print(f"{Fore.YELLOW}Warning: Error installing startup service: {e}{Style.RESET_ALL}")
+        print(f"{Fore.YELLOW}The application will still run but won't start automatically at boot.{Style.RESET_ALL}")
+
+    # Launch the tray application in a detached process
+    print(f"{Fore.CYAN}Launching SIMKL Scrobbler with tray icon in a persistent background process...{Style.RESET_ALL}")
+    print(f"{Fore.GREEN}The application will continue running even after closing this terminal.{Style.RESET_ALL}")
+    print(f"{Fore.CYAN}Look for the SIMKL icon in your system tray.{Style.RESET_ALL}")
+    
+    try:
+        # Get current script path and arguments to launch tray app in a separate process
+        if getattr(sys, 'frozen', False):
+            # If bundled with PyInstaller
+            cmd = [sys.executable, "tray"]
+        else:
+            # If running as a Python module
+            cmd = [sys.executable, "-m", "simkl_scrobbler.tray_app"]
+        
+        # Launch the process in a way that it survives the terminal closing
+        if sys.platform == "win32":
+            # Windows - use CREATE_NO_WINDOW flag to hide console window and DETACHED_PROCESS to detach
+            import subprocess
+            CREATE_NO_WINDOW = 0x08000000
+            DETACHED_PROCESS = 0x00000008
+            process = subprocess.Popen(
+                cmd,
+                creationflags=CREATE_NO_WINDOW | DETACHED_PROCESS,
+                close_fds=True,
+                shell=False
+            )
+        else:
+            # Unix-like systems
+            import subprocess
+            process = subprocess.Popen(
+                cmd,
+                start_new_session=True,  # Detach from the terminal
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                close_fds=True,
+                shell=False
+            )
+        
+        print(f"{Fore.GREEN}Scrobbler launched successfully in background mode.{Style.RESET_ALL}")
+        print(f"{Fore.CYAN}You can close this terminal and the application will continue running.{Style.RESET_ALL}")
+        return 0
+    except Exception as e:
+        print(f"{Fore.RED}Error launching detached process: {e}{Style.RESET_ALL}")
+        print(f"{Fore.YELLOW}Falling back to foreground mode (will not survive terminal close).{Style.RESET_ALL}")
+        try:
+            # Run the tray application directly as fallback
+            from .tray_app import run_tray_app
+            run_tray_app()
+            return 0
+        except Exception as tray_error:
+            print(f"{Fore.RED}Error starting tray application: {tray_error}{Style.RESET_ALL}")
+            return 1
+
+def run_foreground_scrobbler():
+    """Run the scrobbler in foreground mode (fallback for start command)"""
+    print(f"{Fore.YELLOW}Running scrobbler in foreground mode. Press Ctrl+C to stop.{Style.RESET_ALL}")
     
     scrobbler = SimklScrobbler()
     if scrobbler.initialize():
@@ -128,38 +204,144 @@ def start_command(args):
     
     return 0
 
-def install_service_command(args):
-    """Install SIMKL scrobbler as a background service."""
-    if sys.platform != 'win32':
-        print(f"{Fore.RED}Service installation is only supported on Windows.{Style.RESET_ALL}")
+def tray_command(args):
+    """Start the SIMKL scrobbler in system tray mode (without startup service)."""
+    # Check if credentials exist - use the same path as in init_command
+    env_path = APP_DATA_DIR / ".simkl_scrobbler.env"
+    if not env_path.exists():
+        print(f"{Fore.RED}No credentials found. Please run 'simkl-scrobbler init' first.{Style.RESET_ALL}")
         return 1
+    
+    # Check if --detach flag is provided
+    detached_mode = hasattr(args, 'detach') and args.detach
+    
+    if not detached_mode:
+        print(f"{Fore.GREEN}Starting SIMKL Scrobbler in system tray mode...{Style.RESET_ALL}")
+        print(f"{Fore.YELLOW}Warning: Closing this terminal will stop the application.{Style.RESET_ALL}")
+        print(f"{Fore.YELLOW}Use 'simkl-scrobbler start' to run in permanent background mode.{Style.RESET_ALL}")
+        print(f"{Fore.CYAN}Look for the SIMKL icon in your system tray.{Style.RESET_ALL}")
     
     try:
-        import win32service
-        import win32serviceutil
-        import servicemanager
-        import win32event
-        import win32api
-    except ImportError:
-        print(f"{Fore.RED}Error: pywin32 module is required for service installation.{Style.RESET_ALL}")
-        print("Please run: pip install pywin32")
+        # Run the tray application
+        run_tray_app()
+        return 0
+    except KeyboardInterrupt:
+        print(f"\n{Fore.YELLOW}SIMKL Scrobbler tray application interrupted.{Style.RESET_ALL}")
+        return 0
+    except Exception as e:
+        print(f"{Fore.RED}Error starting tray application: {e}{Style.RESET_ALL}")
+        return 1
+
+def service_command(args):
+    """Run the SIMKL scrobbler as a background service without tray icon."""
+    # Check if credentials exist
+    env_path = APP_DATA_DIR / ".simkl_scrobbler.env"
+    if not env_path.exists():
+        print(f"{Fore.RED}No credentials found. Please run 'simkl-scrobbler init' first.{Style.RESET_ALL}")
         return 1
     
-    # Get current script path
-    script_path = os.path.abspath(sys.argv[0])
+    print(f"{Fore.CYAN}Starting SIMKL Scrobbler as a background service...{Style.RESET_ALL}")
+    print(f"{Fore.GREEN}The scrobbler will run in the background without a tray icon.{Style.RESET_ALL}")
+    print(f"{Fore.GREEN}The service will continue running even after closing this terminal.{Style.RESET_ALL}")
     
-    # Instructions for manual service creation
+    # Start in detached mode
+    try:
+        # Get current script path
+        if getattr(sys, 'frozen', False):
+            script_path = sys.executable
+            start_args = [script_path, "service-run"]
+        else:
+            python_exe = sys.executable
+            start_args = [python_exe, "-m", "simkl_scrobbler.service_runner"]
+        
+        # Create detached process
+        if sys.platform == "win32":
+            CREATE_NO_WINDOW = 0x08000000
+            process = subprocess.Popen(
+                start_args,
+                creationflags=CREATE_NO_WINDOW,
+                close_fds=True,
+                shell=False
+            )
+        else:
+            process = subprocess.Popen(
+                start_args,
+                start_new_session=True,  # Detach from the terminal
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                close_fds=True,
+                shell=False
+            )
+        
+        print(f"{Fore.GREEN}Service started successfully in background.{Style.RESET_ALL}")
+        print(f"{Fore.CYAN}You'll receive notifications for scrobbled movies.{Style.RESET_ALL}")
+        print(f"{Fore.CYAN}Check logs at: {APP_DATA_DIR / 'simkl_scrobbler.log'}{Style.RESET_ALL}")
+        return 0
+    except Exception as e:
+        print(f"{Fore.RED}Error starting service in background: {e}{Style.RESET_ALL}")
+        return 1
+
+def install_service_command(args):
+    """Install SIMKL scrobbler as a background service that runs at startup."""
+    # Check if credentials exist
+    env_path = APP_DATA_DIR / ".simkl_scrobbler.env"  # Fixed from .env to .simkl_scrobbler.env
+    if not env_path.exists():
+        print(f"{Fore.RED}No credentials found. Please run 'simkl-scrobbler init' first.{Style.RESET_ALL}")
+        return 1
+    
     print(f"{Fore.CYAN}=== SIMKL Scrobbler Service Installation ==={Style.RESET_ALL}")
-    print(f"{Fore.YELLOW}To install as a Windows service, run the following commands as administrator:{Style.RESET_ALL}\n")
+    print(f"{Fore.YELLOW}Installing SIMKL Scrobbler as a system service that runs at startup...{Style.RESET_ALL}")
     
-    print(f"{Fore.WHITE}sc create SimklScrobbler binPath= \"{sys.executable} {script_path} service\" DisplayName= \"SIMKL Scrobbler\" start= auto{Style.RESET_ALL}")
-    print(f"{Fore.WHITE}sc description SimklScrobbler \"Automatically scrobbles movies to SIMKL\"{Style.RESET_ALL}")
-    print(f"{Fore.WHITE}sc start SimklScrobbler{Style.RESET_ALL}")
+    try:
+        success = install_service()
+        if success:
+            print(f"{Fore.GREEN}Service installed successfully!{Style.RESET_ALL}")
+            print(f"{Fore.CYAN}The service is now running and will start automatically when you boot your computer.{Style.RESET_ALL}")
+            return 0
+        else:
+            print(f"{Fore.RED}Failed to install service.{Style.RESET_ALL}")
+            return 1
+    except Exception as e:
+        print(f"{Fore.RED}Error installing service: {e}{Style.RESET_ALL}")
+        return 1
+
+def uninstall_service_command(args):
+    """Uninstall SIMKL scrobbler background service."""
+    print(f"{Fore.CYAN}=== SIMKL Scrobbler Service Uninstallation ==={Style.RESET_ALL}")
+    print(f"{Fore.YELLOW}Uninstalling SIMKL Scrobbler service...{Style.RESET_ALL}")
     
-    print(f"\n{Fore.GREEN}After installation, the service will start automatically when you boot your computer.{Style.RESET_ALL}")
-    print(f"{Fore.YELLOW}Make sure to run 'simkl-scrobbler init' before starting the service.{Style.RESET_ALL}")
+    try:
+        success = uninstall_service()
+        if success:
+            print(f"{Fore.GREEN}Service uninstalled successfully!{Style.RESET_ALL}")
+            return 0
+        else:
+            print(f"{Fore.RED}Failed to uninstall service.{Style.RESET_ALL}")
+            return 1
+    except Exception as e:
+        print(f"{Fore.RED}Error uninstalling service: {e}{Style.RESET_ALL}")
+        return 1
+
+def service_status_command(args):
+    """Check the status of the SIMKL scrobbler service."""
+    print(f"{Fore.CYAN}=== SIMKL Scrobbler Service Status ==={Style.RESET_ALL}")
     
-    return 0
+    try:
+        status = service_status()
+        if status is True:
+            print(f"{Fore.GREEN}SIMKL Scrobbler service is running and configured to start at boot.{Style.RESET_ALL}")
+            return 0
+        elif status == "CONFIGURED" or status == "LOADED":
+            print(f"{Fore.YELLOW}SIMKL Scrobbler service is configured to start at boot but might not be running now.{Style.RESET_ALL}")
+            print(f"{Fore.YELLOW}Try restarting your computer or run 'simkl-scrobbler start' to start it again.{Style.RESET_ALL}")
+            return 0
+        else:
+            print(f"{Fore.YELLOW}SIMKL Scrobbler service is not running.{Style.RESET_ALL}")
+            print(f"{Fore.YELLOW}Run 'simkl-scrobbler install-service' to install it as a system service.{Style.RESET_ALL}")
+            return 0
+    except Exception as e:
+        print(f"{Fore.RED}Error checking service status: {e}{Style.RESET_ALL}")
+        return 1
 
 def create_parser():
     """Create the argument parser for the CLI."""
@@ -172,11 +354,17 @@ def create_parser():
     # Init command
     init_parser = subparsers.add_parser("init", help="Initialize SIMKL Scrobbler")
     
-    # Start command
-    start_parser = subparsers.add_parser("start", help="Start SIMKL Scrobbler")
+    # Start command - now installs and runs as a startup service
+    start_parser = subparsers.add_parser("start", help="Install and start SIMKL Scrobbler as a startup service")
     
-    # Service installation command
-    service_parser = subparsers.add_parser("install-service", help="Install as a Windows service")
+    # Tray command - stays the same, but with warning about terminal closure
+    tray_parser = subparsers.add_parser("tray", help="Start in system tray mode (stops when terminal closes)")
+    tray_parser.add_argument("--detach", action="store_true", help=argparse.SUPPRESS)  # Hidden option, used internally
+    
+    # Service commands
+    install_service_parser = subparsers.add_parser("install-service", help="Install as a startup service (runs at boot)")
+    uninstall_service_parser = subparsers.add_parser("uninstall-service", help="Uninstall the startup service")
+    service_status_parser = subparsers.add_parser("service-status", help="Check the status of the service")
     
     return parser
 
@@ -189,8 +377,16 @@ def main():
         return init_command(args)
     elif args.command == "start":
         return start_command(args)
+    elif args.command == "tray":
+        return tray_command(args)
+    elif args.command == "service":
+        return service_command(args)
     elif args.command == "install-service":
         return install_service_command(args)
+    elif args.command == "uninstall-service":
+        return uninstall_service_command(args)
+    elif args.command == "service-status":
+        return service_status_command(args)
     else:
         parser.print_help()
         return 0

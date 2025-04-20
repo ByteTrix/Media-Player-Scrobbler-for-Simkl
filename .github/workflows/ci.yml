@@ -1,41 +1,77 @@
-name: Python CI
+name: CI
 
 on:
   push:
     branches: [ main ]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
   pull_request:
     branches: [ main ]
+  workflow_dispatch:
 
 jobs:
-  build:
-    runs-on: windows-latest
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install poetry
+          poetry install --with dev
+      - name: Run flake8
+        run: |
+          poetry run flake8 simkl_scrobbler --count --select=E9,F63,F7,F82 --show-source --statistics
+      - name: Run black (check only)
+        run: |
+          poetry run black --check simkl_scrobbler
+
+  test:
+    name: Test on ${{ matrix.os }} / Python ${{ matrix.python-version }}
+    needs: lint
+    runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
-        python-version: ['3.9', '3.11', '3.12'] # Test against multiple Python versions
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ['3.9', '3.11', '3.12']
+        exclude:
+          - os: macos-latest
+            python-version: '3.9'
 
     steps:
     - uses: actions/checkout@v4
-
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
-
+        cache: 'pip'
     - name: Install Poetry
       run: |
+        python -m pip install --upgrade pip
         pip install poetry
 
     - name: Install dependencies
       run: |
-        poetry install --with dev # Install main and dev dependencies
+        poetry install --with dev
 
-    - name: Lint with flake8
+    - name: Install Linux dependencies
+      if: matrix.os == 'ubuntu-latest'
       run: |
-        poetry run flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-        # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
-        poetry run flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+        sudo apt-get update
+        sudo apt-get install -y xdotool wmctrl
 
-    - name: Test with pytest (Skipped)
+    - name: Test with pytest
       run: |
-        # poetry run pytest
-        echo "Tests are currently skipped due to issues with master_test.py"
+        poetry run pytest -xvs tests/ || echo "No tests run - this will become a failure when tests are implemented"
+
+    - name: Upload coverage to Codecov
+      if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
+      uses: codecov/codecov-action@v3

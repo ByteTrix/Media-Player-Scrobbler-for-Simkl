@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "simkl-scrobbler"
-version = "1.2.0"
+version = "1.2.1"
 description = "Automatic Movie Scrobbler for Simkl"
 authors = ["kavinthangavel <kavinthangavel.dev@gmail.com>"]
 license = "MIT"
@@ -11,25 +11,29 @@ repository = "https://github.com/kavinthangavel/simkl-scrobbler"
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: End Users/Desktop",
-    "Operating System ::  OS Independent",
+    "Operating System :: OS Independent",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3"
 ]
 packages = [{include = "simkl_scrobbler"}]
 
 [tool.poetry.dependencies]
-python = ">=3.7"
+python = ">=3.9"
 requests = ">=2.25.0"
 guessit = ">=3.3.0"
 python-dotenv = ">=0.15.0"
 psutil = ">=5.8.0"
 colorama = ">=0.4.4"
+pystray = ">=0.19.0"
+pillow = ">=11.2.0"
+plyer = ">=2.0.0"  # Adding missing dependency for notifications
+
 # Platform-specific dependencies
 pygetwindow = { version = ">=0.0.9", markers = "sys_platform == 'win32'" }
 pywin32 = { version = ">=300", markers = "sys_platform == 'win32'" }
-# Optional macOS and Linux dependencies (will be installed if available)    
 python-xlib = { version = ">=0.31", optional = true, markers = "sys_platform == 'linux'" }
-
+pyobjc = { version = ">=7.3", optional = true, markers = "sys_platform == 'darwin'" }
+PyGObject = { version = ">=3.42.0", optional = true, markers = "sys_platform == 'linux' and python_version >= '3.9' and python_version < '4.0'" }
 
 [tool.poetry.group.dev.dependencies]
 pytest = ">=6.2.5"
@@ -38,9 +42,10 @@ flake8 = "^5.0" # Use v5 for Python 3.7 compatibility
 [tool.poetry.scripts]
 simkl-scrobbler = "simkl_scrobbler.cli:main"
 
+[tool.poetry.extras]
+linux = ["python-xlib", "PyGObject"]
+macos = ["pyobjc"]
+
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
-
-[tool.poetry.extras]
-linux = ["python-xlib"]
