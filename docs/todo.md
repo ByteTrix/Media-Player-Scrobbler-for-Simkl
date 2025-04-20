@@ -22,27 +22,21 @@ This document tracks both completed features and planned improvements for Simkl 
 
 ### Short Term
 
-- [ ] 📺 Add support for TV shows tracking
 - [ ] 🧪 Create comprehensive automated test suite
-- [ ] ⚙️ Build a settings GUI for easier configuration
 - [ ] 🔎 Add option to manually correct misidentified movies
 - [ ] 🖱️ Enhance the tray application with more controls
 
 ### Medium Term
 
-- [ ] 🌐 Support for more regional streaming services
-- [ ] 📊 Statistics dashboard for watched content
-- [ ] 📱 Mobile companion app integration
 - [ ] 🔄 Two-way sync (mark as watched on Simkl affects local status)
-- [ ] 📂 Media library management features
+
 
 ### Long Term / Ideas
 
+- [ ] 📺 Add support for TV shows tracking
 - [ ] 🎬 Integration with more streaming platforms (browser extensions)
 - [ ] 👥 Multi-user support for shared computers
 - [ ] 🔍 Advanced search and filtering of watched content
-- [ ] 🗣️ Voice control integration
-- [ ] 🧩 Plugin system for community extensions
 
 ## 🤝 Contribution Opportunities
 
@@ -58,11 +52,9 @@ These are good starting points for new contributors:
 
 ### v1.3.0
 - Improved notifications
-- TV show support
-- Settings GUI
+- More Menu in tray
 
 ### v1.4.0
-- Statistics dashboard
 - Manual correction of misidentified content
 - Enhanced tray application
 
