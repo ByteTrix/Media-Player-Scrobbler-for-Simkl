@@ -68,9 +68,9 @@ graph LR
 <div align="center">
   <table>
     <tr>
-      <td align="center"><img src="https://cdn.worldvectorlogo.com/logos/vlc-media-player.svg" width="40px"/><br/>VLC</td>
-      <td align="center"><img src="https://upload.wikimedia.org/wikipedia/commons/7/76/MPC-HC.svg" width="40px"/><br/>MPC-HC</td>
-      <td align="center"><img src="https://upload.wikimedia.org/wikipedia/commons/thumb/7/73/MPV_logo.svg/1024px-MPV_logo.svg.png" width="40px"/><br/>MPV</td>
+      <td align="center"><img src="https://en.wikipedia.org/wiki/File:VLC_Icon.svg" width="40px"/><br/>VLC</td>
+      <td align="center"><img src="https://upload.wikimedia.org/wikipedia/commons/7/76/Media_Player_Classic_logo.png" width="40px"/><br/>MPC-HC</td>
+      <td align="center"><img src="https://play.google.com/store/apps/details?id=is.xyz.mpv" width="40px"/><br/>MPV</td>
       <td align="center">🎮<br/>Many More</td>
     </tr>
   </table>
