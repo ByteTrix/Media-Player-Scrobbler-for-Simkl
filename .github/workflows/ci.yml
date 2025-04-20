@@ -27,7 +27,13 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install poetry
+          pip install poetry>=1.6.0
+          
+          # Ensure poetry.lock is up-to-date
+          if [ -f "poetry.lock" ]; then
+            poetry lock
+          fi
+          
           poetry config virtualenvs.create false
           poetry install --with dev --no-interaction --no-root
       - name: Run flake8

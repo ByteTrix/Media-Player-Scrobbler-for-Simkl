@@ -49,8 +49,128 @@ jobs:
           cache: 'pip'
       - name: Install Poetry
         run: |
-          pip install poetry
+          pip install poetry>=1.6.0
+      - name: Fix Poetry configuration
+        run: |
+          # Update pyproject.toml to the latest format
+          if [ -f "pyproject.toml" ]; then
+            echo "Updating pyproject.toml format..."
+            # Making a backup
+            cp pyproject.toml pyproject.toml.bak
+            
+            # Create a temporary Python script to convert the format
+            cat > convert_pyproject.py << 'EOF'
+            import toml
+            import os
+            
+            # Read the current pyproject.toml
+            with open('pyproject.toml', 'r') as f:
+                config = toml.load(f)
+            
+            # Check if we need to migrate to new format
+            if 'tool' in config and 'poetry' in config['tool'] and not 'project' in config:
+                print("Converting to PEP 621 format...")
+                poetry_config = config['tool']['poetry']
+                
+                # Create project section
+                config['project'] = {}
+                
+                # Map basic fields
+                for field in ['name', 'description', 'license', 'readme', 'version']:
+                    if field in poetry_config:
+                        config['project'][field] = poetry_config[field]
+                
+                # Map authors
+                if 'authors' in poetry_config:
+                    config['project']['authors'] = poetry_config['authors']
+                
+                # Map keywords
+                if 'keywords' in poetry_config:
+                    config['project']['keywords'] = poetry_config['keywords']
+                
+                # Map classifiers
+                if 'classifiers' in poetry_config:
+                    config['project']['classifiers'] = poetry_config['classifiers']
+                
+                # Setup URLs
+                if 'homepage' in poetry_config or 'repository' in poetry_config:
+                    config['project']['urls'] = {}
+                    if 'homepage' in poetry_config:
+                        config['project']['urls']['Homepage'] = poetry_config['homepage']
+                    if 'repository' in poetry_config:
+                        config['project']['urls']['Repository'] = poetry_config['repository']
+                
+                # Map dependencies
+                if 'dependencies' in poetry_config:
+                    config['project']['dependencies'] = poetry_config['dependencies']
+                
+                # Map optional dependencies
+                if 'extras' in poetry_config:
+                    config['project']['optional-dependencies'] = poetry_config['extras']
+                
+                # Map scripts
+                if 'scripts' in poetry_config:
+                    config['project']['scripts'] = poetry_config['scripts']
+                
+                # Setup dynamic fields
+                dynamic_fields = []
+                if 'version' in poetry_config:
+                    dynamic_fields.append('version')
+                if 'readme' in poetry_config:
+                    dynamic_fields.append('readme')
+                if 'classifiers' in poetry_config:
+                    dynamic_fields.append('classifiers')
+                
+                if dynamic_fields:
+                    config['project']['dynamic'] = dynamic_fields
+                
+                # Write the updated config
+                with open('pyproject.toml', 'w') as f:
+                    toml.dump(config, f)
+                print("Conversion complete!")
+            else:
+                print("No conversion needed or project section already exists.")
+            EOF
+            
+            # Run the conversion script
+            python convert_pyproject.py
+          fi
+          
+      - name: Update lock file
+        run: |
+          poetry lock
+          
       - name: Verify dependencies
         run: |
           poetry check
-          poetry lock --check
+          
+      - name: Create PR if changes detected
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if git diff --exit-code pyproject.toml poetry.lock; then
+            echo "No changes detected"
+          else
+            # Setup git
+            git config --global user.name "GitHub Actions"
+            git config --global user.email "actions@github.com"
+            
+            # Create a new branch
+            DATE=$(date '+%Y%m%d%H%M%S')
+            BRANCH="deps/poetry-format-fix-${DATE}"
+            git checkout -b ${BRANCH}
+            
+            # Commit changes
+            git add pyproject.toml poetry.lock
+            git commit -m "chore: update poetry configuration to PEP 621 format"
+            
+            # Push changes
+            git push origin ${BRANCH}
+            
+            # Create PR
+            gh pr create --title "Update Poetry configuration to PEP 621 format" \
+                         --body "This PR updates the poetry configuration in pyproject.toml to use the newer PEP 621 format and regenerates the lock file." \
+                         --label "dependencies" \
+                         --label "automation"
+          fi

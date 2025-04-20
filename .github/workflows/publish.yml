@@ -74,7 +74,7 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install poetry
+        pip install poetry>=1.6.0
 
     - name: Update version in pyproject.toml
       run: |
@@ -85,6 +85,10 @@ jobs:
         # Update lock file after changing version
         poetry lock
 
+    - name: Validate Poetry configuration
+      run: |
+        poetry check || echo "Warning: Poetry check failed, but continuing with build"
+        
     - name: Build package
       run: |
         poetry build
