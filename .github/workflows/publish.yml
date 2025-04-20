@@ -74,6 +74,11 @@ jobs:
     - name: Update version in pyproject.toml
       run: |
         poetry version ${{ needs.release.outputs.version }}
+        
+    - name: Update lock file
+      run: |
+        # Update lock file after changing version
+        poetry lock --no-update
 
     - name: Build package
       run: |
