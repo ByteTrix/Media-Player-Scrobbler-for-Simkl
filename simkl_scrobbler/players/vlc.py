@@ -22,6 +22,7 @@ class VLCIntegration:
     """
     
     def __init__(self):
+        self.name = 'vlc'
         self.platform = platform.system().lower()
         self.last_successful_config = None
         self.session = requests.Session()

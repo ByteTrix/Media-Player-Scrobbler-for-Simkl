@@ -13,20 +13,13 @@ import re
 from datetime import datetime
 
 # Import from our own modules
-from simkl_scrobbler.window_detection import parse_movie_title, is_video_player
-from simkl_scrobbler.media_cache import MediaCache
-from simkl_scrobbler.backlog_cleaner import BacklogCleaner
-
-# Playback states
-PLAYING = "playing"
-PAUSED = "paused"
-STOPPED = "stopped"
+from .window_detection import parse_movie_title, is_video_player
+from .media_cache import MediaCache
+from .backlog_cleaner import BacklogCleaner
+from .utils.constants import PLAYING, PAUSED, STOPPED, DEFAULT_POLL_INTERVAL
 
 # Configure module logging
 logger = logging.getLogger(__name__)
-
-# Default polling interval in seconds
-DEFAULT_POLL_INTERVAL = 10
 
 class MovieScrobbler:
     """Tracks movie viewing and scrobbles to Simkl"""
@@ -126,7 +119,7 @@ class MovieScrobbler:
             # VLC Integration (Cross-Platform)
             if 'vlc' in process_name_lower:
                 logger.debug(f"VLC detected: {process_name}")
-                from simkl_scrobbler.vlc_integration import VLCIntegration
+                from simkl_scrobbler.players import VLCIntegration
                 
                 # Create VLC integration instance if needed (lazy loading)
                 if not hasattr(self, '_vlc_integration'):
@@ -175,7 +168,7 @@ class MovieScrobbler:
             # PotPlayer Integration (Windows-only)
             elif any(player in process_name_lower for player in ['potplayer.exe', 'potplayermini.exe', 'potplayermini64.exe']):
                 logger.debug(f"PotPlayer detected: {process_name}")
-                from simkl_scrobbler.potplayer_integration import PotPlayerIntegration
+                from simkl_scrobbler.players import PotPlayerIntegration
                 
                 # Create PotPlayer integration instance if needed (lazy loading)
                 if not hasattr(self, '_potplayer_integration'):

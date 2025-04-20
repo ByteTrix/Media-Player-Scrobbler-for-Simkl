@@ -179,6 +179,7 @@ class MPCIntegration:
                 
         return None  # Couldn't determine pause state
 
+
 # Convenience class for direct import
 class MPCHCIntegration(MPCIntegration):
     """MPC-HC specific integration (same as base class)"""

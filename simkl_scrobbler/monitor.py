@@ -10,12 +10,12 @@ import platform
 from datetime import datetime
 
 # Import from our own modules
-from simkl_scrobbler.window_detection import (
+from .window_detection import (
     get_active_window_info, 
     get_all_windows_info,
-    is_video_player  # Move this import here
+    is_video_player
 )
-from simkl_scrobbler.movie_scrobbler import MovieScrobbler
+from .movie_scrobbler import MovieScrobbler
 
 # Configure module logging
 logger = logging.getLogger(__name__)

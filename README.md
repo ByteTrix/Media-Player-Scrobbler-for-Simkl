@@ -276,7 +276,7 @@ graph LR
 6. **Auto-marking**: Updates Simkl when 80% threshold reached
 7. **Offline Handling**: Queues failed updates in backlog for future retry
 
-## 🧪 Testing
+<!-- ## 🧪 Testing
 
 SIMKL Scrobbler includes a comprehensive test suite to ensure reliability and functionality:
 
@@ -325,7 +325,7 @@ poetry run python tests/master_test.py --help
 | `--verbose` | Show more detailed test information |
 | `--show-version` | Show test suite version and exit |
 
-The master test suite automatically discovers and configures media players installed on your system, and sets up their web interfaces for enhanced position tracking when available.
+The master test suite automatically discovers and configures media players installed on your system, and sets up their web interfaces for enhanced position tracking when available. -->
 
 ## 🔧 Troubleshooting
 
@@ -356,8 +356,6 @@ type simkl_scrobbler\playback_log.jsonl
 # macOS/Linux
 cat simkl_scrobbler/playback_log.jsonl
 
-# Run tests with verbose output
-python tests/master_test.py --test-mode --verbose
 ```
 
 ### Diagnostic Commands
