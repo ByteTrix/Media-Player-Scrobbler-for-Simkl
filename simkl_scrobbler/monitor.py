@@ -10,7 +10,11 @@ import platform
 from datetime import datetime
 
 # Import from our own modules
-from simkl_scrobbler.window_detection import get_active_window_info, get_all_windows_info
+from simkl_scrobbler.window_detection import (
+    get_active_window_info, 
+    get_all_windows_info,
+    is_video_player  # Move this import here
+)
 from simkl_scrobbler.movie_scrobbler import MovieScrobbler
 
 # Configure module logging
@@ -22,7 +26,8 @@ PLATFORM = platform.system().lower()
 class Monitor:
     """Continuously monitors windows for movie playback"""
 
-    def __init__(self, app_data_dir, client_id=None, access_token=None, poll_interval=10, testing_mode=False):
+    def __init__(self, app_data_dir, client_id=None, access_token=None, poll_interval=10, 
+                 testing_mode=False, backlog_check_interval=300):
         self.app_data_dir = app_data_dir
         self.client_id = client_id
         self.access_token = access_token
@@ -30,6 +35,7 @@ class Monitor:
         self.testing_mode = testing_mode
         self.running = False
         self.monitor_thread = None
+        self._lock = threading.RLock()  # Add a lock for thread safety
         self.scrobbler = MovieScrobbler(
             app_data_dir=self.app_data_dir,
             client_id=self.client_id,
@@ -37,7 +43,7 @@ class Monitor:
             testing_mode=self.testing_mode
         )
         self.last_backlog_check = 0
-        self.backlog_check_interval = 5 * 60  # Check backlog every 5 minutes
+        self.backlog_check_interval = backlog_check_interval  # Configurable parameter
         self.search_callback = None  # Callback for movie search
 
     def set_search_callback(self, callback):
@@ -62,57 +68,61 @@ class Monitor:
             logger.warning("Monitor not running")
             return False
 
+        # Set the flag first
         self.running = False
-        if self.monitor_thread and self.monitor_thread.is_alive():
-            # Wait for thread to finish with timeout
-            self.monitor_thread.join(timeout=2)
         
-        # Stop any active tracking
-        if self.scrobbler.currently_tracking:
-            self.scrobbler.stop_tracking()
-            
+        # Then handle the thread
+        if self.monitor_thread and self.monitor_thread.is_alive():
+            try:
+                # Wait for thread to finish with timeout
+                self.monitor_thread.join(timeout=2)
+            except RuntimeError:
+                logger.warning("Could not join monitor thread")
+        
+        # Stop any active tracking with the lock to prevent race conditions
+        with self._lock:
+            if self.scrobbler.currently_tracking:
+                self.scrobbler.stop_tracking()
+        
         logger.info("Monitor stopped")
         return True
 
     def _monitor_loop(self):
         """Main monitoring loop"""
         logger.info("Monitor loop started")
-        last_window_info = None
         check_count = 0
 
         while self.running:
             try:
-                # Get active window
-                window_info = get_active_window_info()
+                # First get all windows and find video player windows
+                found_player = False
+                all_windows = get_all_windows_info()
                 
-                if not window_info:
-                    # If active window detection fails, try getting all windows
-                    all_windows = get_all_windows_info()
-                    # Find a video player window if any
-                    for win in all_windows:
-                        from simkl_scrobbler.window_detection import is_video_player
-                        if is_video_player(win):
-                            window_info = win
-                            logger.debug(f"Using video player window from all windows: {win.get('title')}")
-                            break
-
-                if window_info:
-                    if last_window_info != window_info:
-                        logger.debug(f"Active window: {window_info.get('title')} ({window_info.get('process_name')})")
-                        last_window_info = window_info
-
-                    # Process window and get scrobble info
-                    scrobble_info = self.scrobbler.process_window(window_info)
-                    
-                    # If we get scrobble info and need to search for the movie
-                    if scrobble_info and self.search_callback and not scrobble_info.get("simkl_id"):
-                        logger.info(f"Movie needs identification: {scrobble_info.get('title')}")
-                        # Call the search callback
-                        self.search_callback(scrobble_info.get("title"))
-                else:
-                    # If no active window detected and we were tracking something, stop tracking
-                    if self.scrobbler.currently_tracking:
-                        logger.info("No active window detected, stopping tracking")
+                # Find a video player window if any
+                for win in all_windows:
+                    if is_video_player(win):
+                        window_info = win
+                        found_player = True
+                        logger.debug(f"Found video player window: {win.get('title', 'Unknown')}")
+                        
+                        # Process this player window
+                        with self._lock:  # Use lock when accessing shared resources
+                            scrobble_info = self.scrobbler.process_window(window_info)
+                        
+                        # If we get scrobble info and need to search for the movie
+                        if scrobble_info and self.search_callback and not scrobble_info.get("simkl_id"):
+                            title = scrobble_info.get("title", "Unknown")
+                            logger.info(f"Movie needs identification: {title}")
+                            # Call the search callback
+                            self.search_callback(title)
+                        
+                        # We found and processed a player, no need to check further
+                        break
+                
+                # Only stop tracking if no player window found
+                if not found_player and self.scrobbler.currently_tracking:
+                    logger.info("No player window detected among all windows, stopping tracking")
+                    with self._lock:
                         self.scrobbler.stop_tracking()
 
                 # Process backlog periodically
@@ -120,7 +130,9 @@ class Monitor:
                 current_time = time.time()
                 if current_time - self.last_backlog_check > self.backlog_check_interval:
                     logger.debug("Checking backlog...")
-                    synced_count = self.scrobbler.process_backlog()
+                    with self._lock:
+                        synced_count = self.scrobbler.process_backlog()
+                    
                     if synced_count > 0:
                         logger.info(f"Synced {synced_count} items from backlog")
                     self.last_backlog_check = current_time
