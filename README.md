@@ -46,6 +46,7 @@ For detailed instructions, please see the documentation:
 - ⚙️ [Advanced Configuration](docs/configuration.md)
 - 🔧 [Troubleshooting](docs/troubleshooting.md)
 - 💻 [Development Guide](docs/development.md)
+- 📝 [Todo List](docs/todo.md) - Completed and planned features
 
 ## 🔍 How It Works
 
