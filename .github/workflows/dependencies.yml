@@ -1,0 +1,102 @@
+name: Dependency Management
+
+on:
+  schedule:
+    - cron: '0 0 * * 1'  # Run weekly on Monday at midnight
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'pyproject.toml'
+      - 'poetry.lock'
+
+permissions: # Added default permissions
+  contents: read
+
+jobs:
+  dependency-review:
+    name: Dependency Review
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read # Required for the action to comment on PRs
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Dependency Review
+        uses: actions/dependency-review-action@v4 # Updated version
+        with:
+          fail-on-severity: critical
+          # deny-licenses: GPL-3.0, AGPL-3.0 # Consider if these licenses are truly problematic
+          fail-on-scopes: runtime
+          vulnerability-check: true
+          # Optional: Allow specific licenses if needed
+          # allow-licenses: MIT, Apache-2.0
+
+  verify-dependencies:
+    name: Verify and Update Poetry Configuration
+    runs-on: ubuntu-latest
+    # Needs write permission for contents and pull-requests to create a PR
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11' # Consistent with other workflows
+          cache: pip
+
+      - name: Install Poetry
+        run: |
+          pip install poetry
+          poetry config virtualenvs.create false
+
+      - name: Check Poetry Configuration and Update Lock File # Renamed step
+        id: check
+        run: |
+          # Check if pyproject.toml is valid
+          poetry check
+          # Update lock file based on pyproject.toml (keep existing versions where possible)
+          poetry lock
+
+      - name: Check for Configuration Changes
+        id: git-diff
+        run: |
+          # Check if poetry lock or check modified files
+          if git diff --quiet pyproject.toml poetry.lock; then
+            echo "No changes detected in pyproject.toml or poetry.lock"
+            echo "changed=false" >> $GITHUB_OUTPUT
+          else
+            echo "Changes detected in pyproject.toml or poetry.lock"
+            echo "changed=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create PR if changes detected
+        # Only run on schedule or workflow_dispatch, and if changes were detected
+        if: (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && steps.git-diff.outputs.changed == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }} # gh cli needs GH_TOKEN
+        run: |
+          # Setup git
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Create a new branch
+          BRANCH="chore/update-poetry-config-$(date +%Y%m%d%H%M%S)"
+          git checkout -b ${BRANCH}
+
+          # Commit changes
+          git add pyproject.toml poetry.lock
+          git commit -m "chore: update poetry configuration and lock file"
+
+          # Push changes
+          git push origin ${BRANCH}
+
+          # Create PR (requires pull-requests: write permission for the job)
+          gh pr create --title "chore: Update Poetry configuration and lock file" \
+                       --body "This PR updates the poetry configuration (if needed) and regenerates the lock file based on the current \`pyproject.toml\`." \
+                       --label "dependencies,automation" # Combine labels

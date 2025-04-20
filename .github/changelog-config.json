@@ -1,0 +1,20 @@
+{
+  "categories": [
+    {
+      "title": "## 🚀 Features & Improvements",
+      "labels": ["feature", "enhancement", "improvement"]
+    },
+    {
+      "title": "## 🐛 Bug Fixes",
+      "labels": ["fix", "bug"]
+    },
+    {
+      "title": "## 📝 Other Changes",
+      "labels": ["documentation", "test", "dependencies", "other"]
+    }
+  ],
+  "sort": "ASC",
+  "template": "${{CHANGELOG}}\n\nFor full details: https://github.com/kavinthangavel/simkl-movie-tracker/compare/${{FROM_TAG}}...${{TO_TAG}}",
+  "pr_template": "- ${{TITLE}} (#${{NUMBER}})",
+  "empty_template": "- No changes"
+}
