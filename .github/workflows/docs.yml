@@ -17,28 +17,26 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # Needed for gh-pages deployment
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+          cache: 'pip'
           
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install poetry
-          # Update lock file if needed
-          poetry lock
-          poetry install --with dev
-          pip install mkdocs mkdocs-material pymdown-extensions mkdocs-mermaid2-plugin
-          
-      - name: Setup docs directory
-        run: |
-          mkdir -p _site
-          cp -r docs/* _site/
-          # Convert GitHub-flavored markdown to standard markdown if needed
-          find _site -name "*.md" -exec sed -i 's/```mermaid/\{% mermaid %\}/g; s/```$/\{% endmermaid %\}/g' {} \;
+          poetry config virtualenvs.create false
+          poetry install --with dev --no-interaction
+          pip install mkdocs-material mkdocs-mermaid2-plugin mkdocstrings[python]
           
       - name: Build documentation
         run: |
@@ -50,3 +48,7 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./site
+          full_commit_message: 'docs: update documentation site'
+          user_name: 'github-actions[bot]'
+          user_email: 'github-actions[bot]@users.noreply.github.com'
+          keep_files: false
