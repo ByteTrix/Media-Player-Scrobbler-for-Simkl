@@ -1,0 +1,51 @@
+site_name: SIMKL Scrobbler
+site_description: Automatic Movie Scrobbler for Simkl
+site_url: https://kavinthangavel.github.io/simkl-scrobbler/
+repo_name: kavinthangavel/simkl-scrobbler
+repo_url: https://github.com/kavinthangavel/simkl-scrobbler
+copyright: Copyright &copy; 2023-2025
+
+theme:
+  name: material
+  palette:
+    primary: indigo
+    accent: indigo
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.expand
+    - navigation.indexes
+    - navigation.top
+    - content.code.copy
+    - content.code.annotate
+  icon:
+    repo: fontawesome/brands/github
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - toc:
+      permalink: true
+
+plugins:
+  - search
+  - git-revision-date-localized:
+      enable_creation_date: true
+      type: date
+
+nav:
+  - Home: index.md
+  - Installation: installation.md
+  - Configuration: configuration.md
+  - Usage: usage.md
+  - Media Players: media-players.md
+  - Troubleshooting: troubleshooting.md
+  - Development: development.md
+  - Todo: todo.md
