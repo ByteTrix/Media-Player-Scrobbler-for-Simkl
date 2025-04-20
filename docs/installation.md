@@ -28,23 +28,23 @@ No additional requirements.
 For full functionality:
 ```bash
 # Install optional dependencies (recommended)
-pip install "simkl-scrobbler[macos]"
+pip install "simkl-scrobbler"
 ```
 
 ### Linux
 For window detection and full functionality:
 ```bash
 # Ubuntu/Debian
-sudo apt install wmctrl xdotool
+sudo apt install wmctrl xdotool plyer
 
 # Fedora
-sudo dnf install wmctrl xdotool
+sudo dnf install wmctrl xdotool plyer
 
 # Arch Linux
-sudo pacman -S wmctrl xdotool
+sudo pacman -S wmctrl xdotool plyer
 
 # Install optional dependencies
-pip install "simkl-scrobbler[linux]"
+pip install "simkl-scrobbler"
 ```
 
 ## 🔄 Alternative Installation Methods
