@@ -152,6 +152,32 @@ class MPCIntegration:
                 return position, duration
                 
         return None, None  # Failed to get position/duration
+        
+    def is_paused(self):
+        """
+        Check if MPC playback is paused
+        
+        Returns:
+            bool: True if paused, False if playing, None if unknown
+        """
+        # Try working port first
+        if self.working_port:
+            variables = self.get_vars(self.working_port)
+            if variables:
+                state = variables.get('state', '')
+                return state == '2'  # MPC state 2 = paused
+        
+        # If no working port or it failed, try all default ports
+        for port in self.default_ports:
+            if port == self.working_port:
+                continue  # Already tried this one
+                
+            variables = self.get_vars(port)
+            if variables:
+                state = variables.get('state', '')
+                return state == '2'  # MPC state 2 = paused
+                
+        return None  # Couldn't determine pause state
 
 # Convenience class for direct import
 class MPCHCIntegration(MPCIntegration):
