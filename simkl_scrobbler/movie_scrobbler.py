@@ -64,7 +64,7 @@ class MovieScrobbler:
         self.last_scrobble_time = 0
         # Pass app_data_dir to cache and backlog
         self.media_cache = MediaCache(app_data_dir=self.app_data_dir)
-        self.backlog = BacklogCleaner(app_data_dir=self.app_data_dir)
+        # self.backlog = BacklogCleaner(app_data_dir=self.app_data_dir) #duplicate cleaner it'll cause unwanted problems
         self.last_progress_check = 0  # Time of last progress threshold check
         self.completion_threshold = 80  # Default completion threshold (percent)
         self.completed = False  # Flag to track if movie has been marked as complete
@@ -82,7 +82,7 @@ class MovieScrobbler:
         # Check if handlers already exist to prevent duplicates if re-initialized
         if not self.playback_logger.hasHandlers():
             self.playback_logger.setLevel(logging.INFO) # Set level on the logger itself
-            formatter = logging.Formatter('{"timestamp": "%(asctime)s", "level": "%(levelname)s", "message": %(message)s}')
+            formatter = logging.Formatter('{"timestamp": "%(asctime)s", "level": "%(levelname)s", "message": "%(message)s"}')
             try:
                 # Use RotatingFileHandler with the correct path
                 handler = logging.handlers.RotatingFileHandler(
@@ -486,7 +486,7 @@ class MovieScrobbler:
             logger.error("Cannot mark movie as finished: missing API credentials")
             self._log_playback_event("marked_as_finished_fail_credentials")
             logger.info(f"Adding '{title}' (ID: {simkl_id}) to backlog due to missing credentials")
-            self.backlog.add(simkl_id, title) # Backlog add logs itself
+            self.backlog_cleaner.add(simkl_id, title) # Use the existing BacklogCleaner instance
             return False
 
         try:
@@ -534,7 +534,7 @@ class MovieScrobbler:
             return 0
 
         success_count = 0
-        pending = self.backlog.get_pending()
+        pending = self.backlog_cleaner.get_pending()
 
         if not pending:
             return 0
@@ -587,9 +587,9 @@ class MovieScrobbler:
                         # If it was a temp ID, remove it using the original temp ID
                         if is_temp_id:
                             original_id = item.get("simkl_id")
-                            self.backlog.remove(original_id)
+                            self.backlog_cleaner.remove(original_id)
                         else:
-                            self.backlog.remove(simkl_id)
+                            self.backlog_cleaner.remove(simkl_id)
                         success_count += 1
                         self._log_playback_event("backlog_sync_success", {"backlog_simkl_id": simkl_id, "backlog_title": title})
                     else:

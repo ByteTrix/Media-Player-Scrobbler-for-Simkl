@@ -109,7 +109,11 @@ def install_windows_service():
             f.write(batch_content)
         
         # Make batch file executable
-        os.chmod(batch_path, 0o755)
+        if PLATFORM == "windows":
+            # Use attrib command to ensure the file is not marked as read-only
+            subprocess.run(["attrib", "+r", str(batch_path)], check=True)
+        else:
+            os.chmod(batch_path, 0o755)
         
         # Add to Windows startup via registry
         try:
@@ -168,7 +172,7 @@ def install_linux_service():
         from .main import APP_DATA_DIR
         
         # Determine service file location (user or system)
-        user_service_dir = pathlib.Path.home() / ".config/systemd/user"
+        user_systemd_dir = pathlib.Path.home() / ".config/systemd/user"
         system_service_dir = pathlib.Path("/etc/systemd/system")
         
         # Check if we can write to system directory (requires root)
@@ -177,8 +181,8 @@ def install_linux_service():
             user_mode = False
         else:
             # Use user systemd directory
-            service_dir = user_service_dir
-            user_service_dir.mkdir(parents=True, exist_ok=True)
+            service_dir = user_systemd_dir
+            user_systemd_dir.mkdir(parents=True, exist_ok=True)
             user_mode = True
         
         # Create service file content
