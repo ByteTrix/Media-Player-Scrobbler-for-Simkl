@@ -146,21 +146,120 @@ class SimklScrobbler:
         self.stop()
         
     def _backlog_check_loop(self):
-        """Loop to periodically check for backlogged items to sync"""
+        """Loop to periodically check for backlogged items to sync with maximum efficiency"""
+        from .simkl_api import is_internet_connected
+        
+        # Track connectivity state
+        last_online_state = is_internet_connected()
+        logger.info(f"Initial internet connectivity: {'Connected' if last_online_state else 'Disconnected'}")
+        
+        # Adaptive intervals with more aggressive resource optimization
+        short_interval = 5        # 5 seconds - immediate responsiveness after state change
+        regular_interval = 60      # 1 minute - normal operation
+        long_interval = 600       # 10 minutes - when idle with no backlog
+        offline_backoff_max = 120  # 2 minutes - maximum interval when offline
+        
+        # Tracking variables
+        next_check_time = time.time()
+        next_connectivity_check = time.time()
+        current_interval = short_interval
+        offline_count = 0  # Counter for implementing backoff when offline
+        empty_backlog_count = 0  # Track consecutive empty backlog checks
+        
+        # Cache for backlog status to avoid excessive file access
+        backlog_count_cache = 0
+        backlog_cache_time = 0
+        backlog_cache_ttl = 10  # Seconds before refreshing backlog count cache
+        
         while self.running:
             try:
-                time.sleep(self.poll_interval * BACKLOG_PROCESS_INTERVAL)
+                current_time = time.time()
+                
+                # Check if it's time to perform any check
+                if current_time < next_connectivity_check and current_time < next_check_time:
+                    # Sleep efficiency: longer sleeps when far from next check time
+                    sleep_time = min(
+                        1.0,  # Maximum 1 second to stay responsive
+                        min(next_connectivity_check, next_check_time) - current_time
+                    )
+                    time.sleep(max(0.1, sleep_time))  # Minimum 0.1s to avoid tight loop
+                    continue
                 
                 if not self.running:
                     break
+                
+                # Efficient backlog check - use cached value if fresh
+                if current_time - backlog_cache_time > backlog_cache_ttl:
+                    backlog_count_cache = len(self.scrobbler.backlog.get_pending())
+                    backlog_cache_time = current_time
+                has_pending_items = backlog_count_cache > 0
+                
+                # Check connectivity only when needed
+                if current_time >= next_connectivity_check:
+                    current_online_state = is_internet_connected()
+                    connectivity_changed = current_online_state != last_online_state
                     
-                backlog_count = self.scrobbler.process_backlog()
-                if backlog_count > 0:
-                    logger.info(f"Processed {backlog_count} items from backlog")
+                    # Set next connectivity check time based on current state
+                    if current_online_state:
+                        # When online with pending items, check connectivity more frequently
+                        next_conn_interval = regular_interval if has_pending_items else long_interval
+                    else:
+                        # When offline, use backoff strategy
+                        offline_count += 1
+                        backoff_factor = min(offline_count, 12)  # Cap at 12x multiplier
+                        next_conn_interval = min(short_interval * backoff_factor, offline_backoff_max)
                     
+                    next_connectivity_check = current_time + next_conn_interval
+                    
+                    # If connectivity changed from offline to online, process immediately
+                    if not last_online_state and current_online_state:
+                        logger.info("Internet connectivity restored - processing backlog immediately")
+                        backlog_count = self.scrobbler.process_backlog()
+                        if backlog_count > 0:
+                            logger.info(f"Processed {backlog_count} items from backlog after connectivity was restored")
+                            backlog_count_cache = max(0, backlog_count_cache - backlog_count)
+                            backlog_cache_time = current_time
+                        
+                        # Reset adaptive variables
+                        current_interval = regular_interval
+                        offline_count = 0
+                        empty_backlog_count = 0
+                        next_check_time = current_time + current_interval
+                    
+                    # Update connectivity state tracking
+                    last_online_state = current_online_state
+                
+                # Process backlog if it's time (separate from connectivity checks)
+                if current_time >= next_check_time and last_online_state:
+                    if has_pending_items:
+                        backlog_count = self.scrobbler.process_backlog()
+                        if backlog_count > 0:
+                            logger.info(f"Processed {backlog_count} items from backlog")
+                            backlog_count_cache = max(0, backlog_count_cache - backlog_count)
+                            backlog_cache_time = current_time
+                            empty_backlog_count = 0
+                            current_interval = regular_interval
+                        else:
+                            # If we couldn't process any items despite having them, 
+                            # slightly increase interval
+                            current_interval = min(current_interval * 1.5, long_interval)
+                            empty_backlog_count += 1
+                    else:
+                        # Increasingly back off when backlog remains empty
+                        empty_backlog_count += 1
+                        if empty_backlog_count > 3:
+                            # After 3 consecutive empty checks, use long interval
+                            current_interval = long_interval
+                        
+                    # Schedule next backlog processing
+                    next_check_time = current_time + current_interval
+                
             except Exception as e:
                 logger.error(f"Error in backlog check loop: {e}")
-                time.sleep(self.poll_interval)
+                # Use short interval after an error to recover quickly
+                current_interval = short_interval
+                next_check_time = time.time() + current_interval
+                next_connectivity_check = time.time() + current_interval
                 
     def _handle_scrobble_update(self, scrobble_info):
         """Handle a scrobble update from the tracker"""
@@ -230,7 +329,7 @@ class SimklScrobbler:
                 
                 # Check if there's an available duration and significant progress (indicating a likely movie)
                 duration = scrobble_info.get("total_duration_seconds")
-                watched_seconds = scrobble_info.get("watched_seconds", 0)
+                watched_seconds = scrobbler_info.get("watched_seconds", 0)
                 watched_enough = False
                 
                 # If we have duration info, check if watched enough to consider adding to backlog

@@ -13,18 +13,30 @@ DEFAULT_CLIENT_ID = "063e363a1596eb693066cf3b9848be8d2c4a6d9ef300666c9f19ef59803
 
 def is_internet_connected():
     """
-    Check if there's a working internet connection by attempting to connect to Simkl's API.
+    Check if there's a working internet connection by attempting to connect to multiple reliable services.
     
     Returns:
         bool: True if internet is connected, False otherwise
     """
-    try:
-        # Try to connect to Simkl API with a timeout of 2 seconds
-        requests.get(SIMKL_API_BASE_URL, timeout=2)
-        return True
-    except (requests.ConnectionError, requests.Timeout, socket.error) as e:
-        logger.debug(f"Internet connectivity check failed: {e}")
-        return False
+    # List of reliable services to check (with timeouts)
+    check_urls = [
+        ('https://api.simkl.com', 1.5),         # Primary: Simkl API
+        ('https://www.google.com', 1.0),         # Backup: Google
+        ('https://www.cloudflare.com', 1.0)      # Backup: Cloudflare
+    ]
+    
+    for url, timeout in check_urls:
+        try:
+            # Try to connect with a short timeout for faster response
+            response = requests.get(url, timeout=timeout)
+            if response.status_code == 200:
+                return True
+        except (requests.ConnectionError, requests.Timeout, socket.error) as e:
+            logger.debug(f"Internet connectivity check failed for {url}: {e}")
+            continue  # Try the next URL
+            
+    # If we've tried all URLs and none responded, we're offline
+    return False
 
 def search_movie(title, client_id, access_token):
     """
