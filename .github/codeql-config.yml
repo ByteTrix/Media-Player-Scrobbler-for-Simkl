@@ -1,18 +1,27 @@
+# Configuration name
 name: "CodeQL Config"
 
+# Specifies the query suites to be used. 
+# - security-and-quality: Recommended set of queries for security and quality.
+# - security-extended: Additional security queries, potentially with higher false positives.
 queries:
   - uses: security-and-quality
   - uses: security-extended
 
+# Specifies the paths to be analyzed by CodeQL.
 paths:
-  - simkl_scrobbler
-  - tests
+  - simkl_scrobbler # Analyze the main application code
+  - tests           # Analyze test code
 
+# Specifies paths to be excluded from analysis.
 paths-ignore:
-  - docs
-  - '**/*.md'
-  - '**/*.txt'
+  - docs          # Ignore documentation folder
+  - '**/*.md'    # Ignore all Markdown files
+  - '**/*.txt'    # Ignore all text files
 
+# Filters to exclude specific queries by ID.
 query-filters:
   - exclude:
+      # Excludes the check for empty except blocks (py/empty-except-block).
+      # This might be acceptable in some contexts, but review if this is intended.
       id: py/empty-except-block

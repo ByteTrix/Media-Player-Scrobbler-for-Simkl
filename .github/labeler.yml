@@ -1,45 +1,54 @@
-# Configuration for the PR Labeler
+# Configuration for the PR Labeler action (actions/labeler)
+# https://github.com/actions/labeler
 
-# Add 'feature' label to any PR that modifies files in the main package
+# Label: 'feature'
+# Apply to PRs modifying code within the main application package.
 feature:
 - changed-files:
   - any-glob-to-any-file: 'simkl_scrobbler/**/*.py'
-  
-# Add 'documentation' label to any PR that modifies docs or markdown files
+
+# Label: 'documentation'
+# Apply to PRs modifying documentation files (in /docs or any .md/.rst file).
 documentation:
 - changed-files:
   - any-glob-to-any-file: 'docs/**/*'
   - any-glob-to-any-file: '**/*.md'
   - any-glob-to-any-file: '**/*.rst'
 
-# Add 'workflow' label to any PR that modifies GitHub Actions
+# Label: 'workflow'
+# Apply to PRs modifying GitHub Actions workflow files.
 workflow:
 - changed-files:
   - any-glob-to-any-file: '.github/workflows/**/*'
-  - any-glob-to-any-file: '.github/*.yml'
+  - any-glob-to-any-file: '.github/*.yml' # Include top-level config like labeler.yml itself
 
-# Add 'test' label to any PR that modifies test files
+# Label: 'test'
+# Apply to PRs modifying test files.
 test:
 - changed-files:
-  - any-glob-to-any-file: 'tests/**/*'
-  - any-glob-to-any-file: 'simkl_scrobbler/**/*_test.py'
-  - any-glob-to-any-file: 'simkl_scrobbler/**/test_*.py'
+  - any-glob-to-any-file: 'tests/**/*' # Files in the main tests directory
+  - any-glob-to-any-file: 'simkl_scrobbler/**/*_test.py' # Test files ending with _test.py
+  - any-glob-to-any-file: 'simkl_scrobbler/**/test_*.py' # Test files starting with test_
 
-# Add 'dependencies' label to PRs that modify dependency files
+# Label: 'dependencies'
+# Apply to PRs modifying dependency definition files.
 dependencies:
 - changed-files:
   - any-glob-to-any-file: 'pyproject.toml'
   - any-glob-to-any-file: 'poetry.lock'
-  - any-glob-to-any-file: 'requirements*.txt'
+  - any-glob-to-any-file: 'requirements*.txt' # Include requirements files if any
 
-# Add 'bug' label to PRs that mention bug fix in title or description
+# Label: 'bug'
+# Apply to PRs where the source branch name suggests a bug fix.
 bug:
-- head-branch-regex: '(fix|bugfix|issue)\/.*'
+- head-branch-regex: '(fix|bugfix|issue)\/.*' # Matches branches like fix/..., bugfix/..., issue/...
 
-# Add 'enhancement' label to PRs that add new features
+# Label: 'enhancement'
+# Apply to PRs where the source branch name suggests a new feature or enhancement.
 enhancement:
-- head-branch-regex: '(feature|feat|enhance)\/.*'
+- head-branch-regex: '(feature|feat|enhance)\/.*' # Matches branches like feature/..., feat/..., enhance/...
 
-# Add 'breaking' label for potentially breaking changes
+# Label: 'breaking'
+# Apply to PRs that explicitly mention a breaking change in the description.
 breaking:
-- body-regex: 'BREAKING CHANGE:'
+- body-regex: 'BREAKING CHANGE:' # Case-sensitive match in the PR body

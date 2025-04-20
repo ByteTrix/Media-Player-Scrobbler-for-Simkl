@@ -6,42 +6,50 @@ on:
     paths-ignore:
       - '**.md'
       - 'docs/**'
+      - 'mkdocs.yml' # Ignore docs config
   pull_request:
     branches: [ main ]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'mkdocs.yml' # Ignore docs config
   workflow_dispatch:
+
+# Added top-level permissions for security best practices
+permissions:
+  contents: read
 
 jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
+    # permissions: # Permissions can be defined per job if needed, but top-level is often sufficient
+    #   contents: read
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-          cache: 'pip'
-          check-latest: true
+          cache: 'poetry' # Use poetry cache
+          # check-latest: true # Removed, can cause unexpected issues
+
+      - name: Install Poetry
+        run: |
+          pipx install poetry>=1.6.0 # Use pipx for tool installation
+
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install poetry>=1.6.0
-          
-          # Ensure poetry.lock is up-to-date
-          if [ -f "poetry.lock" ]; then
-            poetry lock
-          fi
-          
+          # Ensure poetry.lock is up-to-date - This should ideally be handled by a separate dependency update workflow
+          # poetry lock --check # Check if lock file is consistent
           poetry config virtualenvs.create false
-          poetry install --with dev --no-interaction --no-root
-      - name: Run flake8
+          # Install with dev dependencies, excluding the root package itself if it's not installable/needed for linting
+          poetry install --with dev --no-interaction # --no-root removed as it might be needed depending on tools
+
+      - name: Run linters
         run: |
           poetry run flake8 simkl_scrobbler --count --select=E9,F63,F7,F82 --show-source --statistics
-      - name: Run black (check only)
-        run: |
-          poetry run black --check simkl_scrobbler || echo "Black checks failed, please format code with black"
+          poetry run black --check simkl_scrobbler
 
   test:
     name: Test on ${{ matrix.os }} / Python ${{ matrix.python-version }}
@@ -51,7 +59,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        python-version: ['3.9', '3.11', '3.12']
+        python-version: ['3.9', '3.11', '3.12'] # Keep versions as strings
         exclude:
           - os: macos-latest
             python-version: '3.9'
@@ -62,15 +70,15 @@ jobs:
       uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
-        cache: 'pip'
+        cache: 'poetry' # Use poetry cache
+
     - name: Install Poetry
       run: |
-        python -m pip install --upgrade pip
-        pip install poetry
-        poetry config virtualenvs.create false
+        pipx install poetry>=1.6.0 # Use pipx for tool installation
 
     - name: Install dependencies
       run: |
+        poetry config virtualenvs.create false
         poetry install --with dev --no-interaction
 
     - name: Install Linux dependencies
@@ -79,15 +87,19 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y xdotool wmctrl
 
-    - name: Verify installation (skipping tests for now)
+    # Renamed step for clarity
+    - name: Run Tests (Placeholder)
       run: |
-        echo "Package verification successful"
-        # Tests are skipped as requested
+        echo "Skipping actual test execution for now."
+        # poetry run pytest # Example: Uncomment and adapt when tests are ready
 
     - name: Upload coverage to Codecov
-      if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
-      uses: codecov/codecov-action@v3
+      # Ensure this runs only when tests actually produce coverage data
+      # Condition updated to match the specific matrix entry intended for coverage
+      if: success() && matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
+      uses: codecov/codecov-action@v4 # Updated action version
       with:
-        fail_ci_if_error: false
+        token: ${{ secrets.CODECOV_TOKEN }} # Use secrets for tokens
+        fail_ci_if_error: false # Don't fail CI if Codecov upload fails
         verbose: true
-        token: ${{ secrets.CODECOV_TOKEN }}
+      # Consider adding env: PYTEST_ADDOPTS: "--cov=simkl_scrobbler --cov-report=xml" to test step when enabling tests
