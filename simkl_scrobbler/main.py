@@ -4,9 +4,11 @@ import sys
 import signal
 import threading
 import pathlib  # Import pathlib
+import hashlib # Add hashlib import
 from dotenv import load_dotenv
-from .media_tracker import get_active_window_info, MonitorAwareScrobbler
-from .simkl_api import search_movie, mark_as_watched, authenticate, get_movie_details
+from .monitor import Monitor # Import Monitor instead of MonitorAwareScrobbler
+from .window_detection import get_active_window_info # Import directly
+from .simkl_api import search_movie, mark_as_watched, authenticate, get_movie_details, is_internet_connected, DEFAULT_CLIENT_ID
 import logging
 
 # Define the application data directory in the user's home folder
@@ -35,36 +37,39 @@ logging.basicConfig(
         file_handler    # Add configured file handler
     ]
 )
+
+# Create module-level logger
 logger = logging.getLogger(__name__)
+
 logger.info(f"Main application log file configured at: {log_file_path}") # Logged to file only
 logger.info(f"Using application data directory: {APP_DATA_DIR}") # Logged to file only
 
-# Default polling interval in seconds
-DEFAULT_POLL_INTERVAL = 10
-# How often to process the backlog (in polling cycles)
-BACKLOG_PROCESS_INTERVAL = 30
+# Default polling interval in seconds (Monitor uses its own default, but keep for reference if needed elsewhere)
+# DEFAULT_POLL_INTERVAL = 10
 
 def load_configuration():
-    """Loads configuration from .env file and validates required variables."""
-    # Load .env file ONLY from the application data directory
+    """Load client ID and access token from environment variables or .env file"""
+    # Create .env file path in app data directory
     env_path = APP_DATA_DIR / ".simkl_scrobbler.env"
-    if env_path.exists():
-        logger.info(f"Loading configuration from: {env_path}")
+    
+    # Check if .env file exists
+    if (env_path.exists()):
+        # Load environment variables from .env file
         load_dotenv(env_path)
-    else:
-        logger.warning(f"Configuration file not found at: {env_path}")
-        # No fallback, proceed without loading if not found
     
-    # Import the default client ID from simkl_api module
-    from .simkl_api import DEFAULT_CLIENT_ID
-    
-    # Get client ID from environment or use default
-    client_id = os.getenv("SIMKL_CLIENT_ID", DEFAULT_CLIENT_ID)
+    # Get client ID and access token from environment variables
+    client_id = os.getenv("SIMKL_CLIENT_ID")
     access_token = os.getenv("SIMKL_ACCESS_TOKEN")
-
+    
     if not client_id:
         logger.error("Client ID not found. Using default client ID.")
         client_id = DEFAULT_CLIENT_ID
+
+    if not client_id:
+        # This case should ideally not happen if DEFAULT_CLIENT_ID is set
+        logger.error("Client ID not found even after checking default. Exiting.")
+        print("Critical Error: Client ID is missing. Please check installation.")
+        sys.exit(1)
 
     if not access_token:
         logger.info("Access token not found, attempting device authentication...")
@@ -75,6 +80,7 @@ def load_configuration():
             logger.info("Authentication successful.")
             print("Authentication successful. You should run 'simkl-scrobbler init' to save this token.")
             print(f"SIMKL_ACCESS_TOKEN={access_token}")
+            # Note: We don't save it here automatically, init command handles saving.
         else:
             logger.error("Authentication failed.")
             print("Authentication failed. Please check your internet connection and ensure you complete the authorization step on Simkl.")
@@ -83,319 +89,194 @@ def load_configuration():
     return client_id, access_token
 
 class SimklScrobbler:
-    """Main application class for tracking movies and scrobbling to Simkl"""
-    
+    """Main application class that coordinates monitoring and Simkl interaction"""
+
     def __init__(self):
-        self.poll_interval = DEFAULT_POLL_INTERVAL
         self.running = False
-        # Pass the app data directory to the scrobbler
-        self.scrobbler = MonitorAwareScrobbler(app_data_dir=APP_DATA_DIR)
-        self.backlog_counter = 0
         self.client_id = None
         self.access_token = None
-        
+        # Instantiate the Monitor, passing the app data directory
+        self.monitor = Monitor(app_data_dir=APP_DATA_DIR)
+
     def initialize(self):
-        """Initialize the scrobbler and authenticate with Simkl"""
+        """Initialize the monitor and authenticate with Simkl"""
         logger.info("Initializing Simkl Scrobbler...")
-        
+
         self.client_id, self.access_token = load_configuration()
-        
+
         if not self.client_id or not self.access_token:
             logger.error("Exiting due to configuration/authentication issues.")
             return False
-            
-        self.scrobbler.set_credentials(self.client_id, self.access_token)
-        
-        backlog_count = self.scrobbler.process_backlog()
-        if backlog_count > 0:
-            logger.info(f"Processed {backlog_count} items from backlog during startup")
-            
+
+        # Set credentials for the monitor (which passes them to its internal scrobbler)
+        self.monitor.set_credentials(self.client_id, self.access_token)
+
+        # Process backlog on startup via monitor's internal scrobbler
+        try:
+            backlog_count = self.monitor.scrobbler.process_backlog()
+            if backlog_count > 0:
+                logger.info(f"Processed {backlog_count} items from backlog during startup")
+        except Exception as e:
+             logger.error(f"Error processing backlog during initialization: {e}", exc_info=True)
+             # Decide if this is critical enough to stop initialization
+
         return True
-        
+
     def start(self):
-        """Start the movie scrobbler main loop"""
+        """Start the monitor main loop"""
         if not self.running:
             self.running = True
             logger.info("Starting Simkl Scrobbler...")
             logger.info("Monitoring for supported video players...")
             logger.info("Supported players: VLC, MPC-HC, Windows Media Player, MPV, etc.")
             logger.info("Movies will be marked as watched after viewing 80% of their estimated duration")
-            
+
             # Only set up signal handlers when running in the main thread
             if threading.current_thread() is threading.main_thread():
                 signal.signal(signal.SIGINT, self._signal_handler)
                 signal.signal(signal.SIGTERM, self._signal_handler)
-            
-            # Register the scrobble callback function
-            self.scrobbler.set_scrobble_callback(self._handle_scrobble_update)
-            
-            # Use the enhanced monitoring system
-            self.scrobbler.start_monitoring()
-            self._backlog_check_loop()
-            
+
+            # Set the search callback for the monitor
+            # The monitor will call this when a movie needs identification
+            self.monitor.set_search_callback(self._search_and_cache_movie)
+
+            # Start the monitor (runs in its own thread)
+            if not self.monitor.start():
+                 logger.error("Failed to start the monitor.")
+                 self.running = False # Ensure running state is correct
+                 return False
+
+            logger.info("Monitor thread started.")
+            return True
+        else:
+            logger.warning("Scrobbler already running.")
+            return False
+
+
     def stop(self):
-        """Stop the movie scrobbler"""
+        """Stop the monitor"""
         if self.running:
-            logger.info("Stopping Simkl Scrobbler...")
+            logger.info("Stopping Monitor...")
             self.running = False
-            self.scrobbler.stop_monitoring()
-    
+            self.monitor.stop() # Use monitor's stop method
+            logger.info("Monitor stopped.")
+        else:
+             logger.info("Scrobbler was not running.")
+
+
     def _signal_handler(self, sig, frame):
         """Handle termination signals"""
         logger.info(f"Received signal {sig}, shutting down gracefully...")
         self.stop()
-        
-    def _backlog_check_loop(self):
-        """Loop to periodically check for backlogged items to sync with maximum efficiency"""
-        from .simkl_api import is_internet_connected
-        
-        # Track connectivity state
-        last_online_state = is_internet_connected()
-        logger.info(f"Initial internet connectivity: {'Connected' if last_online_state else 'Disconnected'}")
-        
-        # Adaptive intervals with more aggressive resource optimization
-        short_interval = 5        # 5 seconds - immediate responsiveness after state change
-        regular_interval = 60      # 1 minute - normal operation
-        long_interval = 600       # 10 minutes - when idle with no backlog
-        offline_backoff_max = 120  # 2 minutes - maximum interval when offline
-        
-        # Tracking variables
-        next_check_time = time.time()
-        next_connectivity_check = time.time()
-        current_interval = short_interval
-        offline_count = 0  # Counter for implementing backoff when offline
-        empty_backlog_count = 0  # Track consecutive empty backlog checks
-        
-        # Cache for backlog status to avoid excessive file access
-        backlog_count_cache = 0
-        backlog_cache_time = 0
-        backlog_cache_ttl = 10  # Seconds before refreshing backlog count cache
-        
-        while self.running:
-            try:
-                current_time = time.time()
-                
-                # Check if it's time to perform any check
-                if current_time < next_connectivity_check and current_time < next_check_time:
-                    # Sleep efficiency: longer sleeps when far from next check time
-                    sleep_time = min(
-                        1.0,  # Maximum 1 second to stay responsive
-                        min(next_connectivity_check, next_check_time) - current_time
-                    )
-                    time.sleep(max(0.1, sleep_time))  # Minimum 0.1s to avoid tight loop
-                    continue
-                
-                if not self.running:
-                    break
-                
-                # Efficient backlog check - use cached value if fresh
-                if current_time - backlog_cache_time > backlog_cache_ttl:
-                    backlog_count_cache = len(self.scrobbler.backlog.get_pending())
-                    backlog_cache_time = current_time
-                has_pending_items = backlog_count_cache > 0
-                
-                # Check connectivity only when needed
-                if current_time >= next_connectivity_check:
-                    current_online_state = is_internet_connected()
-                    connectivity_changed = current_online_state != last_online_state
-                    
-                    # Set next connectivity check time based on current state
-                    if current_online_state:
-                        # When online with pending items, check connectivity more frequently
-                        next_conn_interval = regular_interval if has_pending_items else long_interval
-                    else:
-                        # When offline, use backoff strategy
-                        offline_count += 1
-                        backoff_factor = min(offline_count, 12)  # Cap at 12x multiplier
-                        next_conn_interval = min(short_interval * backoff_factor, offline_backoff_max)
-                    
-                    next_connectivity_check = current_time + next_conn_interval
-                    
-                    # If connectivity changed from offline to online, process immediately
-                    if not last_online_state and current_online_state:
-                        logger.info("Internet connectivity restored - processing backlog immediately")
-                        backlog_count = self.scrobbler.process_backlog()
-                        if backlog_count > 0:
-                            logger.info(f"Processed {backlog_count} items from backlog after connectivity was restored")
-                            backlog_count_cache = max(0, backlog_count_cache - backlog_count)
-                            backlog_cache_time = current_time
-                        
-                        # Reset adaptive variables
-                        current_interval = regular_interval
-                        offline_count = 0
-                        empty_backlog_count = 0
-                        next_check_time = current_time + current_interval
-                    
-                    # Update connectivity state tracking
-                    last_online_state = current_online_state
-                
-                # Process backlog if it's time (separate from connectivity checks)
-                if current_time >= next_check_time and last_online_state:
-                    if has_pending_items:
-                        backlog_count = self.scrobbler.process_backlog()
-                        if backlog_count > 0:
-                            logger.info(f"Processed {backlog_count} items from backlog")
-                            backlog_count_cache = max(0, backlog_count_cache - backlog_count)
-                            backlog_cache_time = current_time
-                            empty_backlog_count = 0
-                            current_interval = regular_interval
-                        else:
-                            # If we couldn't process any items despite having them, 
-                            # slightly increase interval
-                            current_interval = min(current_interval * 1.5, long_interval)
-                            empty_backlog_count += 1
-                    else:
-                        # Increasingly back off when backlog remains empty
-                        empty_backlog_count += 1
-                        if empty_backlog_count > 3:
-                            # After 3 consecutive empty checks, use long interval
-                            current_interval = long_interval
-                        
-                    # Schedule next backlog processing
-                    next_check_time = current_time + current_interval
-                
-            except Exception as e:
-                logger.error(f"Error in backlog check loop: {e}")
-                # Use short interval after an error to recover quickly
-                current_interval = short_interval
-                next_check_time = time.time() + current_interval
-                next_connectivity_check = time.time() + current_interval
-                
-    def _handle_scrobble_update(self, scrobble_info):
-        """Handle a scrobble update from the tracker"""
-        title = scrobble_info.get("title")
-        simkl_id = scrobble_info.get("simkl_id")
-        movie_name = scrobble_info.get("movie_name", title)
-        state = scrobble_info.get("state")
-        progress = scrobble_info.get("progress", 0)
-        
-        if not simkl_id and title:
-            logger.info(f"Searching for movie: {title}")
+
+    # Removed _backlog_check_loop - Monitor handles this internally
+
+    # Removed _handle_scrobble_update - Replaced by _search_and_cache_movie callback
+
+    def _search_and_cache_movie(self, title):
+        """
+        Callback function passed to the Monitor.
+        Searches for a movie using the Simkl API and caches the result
+        via the monitor's cache_movie_info method.
+        """
+        if not title:
+            logger.warning("Search callback called without title.")
+            return
+        if not self.client_id or not self.access_token:
+             logger.warning(f"Search callback for '{title}' called without credentials.")
+             return
+
+        logger.info(f"Search callback triggered for title: {title}")
+
+        # Check internet connection
+        if not is_internet_connected():
+            logger.warning(f"Cannot search for '{title}' - no internet connection.")
+            # MovieScrobbler should handle adding to backlog if needed based on progress
+            return
+
+        try:
+            # Search for the movie
             movie = search_movie(title, self.client_id, self.access_token)
-            
-            if movie:
-                # The search_movie function can return results in different formats
-                # Let's handle both possible structures
-                
-                # If it has a 'movie' key, use that structure
-                if 'movie' in movie:
-                    movie_data = movie['movie']
-                    
-                    # Check for IDs in the movie data
-                    if 'ids' in movie_data:
-                        ids = movie_data['ids']
-                        # Try both possible ID keys
-                        simkl_id = ids.get('simkl')
-                        if not simkl_id:
-                            simkl_id = ids.get('simkl_id')
-                        
-                        movie_name = movie_data.get('title', title)
-                    else:
-                        # If no IDs section, check if the top level has an ID
-                        simkl_id = movie_data.get('simkl_id')
-                        movie_name = movie_data.get('title', title)
-                        
-                # If no 'movie' key, the result might be the movie object directly        
-                else:
-                    # Try to get ID from the top level
-                    simkl_id = movie.get('simkl_id')
-                    
-                    # Or check if there's an 'ids' section
-                    if 'ids' in movie:
-                        ids = movie['ids']
-                        if not simkl_id:
-                            simkl_id = ids.get('simkl')
-                        if not simkl_id:
-                            simkl_id = ids.get('simkl_id')
-                            
-                    movie_name = movie.get('title', title)
-                
-                if simkl_id:
-                    logger.info(f"Found movie: '{movie_name}' (ID: {simkl_id})")
-                    
-                    movie_details = get_movie_details(simkl_id, self.client_id, self.access_token)
-                    
-                    runtime = None
-                    if movie_details and 'runtime' in movie_details:
-                        runtime = movie_details['runtime']
-                        logger.info(f"Retrieved actual runtime: {runtime} minutes")
-                    
-                    # Cache the movie info with the runtime
-                    self.scrobbler.cache_movie_info(title, simkl_id, movie_name, runtime)
-                else:
-                    logger.warning(f"Movie found but no Simkl ID available in any expected format: {movie}")
+
+            if not movie:
+                logger.warning(f"No Simkl match found for '{title}' via search callback.")
+                # Cache a negative result? Or let MovieScrobbler handle unknown titles?
+                # Let MovieScrobbler decide based on its logic.
+                return
+
+            # Extract movie details (simplified extraction)
+            simkl_id = None
+            movie_name = title
+            runtime = None
+
+            # Try extracting ID and Title
+            ids_dict = movie.get('ids') or movie.get('movie', {}).get('ids')
+            if ids_dict:
+                simkl_id = ids_dict.get('simkl') or ids_dict.get('simkl_id')
+
+            if simkl_id:
+                 movie_name = movie.get('title') or movie.get('movie', {}).get('title', title)
+                 logger.info(f"Found Simkl ID: {simkl_id} for '{movie_name}'")
+
+                 # Get runtime details
+                 try:
+                     details = get_movie_details(simkl_id, self.client_id, self.access_token)
+                     if details and 'runtime' in details:
+                         runtime = details['runtime']
+                         logger.info(f"Retrieved runtime: {runtime} minutes")
+                 except Exception as detail_error:
+                     logger.error(f"Error getting movie details for ID {simkl_id}: {detail_error}")
+
+                 # Cache the result using the monitor's method
+                 self.monitor.cache_movie_info(title, simkl_id, movie_name, runtime)
+                 logger.info(f"Cached info for '{title}' -> '{movie_name}' (ID: {simkl_id}, Runtime: {runtime})")
+
             else:
-                logger.warning(f"No matching movie found for '{title}'")
-                
-                # Check if there's an available duration and significant progress (indicating a likely movie)
-                duration = scrobble_info.get("total_duration_seconds")
-                watched_seconds = scrobble_info.get("watched_seconds", 0)
-                watched_enough = False
-                
-                # If we have duration info, check if watched enough to consider adding to backlog
-                if duration and duration > 0:
-                    watched_pct = (watched_seconds / duration) * 100
-                    watched_enough = watched_pct >= 80
-                elif watched_seconds > 600:  # Over 10 minutes watched is significant even without knowing total length
-                    watched_enough = True
-                
-                # Import here to avoid circular imports
-                from .simkl_api import is_internet_connected
-                
-                # If no internet connection and watched enough, add to backlog
-                if not is_internet_connected() and watched_enough:
-                    logger.info(f"No internet connection, adding '{title}' to backlog for future syncing")
-                    
-                    # Generate a temporary simkl_id to use until we can get the real one
-                    # We'll use "temp_" prefix followed by a hash of the title to make it unique
-                    import hashlib
-                    temp_id = f"temp_{hashlib.md5(title.encode()).hexdigest()[:8]}"
-                    
-                    # Store in backlog for future processing
-                    self.scrobbler.backlog.add(temp_id, title)
-                elif not is_internet_connected():
-                    logger.info(f"No internet connection, but not enough progress to add '{title}' to backlog yet")
-        
-        if simkl_id:
-            # Log progress at 10% increments or when we're near completion threshold
-            if state == "playing":
-                if int(progress) % 10 == 0 or (progress >= 75 and progress < 80) or progress >= 80:
-                    logger.info(f"Watching '{movie_name}' - Progress: {progress:.1f}%")
-            elif state == "paused":
-                logger.info(f"Paused '{movie_name}' at {progress:.1f}%")
-                
-        # If watching is at completion threshold but no internet, add to backlog
-        if progress and progress >= 80 and not simkl_id:
-            from .simkl_api import is_internet_connected
-            if not is_internet_connected():
-                import hashlib
-                temp_id = f"temp_{hashlib.md5(title.encode()).hexdigest()[:8]}"
-                
-                # Check if this movie is already in backlog
-                existing_items = [item for item in self.scrobbler.backlog.get_pending() 
-                                 if item.get("title") == title]
-                
-                if not existing_items:
-                    logger.info(f"Movie '{title}' completed, adding to backlog for future syncing when online")
-                    self.scrobbler.backlog.add(temp_id, title)
+                logger.warning(f"No Simkl ID found in search result for '{title}' via callback.")
+
+        except Exception as e:
+            logger.error(f"Error during search callback for '{title}': {e}", exc_info=True)
 
 def run_as_background_service():
-    """Run the scrobbler as a background service"""
-    scrobbler = SimklScrobbler()
-    if scrobbler.initialize():
-        thread = threading.Thread(target=scrobbler.start)
-        thread.daemon = True
-        thread.start()
-        return scrobbler
-    return None
+    """Run the scrobbler as a background service (conceptual)"""
+    # Note: Actual service implementation requires more platform-specific code (like pywin32)
+    # This function provides the core logic start.
+    scrobbler_instance = SimklScrobbler()
+    if scrobbler_instance.initialize():
+        if scrobbler_instance.start():
+            logger.info("Scrobbler service started successfully.")
+            # In a real service, we'd need to keep the service alive here.
+            # Returning the instance might be useful for management.
+            return scrobbler_instance
+        else:
+             logger.error("Failed to start scrobbler monitor in service context.")
+             return None
+    else:
+        logger.error("Failed to initialize scrobbler in service context.")
+        return None
+
 
 def main():
-    """Main entry point for the application"""
+    """Main entry point for the application when run directly"""
     logger.info("Starting Simkl Scrobbler application")
-    scrobbler = SimklScrobbler()
-    if scrobbler.initialize():
-        scrobbler.start()
+    scrobbler_instance = SimklScrobbler()
+    if scrobbler_instance.initialize():
+        if scrobbler_instance.start(): # Start the monitor
+            # Keep the main thread alive so the daemon monitor thread doesn't exit immediately
+            while scrobbler_instance.running: # Check the running flag
+                try:
+                    # Sleep allows signal handling and keeps CPU usage low
+                    time.sleep(1)
+                except KeyboardInterrupt:
+                    logger.info("KeyboardInterrupt received in main, stopping...")
+                    scrobbler_instance.stop()
+                    break # Exit the loop cleanly
+            logger.info("Main thread exiting.")
+        else:
+             logger.error("Failed to start the scrobbler monitor.")
+             sys.exit(1)
     else:
+        logger.error("Failed to initialize the scrobbler.")
         sys.exit(1)
 
 if __name__ == "__main__":

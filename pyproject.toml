@@ -12,6 +12,8 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: MIT License",
     "Operating System :: Microsoft :: Windows",
+    "Operating System :: MacOS",
+    "Operating System :: POSIX :: Linux",
 ]
 packages = [{include = "simkl_scrobbler"}]
 
@@ -22,9 +24,11 @@ guessit = ">=3.3.0"
 python-dotenv = ">=0.15.0"
 psutil = ">=5.8.0"
 colorama = ">=0.4.4"
-# Windows-specific dependencies
+# Platform-specific dependencies
 pygetwindow = { version = ">=0.0.9", markers = "sys_platform == 'win32'" }
 pywin32 = { version = ">=300", markers = "sys_platform == 'win32'" }
+# Optional macOS and Linux dependencies (will be installed if available)
+python-xlib = { version = ">=0.31", optional = true, markers = "sys_platform == 'linux'" }
 
 
 [tool.poetry.group.dev.dependencies]
@@ -37,3 +41,6 @@ simkl-scrobbler = "simkl_scrobbler.cli:main"
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.extras]
+linux = ["python-xlib"]

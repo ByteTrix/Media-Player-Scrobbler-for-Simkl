@@ -2,11 +2,11 @@
 
 [![Python Version](https://img.shields.io/badge/python-3.7%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Platform](https://img.shields.io/badge/platform-windows-blue.svg)](https://www.microsoft.com/windows)
+[![Platform](https://img.shields.io/badge/platform-cross--platform-blue.svg)](https://www.microsoft.com/windows)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 [![Last Updated](https://img.shields.io/badge/last%20updated-April%202025-brightgreen.svg)]()
 
-A powerful Windows-based automatic scrobbler for [Simkl](https://simkl.com) that seamlessly tracks your movie watching progress across multiple media players. Zero configuration required - it just works!
+A powerful cross-platform automatic scrobbler for [Simkl](https://simkl.com) that seamlessly tracks your movie watching progress across multiple media players. Zero configuration required - it just works!
 
 <div align="center">
   <img src="https://eu.simkl.in/img_blog_2012/logo.png" alt="Simkl Logo" width="200"/>
@@ -45,7 +45,8 @@ simkl-scrobbler start
 
 ## 🚀 Features
 
-- **Zero Configuration** - Works with most Windows media players out of the box
+- **Zero Configuration** - Works with most media players out of the box
+- **Cross-Platform** - Runs on Windows, macOS, and Linux
 - **Smart Detection** - Intelligent movie recognition using guessit library
 - *Background Operation (Still Working on it)* - Runs silently in the background
 - **Progress Tracking** - Monitors viewing progress across sessions
@@ -59,7 +60,9 @@ simkl-scrobbler start
 
 ## 🎥 Supported Media Players
 
-The following media players are supported on Windows:
+The following media players are supported across platforms:
+
+### Windows
 
 | Media Player | Support Status | Position Detection |
 |-------------|----------------|-------------------|
@@ -72,7 +75,31 @@ The following media players are supported on Windows:
 | KMPlayer | ✅ Fully Supported | ⚠️ Title only |
 | GOM Player | ✅ Fully Supported | ⚠️ Title only |
 
-The scrobbler monitors the window titles of these players to detect media files currently being played. For VLC and MPC-HC/BE with web interfaces enabled, it can also get precise playback position information.
+### macOS
+
+| Media Player | Support Status | Position Detection |
+|-------------|----------------|-------------------|
+| VLC Media Player | ✅ Fully Supported | ✅ (with web interface) |
+| MPV Player | ✅ Fully Supported | ⚠️ Title only |
+| IINA | ✅ Fully Supported | ⚠️ Title only |
+| QuickTime Player | ✅ Basic Support | ⚠️ Title only |
+| Elmedia Player | ✅ Basic Support | ⚠️ Title only |
+| Movist/Movist Pro | ✅ Basic Support | ⚠️ Title only |
+
+### Linux
+
+| Media Player | Support Status | Position Detection |
+|-------------|----------------|-------------------|
+| VLC Media Player | ✅ Fully Supported | ✅ (with web interface) |
+| MPV Player | ✅ Fully Supported | ⚠️ Title only |
+| SMPlayer | ✅ Fully Supported | ⚠️ Title only |
+| Totem | ✅ Basic Support | ⚠️ Title only |
+| Celluloid | ✅ Basic Support | ⚠️ Title only |
+| Kaffeine | ✅ Basic Support | ⚠️ Title only |
+| Dragon Player | ✅ Basic Support | ⚠️ Title only |
+| Parole | ✅ Basic Support | ⚠️ Title only |
+
+The scrobbler monitors the active/background windows to detect media files currently being played. For VLC with web interface enabled, it can also get precise playback position information across all supported platforms.
 
 ## 📥 Installation
 
@@ -116,7 +143,7 @@ The scrobbler monitors the window titles of these players to detect media files 
 
 3.  **Initialize and start as above.**
 
-### Installing as a Windows Service (Optional)
+### Installing as a Windows Service (Windows Only)
 
 To have SIMKL Scrobbler start automatically with Windows:
 
@@ -162,7 +189,7 @@ simkl-scrobbler init
 # Start tracking in the foreground
 simkl-scrobbler start
 
-# Install as a Windows service
+# Install as a Windows service (Windows only)
 simkl-scrobbler install-service
 
 # Show help
@@ -172,11 +199,18 @@ simkl-scrobbler --help
 ### Monitoring and Logs
 
 ```bash
-# Monitor log file
+# On Windows:
 type simkl_scrobbler.log
 
+# On macOS/Linux:
+cat simkl_scrobbler.log
+
 # Check detailed playback events
+# On Windows:
 type simkl_scrobbler\playback_log.jsonl
+
+# On macOS/Linux:
+cat simkl_scrobbler/playback_log.jsonl
 ```
 
 ## ⚙️ Advanced Configuration
@@ -185,30 +219,46 @@ Key settings in `media_tracker.py`:
 ```python
 DEFAULT_POLL_INTERVAL = 10  # Player check interval (seconds)
 COMPLETION_THRESHOLD = 80   # Mark as watched threshold (percent)
-VIDEO_PLAYER_EXECUTABLES = ['vlc.exe', 'mpc-hc64.exe', ...] # Supported players
+VIDEO_PLAYER_EXECUTABLES = {...}  # Platform-specific supported players
 ```
 
 ### Player Web Interface Setup (for position tracking)
 
-For enhanced position tracking with VLC and MPC-HC/BE:
+For enhanced position tracking with VLC:
 
-**VLC Media Player:**
+**VLC Media Player on Windows:**
 1. Go to Tools > Preferences
 2. Select "All" settings mode (bottom left)
 3. Navigate to Interface > Main interfaces
 4. Check "Web" option
+5. Set a password if desired (leave empty for no password)
+6. Restart VLC
 
+**VLC Media Player on macOS:**
+1. Open VLC > Preferences
+2. Click "Show All" (bottom left)
+3. Navigate to Interface > Main Interfaces
+4. Check "Web" option
+5. Set a password if desired (leave empty for no password)
+6. Restart VLC
 
-**MPC-HC/BE:**
+**VLC Media Player on Linux:**
+1. Go to Tools > Preferences
+2. Click "All" settings (bottom left)
+3. Navigate to Interface > Main interfaces
+4. Check "Web" option
+5. Set a password if desired (leave empty for no password)
+6. Restart VLC
+
+**MPC-HC/BE (Windows only):**
 1. Go to View > Options > Player > Web Interface
 2. Check "Listen on port:" (default 13579)
-
 
 ## 🔍 How It Works
 
 ```mermaid
 graph LR
-    A[Monitor Windows] --> B[Detect Player]
+    A[Monitor Windows/Processes] --> B[Detect Player]
     B --> C[Extract Filename]
     C --> D[Parse with guessit]
     D --> E[Match Movie]
@@ -218,7 +268,7 @@ graph LR
     G -->|No| F
 ```
 
-1. **Window Detection**: Uses Windows API to monitor active and non-active windows for supported media players
+1. **Window/Process Detection**: Uses platform-specific methods to monitor active and background windows/processes
 2. **Title Extraction**: Parses window title for filename/movie info
 3. **Smart Parsing**: Uses guessit library to intelligently extract movie title and year
 4. **Movie Matching**: Queries Simkl API to identify the movie
@@ -284,22 +334,27 @@ The master test suite automatically discovers and configures media players insta
 | Issue | Solution |
 |-------|----------|
 | Movie not detected | Ensure media player shows filename in window title |
-| No auto-marking | Check `simkl_scrobbler.log` for API errors |
+| No auto-marking | Check log file for API errors |
 | Incorrect movie | Include year in filename: "Movie (2023).mp4" |
-| Player not detected | Verify player is in supported list |
-| Windows permission error | Run as administrator |
+| Player not detected | Verify player is in supported list for your platform |
+| Permission error | Run with appropriate permissions for your platform |
 | Movie title parsing failed | Use standard naming: "Movie.Name.2023.mp4" |
 | Position tracking not working | Enable web interface in VLC or MPC-HC/BE |
-| Test fails to connect to MPC-HC | Restart MPC-HC after enabling web interface settings |
-| Test output has encoding issues | Make sure terminal supports UTF-8 encoding |
+| VLC web interface shows no movie | Restart VLC after enabling web interface |
+| Window detection not working on Linux | Install required utilities: xdotool, wmctrl |
+| AppleScript error on macOS | Grant necessary permissions in System Preferences > Security & Privacy |
 
 ### Logs and Debugging
 ```bash
-# Check main application log
+# Check main application log (Windows)
 type simkl_scrobbler.log
+# macOS/Linux
+cat simkl_scrobbler.log
 
-# Check detailed playback events
+# Check detailed playback events (Windows)
 type simkl_scrobbler\playback_log.jsonl
+# macOS/Linux
+cat simkl_scrobbler/playback_log.jsonl
 
 # Run tests with verbose output
 python tests/master_test.py --test-mode --verbose
@@ -317,22 +372,19 @@ python --version
 poetry show
 
 # Check network connectivity to Simkl API
-# (Using PowerShell's Invoke-WebRequest as curl might not be available)
+# Windows (PowerShell)
 Invoke-WebRequest -Uri https://api.simkl.com/ -Method Head
+# macOS/Linux
+curl -I https://api.simkl.com/
 
 # List running media player processes
+# Windows
 tasklist | findstr "vlc mpc wmplayer"
+# macOS
+ps aux | grep -E "VLC|mpv|IINA"
+# Linux
+ps aux | grep -E "vlc|mpv|totem|celluloid"
 ```
-
-<!-- ## 📊 Screenshots
-
-<div align="center">
-  <p><strong>Test Suite Output</strong> - Modern colorized output with progress bar</p>
-  <img src="https://i.imgur.com/example1.png" alt="Test Suite Output" width="600"/>
-  
-  <p><strong>Media Player Detection</strong> - Automatic player discovery and configuration</p>
-  <img src="https://i.imgur.com/example2.png" alt="Media Player Detection" width="600"/>
-</div> -->
 
 ## 📄 License
 
@@ -358,7 +410,7 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 ## 📝 Roadmap
 
 - [ ] Tray or Background Service with Notification
-- [ ] Add Linux and Macos support
+- [x] Add Linux and macOS support
 - [x] Add real-time position tracking for supported players
 - [x] Implement multi-window monitoring
 - [ ] Create automated tests

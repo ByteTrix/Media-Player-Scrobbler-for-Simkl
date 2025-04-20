@@ -5,7 +5,7 @@ import pathlib # Import pathlib
 import colorama
 from colorama import Fore, Style
 from dotenv import load_dotenv # Import load_dotenv
-from .simkl_api import authenticate
+from .simkl_api import authenticate, DEFAULT_CLIENT_ID # Moved DEFAULT_CLIENT_ID import here
 # Import APP_DATA_DIR from main module
 from .main import APP_DATA_DIR, SimklScrobbler # Import SimklScrobbler too for verification step
 import logging
@@ -20,8 +20,7 @@ def init_command(args):
     print(f"{Fore.CYAN}=== SIMKL Scrobbler Initialization ==={Style.RESET_ALL}")
     print(f"{Fore.YELLOW}This will set up SIMKL Scrobbler on your system.{Style.RESET_ALL}\n")
     
-    # Import the default client ID from simkl_api module
-    from .simkl_api import DEFAULT_CLIENT_ID
+    # DEFAULT_CLIENT_ID imported at top
 
     # Define env path
     env_path = APP_DATA_DIR / ".simkl_scrobbler.env"
@@ -102,14 +101,27 @@ def init_command(args):
 
 def start_command(args):
     """Start the SIMKL scrobbler."""
-    from .main import SimklScrobbler
+    # SimklScrobbler imported at top
     
     print(f"{Fore.CYAN}Starting SIMKL Scrobbler...{Style.RESET_ALL}")
     print(f"{Fore.YELLOW}The scrobbler will run in the foreground. Press Ctrl+C to stop.{Style.RESET_ALL}\n")
     
     scrobbler = SimklScrobbler()
     if scrobbler.initialize():
-        scrobbler.start()
+        if scrobbler.start():
+            try:
+                print(f"{Fore.GREEN}Scrobbler is now running. Press Ctrl+C to stop.{Style.RESET_ALL}")
+                # Keep the main thread running until interrupted
+                while scrobbler.running:
+                    import time
+                    time.sleep(1)
+            except KeyboardInterrupt:
+                print(f"\n{Fore.YELLOW}Stopping scrobbler...{Style.RESET_ALL}")
+                scrobbler.stop()
+                print(f"{Fore.GREEN}Scrobbler stopped.{Style.RESET_ALL}")
+        else:
+            print(f"{Fore.RED}Failed to start scrobbler. See logs for details.{Style.RESET_ALL}")
+            return 1
     else:
         print(f"{Fore.RED}Failed to initialize scrobbler. Please run 'simkl-scrobbler init' first.{Style.RESET_ALL}")
         return 1
