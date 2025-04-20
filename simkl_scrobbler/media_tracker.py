@@ -692,7 +692,12 @@ class MovieScrobbler:
         if not self.client_id or not self.access_token:
             return 0
 
-        from simkl_scrobbler.simkl_api import mark_as_watched # Keep import local
+        from simkl_scrobbler.simkl_api import mark_as_watched, search_movie, is_internet_connected
+
+        # First check if we're online - if not, exit early
+        if not is_internet_connected():
+            logger.info("Cannot process backlog - no internet connection")
+            return 0
 
         success_count = 0
         pending = self.backlog.get_pending()
@@ -709,6 +714,35 @@ class MovieScrobbler:
             simkl_id = item.get("simkl_id")
             title = item.get("title", "Unknown")
             timestamp = item.get("timestamp")
+            
+            # Check if this is a temporary ID (offline mode)
+            is_temp_id = False
+            if simkl_id and isinstance(simkl_id, str) and simkl_id.startswith("temp_"):
+                is_temp_id = True
+                logger.info(f"Backlog: Found temporary ID for '{title}', searching for real Simkl ID")
+                # Search for the real movie ID
+                movie_result = search_movie(title, self.client_id, self.access_token)
+                
+                if movie_result:
+                    # Extract the real simkl_id from the search result
+                    real_simkl_id = None
+                    if 'movie' in movie_result and 'ids' in movie_result['movie']:
+                        ids = movie_result['movie']['ids']
+                        real_simkl_id = ids.get('simkl') or ids.get('simkl_id')
+                    elif 'ids' in movie_result:
+                        ids = movie_result['ids']
+                        real_simkl_id = ids.get('simkl') or ids.get('simkl_id')
+                    
+                    if real_simkl_id:
+                        logger.info(f"Backlog: Found real Simkl ID {real_simkl_id} for '{title}'")
+                        # Update to use the real ID
+                        simkl_id = real_simkl_id
+                    else:
+                        logger.warning(f"Backlog: Could not find real Simkl ID for '{title}', skipping")
+                        continue
+                else:
+                    logger.warning(f"Backlog: Could not find movie '{title}' on Simkl, skipping")
+                    continue
 
             if simkl_id:
                 logger.info(f"Backlog: Attempting to mark '{title}' (ID: {simkl_id}, Added: {timestamp}) as watched")
@@ -716,7 +750,12 @@ class MovieScrobbler:
                     result = mark_as_watched(simkl_id, self.client_id, self.access_token)
                     if result:
                         logger.info(f"Backlog: Successfully marked '{title}' as watched")
-                        self.backlog.remove(simkl_id) # Remove from original list
+                        # If it was a temp ID, remove it using the original temp ID
+                        if is_temp_id:
+                            original_id = item.get("simkl_id")
+                            self.backlog.remove(original_id)
+                        else:
+                            self.backlog.remove(simkl_id)
                         success_count += 1
                         self._log_playback_event("backlog_sync_success", {"backlog_simkl_id": simkl_id, "backlog_title": title})
                     else:
@@ -728,15 +767,13 @@ class MovieScrobbler:
                     self._log_playback_event("backlog_sync_error", {"backlog_simkl_id": simkl_id, "backlog_title": title, "error": str(e)})
                     # Keep item in backlog for next try
             else:
-                 logger.warning(f"Backlog: Skipping item with missing Simkl ID: {item}")
-                 # Optionally remove invalid items? For now, keep them.
-                 # self.backlog.remove(simkl_id) # Requires careful handling if ID is None
+                logger.warning(f"Backlog: Skipping item with missing Simkl ID: {item}")
+                # Optionally remove invalid items? For now, keep them.
 
         if success_count > 0:
-             logger.info(f"Backlog processing finished: {success_count} items synced.")
+            logger.info(f"Backlog processing finished: {success_count} items synced.")
         elif items_to_process:
-             logger.info("Backlog processing finished: No items synced successfully.")
-
+            logger.info("Backlog processing finished: No items synced successfully.")
 
         return success_count
 

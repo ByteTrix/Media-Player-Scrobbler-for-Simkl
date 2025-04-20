@@ -227,7 +227,35 @@ class SimklScrobbler:
                     logger.warning(f"Movie found but no Simkl ID available in any expected format: {movie}")
             else:
                 logger.warning(f"No matching movie found for '{title}'")
-                # Try fallback search (the API module already does this, but we could add more here)
+                
+                # Check if there's an available duration and significant progress (indicating a likely movie)
+                duration = scrobble_info.get("total_duration_seconds")
+                watched_seconds = scrobble_info.get("watched_seconds", 0)
+                watched_enough = False
+                
+                # If we have duration info, check if watched enough to consider adding to backlog
+                if duration and duration > 0:
+                    watched_pct = (watched_seconds / duration) * 100
+                    watched_enough = watched_pct >= 80
+                elif watched_seconds > 600:  # Over 10 minutes watched is significant even without knowing total length
+                    watched_enough = True
+                
+                # Import here to avoid circular imports
+                from .simkl_api import is_internet_connected
+                
+                # If no internet connection and watched enough, add to backlog
+                if not is_internet_connected() and watched_enough:
+                    logger.info(f"No internet connection, adding '{title}' to backlog for future syncing")
+                    
+                    # Generate a temporary simkl_id to use until we can get the real one
+                    # We'll use "temp_" prefix followed by a hash of the title to make it unique
+                    import hashlib
+                    temp_id = f"temp_{hashlib.md5(title.encode()).hexdigest()[:8]}"
+                    
+                    # Store in backlog for future processing
+                    self.scrobbler.backlog.add(temp_id, title)
+                elif not is_internet_connected():
+                    logger.info(f"No internet connection, but not enough progress to add '{title}' to backlog yet")
         
         if simkl_id:
             # Log progress at 10% increments or when we're near completion threshold
@@ -236,6 +264,21 @@ class SimklScrobbler:
                     logger.info(f"Watching '{movie_name}' - Progress: {progress:.1f}%")
             elif state == "paused":
                 logger.info(f"Paused '{movie_name}' at {progress:.1f}%")
+                
+        # If watching is at completion threshold but no internet, add to backlog
+        if progress and progress >= 80 and not simkl_id:
+            from .simkl_api import is_internet_connected
+            if not is_internet_connected():
+                import hashlib
+                temp_id = f"temp_{hashlib.md5(title.encode()).hexdigest()[:8]}"
+                
+                # Check if this movie is already in backlog
+                existing_items = [item for item in self.scrobbler.backlog.get_pending() 
+                                 if item.get("title") == title]
+                
+                if not existing_items:
+                    logger.info(f"Movie '{title}' completed, adding to backlog for future syncing when online")
+                    self.scrobbler.backlog.add(temp_id, title)
 
 def run_as_background_service():
     """Run the scrobbler as a background service"""
