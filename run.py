@@ -1,3 +1,7 @@
+"""
+Peogram to create tag and build release
+"""
+
 import subprocess
 import sys
 import toml

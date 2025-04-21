@@ -6,15 +6,20 @@ Access Token is loaded from a .env file in the user's application data directory
 """
 import pathlib
 import logging
-from dotenv import dotenv_values
+import os
+from dotenv import dotenv_values, load_dotenv
 
 logger = logging.getLogger(__name__)
 
+
 # --- Injected by build process ---
 # These placeholders are replaced by the build workflow using secrets.
-SIMKL_CLIENT_ID = "SIMKL_CLIENT_ID_PLACEHOLDER"
-SIMKL_CLIENT_SECRET = "SIMKL_CLIENT_SECRET_PLACEHOLDER"
+CLIENT_ID_PLACEHOLDER = "SIMKL_CLIENT_ID_PLACEHOLDER"
+CLIENT_SECRET_PLACEHOLDER = "SIMKL_CLIENT_SECRET_PLACEHOLDER"
 # --- End of injected values ---
+
+SIMKL_CLIENT_ID = CLIENT_ID_PLACEHOLDER
+SIMKL_CLIENT_SECRET = CLIENT_SECRET_PLACEHOLDER
 
 # Determine the path for the .env file storing the access token
 APP_NAME_FOR_PATH = "simkl-scrobbler"
@@ -29,6 +34,9 @@ except Exception as e:
     # Fallback to current directory if home cannot be determined
     logger.warning(f"Could not determine home directory ({e}), using fallback env path.")
     ENV_FILE_PATH = pathlib.Path(".simkl_scrobbler.env")
+
+# Path for development credentials file (only used in development)
+DEV_CREDS_PATH = pathlib.Path(".env")
 
 # Load Access Token ONLY from the specific .env file
 SIMKL_ACCESS_TOKEN = None
@@ -56,8 +64,24 @@ def get_credentials():
               and 'access_token'. Values might be None if not configured
               or if the build/init process failed.
     """
+    # First check if we have injected credentials from the build process
     client_id = SIMKL_CLIENT_ID if SIMKL_CLIENT_ID != "SIMKL_CLIENT_ID_PLACEHOLDER" else None
     client_secret = SIMKL_CLIENT_SECRET if SIMKL_CLIENT_SECRET != "SIMKL_CLIENT_SECRET_PLACEHOLDER" else None
+    
+    # If we're missing credentials from build injection, try local development sources:
+    if not client_id or not client_secret:
+        logger.debug("Build-injected credentials not found, trying development sources...")
+        
+        # 1. Try environment variables first
+        client_id = os.environ.get("SIMKL_CLIENT_ID")
+        client_secret = os.environ.get("SIMKL_CLIENT_SECRET")
+        
+        # 2. If still missing, try development credentials file
+        if (not client_id or not client_secret) and DEV_CREDS_PATH.exists():
+            logger.debug(f"Loading development credentials from {DEV_CREDS_PATH}")
+            dev_config = dotenv_values(DEV_CREDS_PATH)
+            client_id = client_id or dev_config.get("SIMKL_CLIENT_ID")
+            client_secret = client_secret or dev_config.get("SIMKL_CLIENT_SECRET")
 
     # Read Access Token directly from the file each time
     access_token = None
@@ -71,10 +95,9 @@ def get_credentials():
     else:
          logger.debug(f"Env file not found at {env_file_path} inside get_credentials()")
 
-
-    # Log a warning if the build injection seems to have failed
+    # Log a warning if credentials are still missing after all attempts
     if not client_id or not client_secret:
-         logger.warning("Client ID or Secret appears missing. Build injection might have failed.")
+         logger.warning("Client ID or Secret not found. For local development, create a dev_credentials.env file with SIMKL_CLIENT_ID and SIMKL_CLIENT_SECRET.")
 
     return {
         "client_id": client_id,
