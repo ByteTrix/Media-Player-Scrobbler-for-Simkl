@@ -25,7 +25,7 @@ jobs:
           types: |
             fix
             feat
-            chore(deps)
+            chore
           subjectPattern: ^(?![A-Z]).+$
           subjectPatternError: |
             The subject "{subject}" found in the pull request title "{title}"
