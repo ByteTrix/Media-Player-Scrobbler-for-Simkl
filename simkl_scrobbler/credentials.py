@@ -40,20 +40,37 @@ if ENV_FILE_PATH.exists():
         logger.warning(f"Found env file at {ENV_FILE_PATH}, but SIMKL_ACCESS_TOKEN key is missing or empty.")
 else:
     logger.debug(f"Env file not found at {ENV_FILE_PATH}")
+# SIMKL_ACCESS_TOKEN is now loaded inside get_credentials
 
 
 def get_credentials():
     """
     Retrieves the Simkl API credentials.
 
+    Client ID/Secret are read from module-level variables (injected at build).
+    Access Token is read directly from the .env file *each time* this function
+    is called to ensure the latest value is used.
+
     Returns:
         dict: A dictionary containing 'client_id', 'client_secret',
               and 'access_token'. Values might be None if not configured
-              or if the build process failed.
+              or if the build/init process failed.
     """
     client_id = SIMKL_CLIENT_ID if SIMKL_CLIENT_ID != "SIMKL_CLIENT_ID_PLACEHOLDER" else None
     client_secret = SIMKL_CLIENT_SECRET if SIMKL_CLIENT_SECRET != "SIMKL_CLIENT_SECRET_PLACEHOLDER" else None
-    access_token = SIMKL_ACCESS_TOKEN # Loaded at module level
+
+    # Read Access Token directly from the file each time
+    access_token = None
+    env_file_path = get_env_file_path() # Use helper to get path
+    if env_file_path.exists():
+        logger.debug(f"Reading access token from {env_file_path} inside get_credentials()")
+        config = dotenv_values(env_file_path)
+        access_token = config.get("SIMKL_ACCESS_TOKEN")
+        if not access_token:
+             logger.warning(f"Found env file at {env_file_path}, but SIMKL_ACCESS_TOKEN key is missing or empty.")
+    else:
+         logger.debug(f"Env file not found at {env_file_path} inside get_credentials()")
+
 
     # Log a warning if the build injection seems to have failed
     if not client_id or not client_secret:
@@ -62,7 +79,7 @@ def get_credentials():
     return {
         "client_id": client_id,
         "client_secret": client_secret,
-        "access_token": access_token,
+        "access_token": access_token, # Use the freshly read value
     }
 
 def get_env_file_path():
