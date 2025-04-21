@@ -81,7 +81,7 @@ jobs:
         id: changelog
         uses: mikepenz/release-changelog-builder-action@v5
         with:
-          mode: "HYBRID"
+          # mode: "HYBRID"
           configuration: .github/changelog-config.json
           token: ${{ secrets.GITHUB_TOKEN }}
 
