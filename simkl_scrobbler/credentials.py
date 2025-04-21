@@ -65,8 +65,8 @@ def get_credentials():
               or if the build/init process failed.
     """
     # First check if we have injected credentials from the build process
-    client_id = SIMKL_CLIENT_ID if SIMKL_CLIENT_ID != "SIMKL_CLIENT_ID_PLACEHOLDER" else None
-    client_secret = SIMKL_CLIENT_SECRET if SIMKL_CLIENT_SECRET != "SIMKL_CLIENT_SECRET_PLACEHOLDER" else None
+    client_id = SIMKL_CLIENT_ID
+    client_secret = SIMKL_CLIENT_SECRET
     
     # If we're missing credentials from build injection, try local development sources:
     if not client_id or not client_secret:
