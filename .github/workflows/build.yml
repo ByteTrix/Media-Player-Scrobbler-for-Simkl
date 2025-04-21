@@ -127,7 +127,6 @@ jobs:
           name: Release ${{ github.ref_name }}
           body_path: BODY.md
           files: |
-            # dist/*.tar.gz
             dist/*.whl
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
