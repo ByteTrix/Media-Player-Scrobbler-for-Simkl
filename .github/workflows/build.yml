@@ -103,7 +103,6 @@ jobs:
             ## Changes in this release
             ${{ steps.changelog.outputs.changelog }}
           files: |
-            dist/*.tar.gz
             dist/*.whl
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
