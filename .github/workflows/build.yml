@@ -25,6 +25,17 @@ jobs:
         with:
           fetch-depth: 0  # Fetch all history for changelog generation
 
+      - name: Determine version
+        id: get_version
+        run: |
+          if [[ "${{ github.event_name }}" == "release" ]]; then
+            VERSION=${GITHUB_REF#refs/tags/v}
+          else
+            VERSION=${{ github.event.inputs.version }}
+          fi
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -38,17 +49,8 @@ jobs:
           poetry lock
           poetry install -q #--quiet (-q) : Do not output any message.
 
-      - name: Set version
-        run: |
-          if [[ "${{ github.event_name }}" == "release" ]]; then
-            # Extract version from tag (remove v prefix)
-            VERSION=${GITHUB_REF#refs/tags/v}
-          else
-            # Use manually provided version
-            VERSION=${{ github.event.inputs.version }}
-          fi
-          echo "VERSION=$VERSION" >> $GITHUB_ENV
-          poetry version $VERSION
+      - name: Set version in pyproject.toml
+        run: poetry version ${{ env.VERSION }}
 
       # This step now injects the secrets directly into the credentials.py file
       - name: Inject Simkl Credentials into Code
@@ -77,55 +79,34 @@ jobs:
 
           echo "✅ Credentials successfully injected into simkl_scrobbler/credentials.py"
 
-      - name: Generate changelog
-        id: changelog
-        uses: mikepenz/release-changelog-builder-action@v5
-        with:
-          # mode: "HYBRID"
-          configuration: .github/changelog-config.json
-          token: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Build and publish
         run: |
           poetry build
           poetry publish
         env:
           POETRY_PYPI_TOKEN_PYPI: ${{ secrets.PYPI_API_TOKEN }}
+          VERSION: ${{ env.VERSION }}
       
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: dist
           path: dist/
-          retention-days: 7
-          
-      - name: Prepare Release Body File
-        id: prepare_body
-        run: |
-          echo "## Changes in this release" > BODY.md
-          echo "" >> BODY.md
-          echo "${{ steps.changelog.outputs.changelog || '- No automated changelog notes available for this release.' }}" >> BODY.md
-          echo "Release body content written to BODY.md"
-          cat BODY.md # Print file content for debugging
+          retention-days: 3
 
-      - name: Update release with changelog (release event)
-        if: github.event_name == 'release'
+      - name: Create and Upload Release
+        id: create_release
         uses: softprops/action-gh-release@v2
         with:
-          body_path: BODY.md
+          tag_name: ${{ env.VERSION }}
+          name: Release ${{ env.VERSION }}
+          body: |
+            ![GitHub Downloads (specific asset, specific tag)](https://img.shields.io/github/downloads/${{ github.repository }}/${{ env.VERSION }}/dist)
+          append_body: true
+          generate_release_notes: true
           files: |
             dist/*.whl
+          make_latest: true
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Create release with changelog (tag push)
-        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ github.ref_name }}
-          name: Release ${{ github.ref_name }}
-          body_path: BODY.md
-          files: |
-            dist/*.whl
-        env:
+          VERSION: ${{ env.VERSION }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
