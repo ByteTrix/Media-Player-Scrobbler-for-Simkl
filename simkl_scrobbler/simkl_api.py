@@ -334,7 +334,7 @@ def poll_for_token(client_id, user_code, interval, expires_in):
             else:
                 logger.warning(f"Unexpected status code: {response.status_code}")
                 if response_data:
-                    logger.warning(f"Response data: {response_data}")
+                    logger.warning("Response data contains unexpected content. Logging skipped for security reasons.")
                 time.sleep(interval)
                 
         except requests.exceptions.RequestException as e:
