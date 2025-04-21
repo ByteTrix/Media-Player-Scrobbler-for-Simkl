@@ -1,296 +1,322 @@
+"""
+Main application module for the Simkl Scrobbler.
+
+Sets up logging, defines the main application class (SimklScrobbler),
+handles initialization, monitoring loop, and graceful shutdown.
+"""
 import time
-import os
 import sys
 import signal
 import threading
-import pathlib  # Import pathlib
-import hashlib # Add hashlib import
-from dotenv import load_dotenv
-from .monitor import Monitor # Import Monitor instead of MonitorAwareScrobbler
-from .window_detection import get_active_window_info # Import directly
-from .simkl_api import search_movie, mark_as_watched, authenticate, get_movie_details, is_internet_connected, DEFAULT_CLIENT_ID, BUNDLED_CLIENT_ID
+import pathlib
 import logging
+from .monitor import Monitor
+from .simkl_api import search_movie, get_movie_details, is_internet_connected
+from .credentials import get_credentials
 
-# Define the application data directory in the user's home folder
+# --- Constants ---
 APP_NAME = "simkl-scrobbler"
-USER_SUBDIR = "kavinthangavel" # As requested by the user
-APP_DATA_DIR = pathlib.Path.home() / USER_SUBDIR / APP_NAME
-APP_DATA_DIR.mkdir(parents=True, exist_ok=True) # Ensure the directory exists
+USER_SUBDIR = "kavinthangavel" # User-specific subdirectory
 
-# Configure logging when the module is loaded
-log_file_path = APP_DATA_DIR / "simkl_scrobbler.log"
+# --- Path Setup ---
+try:
+    APP_DATA_DIR = pathlib.Path.home() / USER_SUBDIR / APP_NAME
+    APP_DATA_DIR.mkdir(parents=True, exist_ok=True)
+except Exception as e:
+    print(f"CRITICAL: Failed to create application data directory: {e}", file=sys.stderr)
+    # Fallback or exit depending on severity - exiting for now
+    sys.exit(1)
 
-# Create handlers
+# --- Logging Setup ---
+log_file_path = APP_DATA_DIR / f"{APP_NAME}.log"
+
+# Console Handler (Warnings and above)
 stream_handler = logging.StreamHandler()
-stream_handler.setLevel(logging.WARNING) # Only show WARNING and above in terminal
-stream_handler.setFormatter(logging.Formatter('%(levelname)s - %(name)s - %(message)s')) # Simpler format for terminal
+stream_handler.setLevel(logging.WARNING)
+stream_formatter = logging.Formatter('%(levelname)s: %(message)s') # Simpler format for console
+stream_handler.setFormatter(stream_formatter)
 
-file_handler = logging.FileHandler(log_file_path, mode='w', encoding='utf-8')
-file_handler.setLevel(logging.INFO) # Log INFO and above to file
-file_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(name)s - %(message)s'))
+# File Handler (Info and above)
+try:
+    file_handler = logging.FileHandler(log_file_path, mode='a', encoding='utf-8') # Append mode
+    file_handler.setLevel(logging.INFO)
+    file_formatter = logging.Formatter('%(asctime)s [%(levelname)-8s] %(name)s: %(message)s')
+    file_handler.setFormatter(file_formatter)
+except Exception as e:
+    print(f"CRITICAL: Failed to configure file logging: {e}", file=sys.stderr)
+    file_handler = None # Disable file logging if setup fails
 
-# Configure the root logger
+# Configure Root Logger
 logging.basicConfig(
-    level=logging.INFO, # Root logger level captures INFO and above
-    handlers=[
-        stream_handler, # Add configured stream handler
-        file_handler    # Add configured file handler
-    ]
+    level=logging.INFO, # Capture INFO level and above
+    handlers=[h for h in [stream_handler, file_handler] if h] # Add handlers if they exist
 )
 
-# Create module-level logger
 logger = logging.getLogger(__name__)
+logger.info("="*20 + " Application Start " + "="*20)
+logger.info(f"Using Application Data Directory: {APP_DATA_DIR}")
+if file_handler:
+    logger.info(f"Logging to file: {log_file_path}")
+else:
+    logger.warning("File logging is disabled due to setup error.")
 
-logger.info(f"Main application log file configured at: {log_file_path}") # Logged to file only
-logger.info(f"Using application data directory: {APP_DATA_DIR}") # Logged to file only
-
-# Default polling interval in seconds (Monitor uses its own default, but keep for reference if needed elsewhere)
-# DEFAULT_POLL_INTERVAL = 10
 
 def load_configuration():
-    """Load client ID and access token from environment variables or .env file"""
-    # Create .env file path in app data directory
-    env_path = APP_DATA_DIR / ".simkl_scrobbler.env"
-    
-    # Check if .env file exists
-    if (env_path.exists()):
-        # Load environment variables from .env file
-        load_dotenv(env_path)
-    
-    # Get client ID and access token from environment variables
-    client_id = os.getenv("SIMKL_CLIENT_ID")
-    access_token = os.getenv("SIMKL_ACCESS_TOKEN")
-    
-    if not client_id:
-        logger.info("Client ID not found in environment. Using default client ID.")
-        client_id = DEFAULT_CLIENT_ID
+    """
+    Loads necessary credentials using the credentials module.
 
-    # If client ID is still a placeholder or not set, use the bundled client ID as fallback
-    if not client_id or client_id == "SIMKL_CLIENT_ID_PLACEHOLDER":
-        logger.info("Default client ID is a placeholder or empty. Using bundled client ID.")
-        client_id = BUNDLED_CLIENT_ID
+    Exits the application with a critical error if essential credentials
+    (Client ID, Client Secret, Access Token) are missing.
 
+    Returns:
+        tuple[str, str]: A tuple containing the client_id and access_token.
+    """
+    logger.info("Loading application configuration...")
+    creds = get_credentials()
+    client_id = creds.get("client_id")
+    client_secret = creds.get("client_secret")
+    access_token = creds.get("access_token")
+
+    # Validate essential credentials
     if not client_id:
-        # This is a critical error - both DEFAULT_CLIENT_ID and BUNDLED_CLIENT_ID are empty
-        logger.error("Client ID not found even after checking all fallbacks. Exiting.")
-        print("Critical Error: Client ID is missing. Please check installation.")
+        logger.critical("Configuration Error: Client ID not found. This might indicate a build issue.")
+        print("CRITICAL ERROR: Application Client ID is missing. Please check the installation or build process.", file=sys.stderr)
+        sys.exit(1)
+    if not client_secret:
+        logger.critical("Configuration Error: Client Secret not found. This might indicate a build issue.")
+        print("CRITICAL ERROR: Application Client Secret is missing. Please check the installation or build process.", file=sys.stderr)
+        sys.exit(1)
+    if not access_token:
+        logger.critical("Configuration Error: Access Token not found. Please run initialization.")
+        print("ERROR: Access Token is missing. Please run 'simkl-scrobbler init' to authenticate.", file=sys.stderr)
         sys.exit(1)
 
-    if not access_token:
-        logger.info("Access token not found, attempting device authentication...")
-        print("Access token not found, attempting device authentication...")
-        print("You'll need to authenticate with your Simkl account.")
-        access_token = authenticate(client_id)
-        if access_token:
-            logger.info("Authentication successful.")
-            print("Authentication successful. You should run 'simkl-scrobbler init' to save this token.")
-            print(f"SIMKL_ACCESS_TOKEN={access_token}")
-            # Note: We don't save it here automatically, init command handles saving.
-        else:
-            logger.error("Authentication failed.")
-            print("Authentication failed. Please check your internet connection and ensure you complete the authorization step on Simkl.")
-            sys.exit(1)
-
+    logger.info("Application configuration loaded successfully.")
     return client_id, access_token
 
 class SimklScrobbler:
-    """Main application class that coordinates monitoring and Simkl interaction"""
-
+    """
+    Main application class orchestrating media monitoring and Simkl scrobbling.
+    """
     def __init__(self):
+        """Initializes the SimklScrobbler instance."""
         self.running = False
         self.client_id = None
         self.access_token = None
-        # Instantiate the Monitor, passing the app data directory
         self.monitor = Monitor(app_data_dir=APP_DATA_DIR)
+        logger.debug("SimklScrobbler instance created.")
 
     def initialize(self):
-        """Initialize the monitor and authenticate with Simkl"""
-        # Check for credentials in the correct file
-        env_path = APP_DATA_DIR / ".simkl_scrobbler.env"
-        
-        if env_path.exists():
-            load_dotenv(env_path)
-            self.client_id = os.getenv("SIMKL_CLIENT_ID")
-            self.access_token = os.getenv("SIMKL_ACCESS_TOKEN")
-        
-        logger.info("Initializing Simkl Scrobbler...")
+        """
+        Initializes the scrobbler by loading configuration and processing backlog.
 
-        self.client_id, self.access_token = load_configuration()
-
-        if not self.client_id or not self.access_token:
-            logger.error("Exiting due to configuration/authentication issues.")
+        Returns:
+            bool: True if initialization is successful, False otherwise.
+        """
+        logger.info("Initializing Simkl Scrobbler core components...")
+        try:
+            self.client_id, self.access_token = load_configuration()
+        except SystemExit: # Catch exit from load_configuration
+             logger.error("Initialization failed due to configuration errors.")
+             return False
+        except Exception as e:
+            logger.exception(f"Unexpected error during configuration loading: {e}")
             return False
 
-        # Set credentials for the monitor (which passes them to its internal scrobbler)
+        # Pass credentials to the monitor instance
         self.monitor.set_credentials(self.client_id, self.access_token)
+        logger.debug("Credentials set for monitor.")
 
-        # Process backlog on startup via monitor's internal scrobbler
+        # Process any pending items from previous runs
+        logger.info("Processing scrobble backlog...")
         try:
             backlog_count = self.monitor.scrobbler.process_backlog()
             if backlog_count > 0:
-                logger.info(f"Processed {backlog_count} items from backlog during startup")
+                logger.info(f"Successfully processed {backlog_count} items from the backlog.")
+            else:
+                logger.info("No items found in the backlog.")
         except Exception as e:
              logger.error(f"Error processing backlog during initialization: {e}", exc_info=True)
-             # Decide if this is critical enough to stop initialization
+             # Continue initialization even if backlog processing fails
 
+        logger.info("Simkl Scrobbler initialization complete.")
         return True
 
     def start(self):
-        """Start the monitor main loop"""
-        if not self.running:
-            self.running = True
-            logger.info("Starting Simkl Scrobbler...")
-            logger.info("Monitoring for supported video players...")
-            logger.info("Supported players: VLC, MPC-HC, Windows Media Player, MPV, etc.")
-            logger.info("Movies will be marked as watched after viewing 80% of their estimated duration")
+        """
+        Starts the media monitoring process in a separate thread.
 
-            # Only set up signal handlers when running in the main thread
-            if threading.current_thread() is threading.main_thread():
-                signal.signal(signal.SIGINT, self._signal_handler)
-                signal.signal(signal.SIGTERM, self._signal_handler)
-
-            # Set the search callback for the monitor
-            # The monitor will call this when a movie needs identification
-            self.monitor.set_search_callback(self._search_and_cache_movie)
-
-            # Start the monitor (runs in its own thread)
-            if not self.monitor.start():
-                 logger.error("Failed to start the monitor.")
-                 self.running = False # Ensure running state is correct
-                 return False
-
-            logger.info("Monitor thread started.")
-            return True
-        else:
-            logger.warning("Scrobbler already running.")
+        Returns:
+            bool: True if the monitor thread starts successfully, False otherwise.
+        """
+        if self.running:
+            logger.warning("Attempted to start scrobbler monitor, but it is already running.")
             return False
 
+        self.running = True
+        logger.info("Starting media player monitor...")
+
+        # Setup signal handling only in the main thread
+        if threading.current_thread() is threading.main_thread():
+            logger.debug("Setting up signal handlers (SIGINT, SIGTERM).")
+            signal.signal(signal.SIGINT, self._signal_handler)
+            signal.signal(signal.SIGTERM, self._signal_handler)
+        else:
+             logger.warning("Not running in main thread, skipping signal handler setup.")
+
+        # Provide the callback for movie identification
+        self.monitor.set_search_callback(self._search_and_cache_movie)
+
+        # Start the monitor thread
+        if not self.monitor.start():
+             logger.error("Failed to start the monitor thread.")
+             self.running = False # Reset running state
+             return False
+
+        logger.info("Media player monitor thread started successfully.")
+        return True
 
     def stop(self):
-        """Stop the monitor"""
-        if self.running:
-            logger.info("Stopping Monitor...")
-            self.running = False
-            self.monitor.stop() # Use monitor's stop method
-            logger.info("Monitor stopped.")
-        else:
-             logger.info("Scrobbler was not running.")
+        """Stops the media monitoring thread gracefully."""
+        if not self.running:
+            logger.info("Stop command received, but scrobbler was not running.")
+            return
 
+        logger.info("Initiating scrobbler shutdown...")
+        self.running = False
+        self.monitor.stop() # Signal the monitor thread to stop
+        logger.info("Scrobbler shutdown complete.")
 
     def _signal_handler(self, sig, frame):
-        """Handle termination signals"""
-        logger.info(f"Received signal {sig}, shutting down gracefully...")
+        """Handles termination signals (SIGINT, SIGTERM) for graceful shutdown."""
+        logger.warning(f"Received signal {signal.Signals(sig).name}. Initiating graceful shutdown...")
         self.stop()
-
-    # Removed _backlog_check_loop - Monitor handles this internally
-
-    # Removed _handle_scrobble_update - Replaced by _search_and_cache_movie callback
+        # Optionally force exit if shutdown hangs, though monitor should handle it
+        # sys.exit(0)
 
     def _search_and_cache_movie(self, title):
         """
-        Callback function passed to the Monitor.
-        Searches for a movie using the Simkl API and caches the result
-        via the monitor's cache_movie_info method.
+        Callback function provided to the Monitor for movie identification.
+
+        Searches Simkl for the movie title, retrieves details (like runtime),
+        and caches the information via the Monitor.
+
+        Args:
+            title (str): The movie title extracted by the monitor.
         """
         if not title:
-            logger.warning("Search callback called without title.")
+            logger.warning("Monitor Callback: Received empty title for search.")
             return
+        # Ensure credentials are still valid (might not be necessary if init succeeded)
         if not self.client_id or not self.access_token:
-             logger.warning(f"Search callback for '{title}' called without credentials.")
+             logger.error(f"Monitor Callback: Missing credentials when searching for '{title}'.")
              return
 
-        logger.info(f"Search callback triggered for title: {title}")
+        logger.info(f"Monitor Callback: Searching Simkl for title: '{title}'")
 
-        # Check internet connection
         if not is_internet_connected():
-            logger.warning(f"Cannot search for '{title}' - no internet connection.")
-            # MovieScrobbler should handle adding to backlog if needed based on progress
+            logger.warning(f"Monitor Callback: Cannot search for '{title}', no internet connection.")
+            # Let the monitor/scrobbler handle potential backlog addition
             return
 
         try:
-            # Search for the movie
+            # Perform the primary search
             movie = search_movie(title, self.client_id, self.access_token)
-
             if not movie:
-                logger.warning(f"No Simkl match found for '{title}' via search callback.")
-                # Cache a negative result? Or let MovieScrobbler handle unknown titles?
-                # Let MovieScrobbler decide based on its logic.
+                logger.warning(f"Monitor Callback: No Simkl match found for '{title}'.")
+                # Potentially cache a negative result or let scrobbler handle unknown
                 return
 
-            # Extract movie details (simplified extraction)
+            # Extract key information
             simkl_id = None
-            movie_name = title
+            movie_name = title # Default to original title
             runtime = None
 
-            # Try extracting ID and Title
             ids_dict = movie.get('ids') or movie.get('movie', {}).get('ids')
             if ids_dict:
                 simkl_id = ids_dict.get('simkl') or ids_dict.get('simkl_id')
 
             if simkl_id:
+                 # Use title from Simkl if available
                  movie_name = movie.get('title') or movie.get('movie', {}).get('title', title)
-                 logger.info(f"Found Simkl ID: {simkl_id} for '{movie_name}'")
+                 logger.info(f"Monitor Callback: Found Simkl ID {simkl_id} for '{movie_name}'. Fetching details...")
 
-                 # Get runtime details
+                 # Get additional details like runtime
                  try:
                      details = get_movie_details(simkl_id, self.client_id, self.access_token)
                      if details and 'runtime' in details:
-                         runtime = details['runtime']
-                         logger.info(f"Retrieved runtime: {runtime} minutes")
+                         runtime = details.get('runtime') # Use .get for safety
+                         if runtime:
+                             logger.info(f"Monitor Callback: Retrieved runtime: {runtime} minutes for ID {simkl_id}.")
+                         else:
+                              logger.warning(f"Monitor Callback: Runtime is present but empty/zero for ID {simkl_id}.")
+                     else:
+                          logger.warning(f"Monitor Callback: Could not retrieve runtime details for ID {simkl_id}.")
                  except Exception as detail_error:
-                     logger.error(f"Error getting movie details for ID {simkl_id}: {detail_error}")
+                     logger.error(f"Monitor Callback: Error fetching details for ID {simkl_id}: {detail_error}", exc_info=True)
 
-                 # Cache the result using the monitor's method
+                 # Cache the gathered information via the monitor
                  self.monitor.cache_movie_info(title, simkl_id, movie_name, runtime)
-                 logger.info(f"Cached info for '{title}' -> '{movie_name}' (ID: {simkl_id}, Runtime: {runtime})")
-
+                 logger.info(f"Monitor Callback: Cached info for '{title}' -> '{movie_name}' (ID: {simkl_id}, Runtime: {runtime})")
             else:
-                logger.warning(f"No Simkl ID found in search result for '{title}' via callback.")
-
+                logger.warning(f"Monitor Callback: No Simkl ID could be extracted for '{title}'.")
         except Exception as e:
-            logger.error(f"Error during search callback for '{title}': {e}", exc_info=True)
+            logger.exception(f"Monitor Callback: Unexpected error during search/cache for '{title}': {e}")
 
 def run_as_background_service():
-    """Run the scrobbler as a background service (conceptual)"""
-    # Note: Actual service implementation requires more platform-specific code (like pywin32)
-    # This function provides the core logic start.
+    """
+    Runs the Simkl Scrobbler as a background service.
+    
+    Similar to main() but designed for daemon/service operation without
+    keeping the main thread active with a sleep loop.
+    
+    Returns:
+        SimklScrobbler: The running scrobbler instance for the service manager to control.
+    """
+    logger.info("Starting Simkl Scrobbler as a background service.")
     scrobbler_instance = SimklScrobbler()
-    if scrobbler_instance.initialize():
-        if scrobbler_instance.start():
-            logger.info("Scrobbler service started successfully.")
-            # In a real service, we'd need to keep the service alive here.
-            # Returning the instance might be useful for management.
-            return scrobbler_instance
-        else:
-             logger.error("Failed to start scrobbler monitor in service context.")
-             return None
-    else:
-        logger.error("Failed to initialize scrobbler in service context.")
+    
+    if not scrobbler_instance.initialize():
+        logger.critical("Background service initialization failed.")
         return None
-
+        
+    if not scrobbler_instance.start():
+        logger.critical("Failed to start the scrobbler monitor thread in background mode.")
+        return None
+        
+    logger.info("Simkl Scrobbler background service started successfully.")
+    return scrobbler_instance
 
 def main():
-    """Main entry point for the application when run directly"""
-    logger.info("Starting Simkl Scrobbler application")
+    """
+    Main entry point for running the Simkl Scrobbler directly.
+
+    Initializes and starts the scrobbler, keeping the main thread alive
+    until interrupted (e.g., by Ctrl+C).
+    """
+    logger.info("Simkl Scrobbler application starting in foreground mode.")
     scrobbler_instance = SimklScrobbler()
-    if scrobbler_instance.initialize():
-        if scrobbler_instance.start(): # Start the monitor
-            # Keep the main thread alive so the daemon monitor thread doesn't exit immediately
-            while scrobbler_instance.running: # Check the running flag
-                try:
-                    # Sleep allows signal handling and keeps CPU usage low
-                    time.sleep(1)
-                except KeyboardInterrupt:
-                    logger.info("KeyboardInterrupt received in main, stopping...")
-                    scrobbler_instance.stop()
-                    break # Exit the loop cleanly
-            logger.info("Main thread exiting.")
-        else:
-             logger.error("Failed to start the scrobbler monitor.")
-             sys.exit(1)
-    else:
-        logger.error("Failed to initialize the scrobbler.")
+
+    if not scrobbler_instance.initialize():
+        logger.critical("Application initialization failed. Exiting.")
         sys.exit(1)
+
+    if not scrobbler_instance.start():
+        logger.critical("Failed to start the scrobbler monitor thread. Exiting.")
+        sys.exit(1)
+
+    logger.info("Application running. Press Ctrl+C to stop.")
+    # Keep main thread alive while monitor runs in background
+    while scrobbler_instance.running:
+        try:
+            time.sleep(1) # Keep CPU usage low, allow signal handling
+        except KeyboardInterrupt:
+            logger.info("KeyboardInterrupt detected in main loop. Initiating shutdown...")
+            scrobbler_instance.stop()
+            break # Exit loop after stop is called
+
+    logger.info("Simkl Scrobbler application stopped.")
+    sys.exit(0) # Explicitly exit with success code
 
 if __name__ == "__main__":
     main()

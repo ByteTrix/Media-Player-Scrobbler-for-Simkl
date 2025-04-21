@@ -179,7 +179,7 @@ class TrayApp:
     
     def open_logs(self, _=None):
         """Open the log file"""
-        log_path = APP_DATA_DIR / "simkl_scrobbler.log"
+        log_path = APP_DATA_DIR
         try:
             if sys.platform == "win32":
                 os.startfile(str(log_path))  # Convert to string to ensure compatibility

@@ -47,34 +47,32 @@ jobs:
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           poetry version $VERSION
 
-      - name: Set SIMKL_CLIENT_ID
+      # This step now injects the secrets directly into the credentials.py file
+      - name: Inject Simkl Credentials into Code
         env:
           SIMKL_CLIENT_ID: ${{ secrets.SIMKL_CLIENT_ID }}
+          SIMKL_CLIENT_SECRET: ${{ secrets.SIMKL_CLIENT_SECRET }}
         run: |
-          echo "SIMKL_CLIENT_ID=$SIMKL_CLIENT_ID" >> $GITHUB_ENV
+          # Check if secrets are available
           if [ -z "$SIMKL_CLIENT_ID" ]; then
-            echo "::error::SIMKL_CLIENT_ID secret is not set. Please add it to your repository secrets."
+            echo "::error::SIMKL_CLIENT_ID secret is not set."
             exit 1
           fi
-          echo "Successfully set SIMKL_CLIENT_ID environment variable"
+          if [ -z "$SIMKL_CLIENT_SECRET" ]; then
+            echo "::error::SIMKL_CLIENT_SECRET secret is not set."
+            exit 1
+          fi
 
-      - name: Inject Client ID into code
-        run: |
-          if [ -n "$SIMKL_CLIENT_ID" ]; then
-            echo "Injecting SIMKL_CLIENT_ID into cli.py"
-            sed -i "s/SIMKL_CLIENT_ID_PLACEHOLDER/$SIMKL_CLIENT_ID/g" simkl_scrobbler/cli.py
-            
-            # Also inject into simkl_api.py for the bundled ID
-            sed -i "s/your_simkl_client_id_here/$SIMKL_CLIENT_ID/g" simkl_scrobbler/simkl_api.py
-            
-            # Also set the DEFAULT_CLIENT_ID in simkl_api.py
-            sed -i "s/DEFAULT_CLIENT_ID = os.getenv(\"SIMKL_CLIENT_ID\")/DEFAULT_CLIENT_ID = os.getenv(\"SIMKL_CLIENT_ID\", \"$SIMKL_CLIENT_ID\")/g" simkl_scrobbler/simkl_api.py
-            
-            echo "✅ Client ID successfully injected"
-          else
-            echo "❌ SIMKL_CLIENT_ID is not available in the environment"
-            exit 1
-          fi
+          # Inject Client ID
+          echo "Injecting SIMKL_CLIENT_ID into credentials.py"
+          # Use a different delimiter for sed in case the secret contains slashes
+          sed -i "s|SIMKL_CLIENT_ID_PLACEHOLDER|${SIMKL_CLIENT_ID}|g" simkl_scrobbler/credentials.py
+
+          # Inject Client Secret
+          echo "Injecting SIMKL_CLIENT_SECRET into credentials.py"
+          sed -i "s|SIMKL_CLIENT_SECRET_PLACEHOLDER|${SIMKL_CLIENT_SECRET}|g" simkl_scrobbler/credentials.py
+
+          echo "✅ Credentials successfully injected into simkl_scrobbler/credentials.py"
 
       - name: Generate changelog
         id: changelog
