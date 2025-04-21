@@ -1,5 +1,5 @@
 {
-  "template": "{{CHANGELOG}}",
+  "template": "## Generated Changelog Content\n\n{{CHANGELOG}}",
   "pr_template": "- {{TITLE}} [#{{NUMBER}}]({{URL}}) (@{{AUTHOR}})",
   "commit_template": "- {{MESSAGE}} ({{HASH}})",
   "categories": [
