@@ -52,10 +52,3 @@ enhancement:
 # Apply to PRs that explicitly mention a breaking change in the description.
 breaking:
 - body-regex: 'BREAKING CHANGE:' # Case-sensitive match in the PR body
-
-# Label: 'dependabot'
-# Apply to PRs created by Dependabot.
-dependabot:
-- 'dependabot[bot]'
-- 'dependabot-preview[bot]'
-- 'dependabot/**'
