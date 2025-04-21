@@ -17,6 +17,8 @@ pip install simkl-scrobbler
 simkl-scrobbler init
 ```
 
+**After Installaion Setup the Web Interface in Supported Players**
+
 The initialization process will guide you through authentication with Simkl using a device code. Simply visit the provided URL and enter the code to link the application to your Simkl account.
 
 ## 💻 Platform-Specific Requirements
