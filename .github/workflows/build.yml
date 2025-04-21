@@ -67,6 +67,9 @@ jobs:
             # Also inject into simkl_api.py for the bundled ID
             sed -i "s/your_simkl_client_id_here/$SIMKL_CLIENT_ID/g" simkl_scrobbler/simkl_api.py
             
+            # Also set the DEFAULT_CLIENT_ID in simkl_api.py
+            sed -i "s/DEFAULT_CLIENT_ID = os.getenv(\"SIMKL_CLIENT_ID\")/DEFAULT_CLIENT_ID = os.getenv(\"SIMKL_CLIENT_ID\", \"$SIMKL_CLIENT_ID\")/g" simkl_scrobbler/simkl_api.py
+            
             echo "✅ Client ID successfully injected"
           else
             echo "❌ SIMKL_CLIENT_ID is not available in the environment"
