@@ -2,14 +2,15 @@ import requests
 import time
 import logging
 import socket
+import os
 
 # Set up logging
 logger = logging.getLogger(__name__)
 
 SIMKL_API_BASE_URL = 'https://api.simkl.com'
 
-# This is your application's client ID that will be used for all users
-DEFAULT_CLIENT_ID = "063e363a1596eb693066cf3b9848be8d2c4a6d9ef300666c9f19ef5980312b27"
+# Get the client ID from environment variable only
+DEFAULT_CLIENT_ID = os.getenv("SIMKL_CLIENT_ID")
 
 def is_internet_connected():
     """
@@ -388,17 +389,14 @@ def poll_for_token(client_id, user_code, interval, expires_in):
 def authenticate(client_id=None):
     """
     Handles the full device authentication flow.
-    Uses the default client ID if none is provided.
+    Requires a valid client ID to be provided.
     """
-    # Always use the embedded client ID for the application identity
-    actual_client_id = DEFAULT_CLIENT_ID if client_id is None else client_id
-
-    if not actual_client_id:
+    if not client_id:
         logger.error("Client ID is required for authentication.")
         return None
 
     print("Requesting device code from Simkl...")
-    device_info = get_device_code(actual_client_id)
+    device_info = get_device_code(client_id)
     if not device_info:
         print("Failed to get device code.")
         return None
@@ -424,7 +422,7 @@ def authenticate(client_id=None):
     print(f"This code will be valid for {int(expires_in/60)} minutes")
     print("=" * 60 + "\n")
 
-    access_token_info = poll_for_token(actual_client_id, user_code, interval, expires_in)
+    access_token_info = poll_for_token(client_id, user_code, interval, expires_in)
 
     if access_token_info and 'access_token' in access_token_info:
         token = access_token_info['access_token']

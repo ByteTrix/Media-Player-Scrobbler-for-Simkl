@@ -6,7 +6,7 @@ import colorama
 import subprocess
 from colorama import Fore, Style
 from dotenv import load_dotenv
-from .simkl_api import authenticate, DEFAULT_CLIENT_ID
+from .simkl_api import authenticate
 from .main import APP_DATA_DIR, SimklScrobbler
 from .tray_app import run_tray_app
 from .service_manager import install_service, uninstall_service, service_status
@@ -17,13 +17,15 @@ colorama.init()
 
 logger = logging.getLogger(__name__)
 
+# The client ID for the application - this should be set as an environment variable for builds
+# but we provide a GitHub repository secret-based application ID for users who install the package
+DEFAULT_CLIENT_ID = os.getenv("SIMKL_CLIENT_ID", "SIMKL_CLIENT_ID_PLACEHOLDER")
+
 def init_command(args):
     """Initialize the SIMKL Scrobbler with user configuration."""
     print(f"{Fore.CYAN}=== SIMKL Scrobbler Initialization ==={Style.RESET_ALL}")
     print(f"{Fore.YELLOW}This will set up SIMKL Scrobbler on your system.{Style.RESET_ALL}\n")
     
-    # DEFAULT_CLIENT_ID imported at top
-
     # Define env path
     env_path = APP_DATA_DIR / ".simkl_scrobbler.env"
     client_id = None
@@ -51,6 +53,14 @@ def init_command(args):
 
         # Use the embedded client ID by default for new authentication
         client_id = DEFAULT_CLIENT_ID
+        
+        # Check if the client_id is placeholder - this would indicate it wasn't set during build
+        if client_id == "SIMKL_CLIENT_ID_PLACEHOLDER" or not client_id:
+            print(f"{Fore.RED}Error: No valid client ID found.{Style.RESET_ALL}")
+            print(f"{Fore.YELLOW}This usually means the application wasn't built with the correct environment variables.{Style.RESET_ALL}")
+            print(f"{Fore.YELLOW}Please contact the package maintainer or set the SIMKL_CLIENT_ID environment variable manually.{Style.RESET_ALL}")
+            return 1
+            
         print(f"\n{Fore.CYAN}Using application client ID: {client_id[:8]}...{client_id[-8:]}{Style.RESET_ALL}")
         print(f"{Fore.YELLOW}You'll need to authenticate with your Simkl account.{Style.RESET_ALL}")
         print("This will allow the application to track your watched movies.")
