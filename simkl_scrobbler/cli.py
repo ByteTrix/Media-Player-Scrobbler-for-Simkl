@@ -9,10 +9,69 @@ import sys
 import colorama
 import subprocess
 import logging
+import importlib.metadata
+from pathlib import Path
 from colorama import Fore, Style
 
-# Version information 
-VERSION = "1.0.0"  
+# Version information - will be replaced by dynamic detection
+VERSION = "1.0.0"  # Default fallback version
+
+# Function to get version dynamically - called early
+def get_version():
+    """Get version information dynamically, using modern approaches."""
+    # Method 1: Use importlib.metadata (Python 3.8+) - most modern approach
+    try:
+        # Try both possible package names
+        for pkg_name in ['simkl-movie-tracker', 'simkl_scrobbler']:
+            try:
+                return importlib.metadata.version(pkg_name)
+            except importlib.metadata.PackageNotFoundError:
+                pass
+    except (ImportError, AttributeError):
+        pass
+    
+    # Method 2: Check if we're running from a Git repository
+    try:
+        import subprocess
+        try:
+            # Try to get version from git describe
+            result = subprocess.run(
+                ['git', 'describe', '--tags', '--always'],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                check=False
+            )
+            if result.returncode == 0 and result.stdout:
+                return result.stdout.strip()
+        except (subprocess.SubprocessError, FileNotFoundError):
+            pass
+    except ImportError:
+        pass
+    
+    # Method 3: Check for __version__ in package __init__.py
+    try:
+        from simkl_scrobbler import __version__
+        return __version__
+    except (ImportError, AttributeError):
+        pass
+    
+    # Method 4: Check for a version file in the package
+    try:
+        # Determine the package directory
+        import simkl_scrobbler
+        pkg_dir = Path(simkl_scrobbler.__file__).parent
+        version_file = pkg_dir / 'VERSION'
+        if version_file.exists():
+            return version_file.read_text().strip()
+    except (ImportError, AttributeError, OSError):
+        pass
+    
+    # Return the hardcoded version as last resort
+    return VERSION
+
+# Get version dynamically at startup
+VERSION = get_version()
 
 # Quick version check before importing all dependencies
 # This prevents dependency errors when just checking version
@@ -32,27 +91,6 @@ from .service_manager import install_service, uninstall_service, service_status
 # Initialize colorama for colored terminal output
 colorama.init()
 logger = logging.getLogger(__name__)
-
-# Version information retrieval with fallbacks
-def get_version():
-    """Get version information dynamically, falling back to hardcoded value if needed."""
-    # Method 1: Check for __version__ in package __init__.py
-    try:
-        from simkl_scrobbler import __version__
-        return __version__
-    except (ImportError, AttributeError):
-        pass
-    
-    # Method 2: Use importlib.metadata (Python 3.8+)
-    try:
-        import importlib.metadata
-        return importlib.metadata.version('simkl-movie-tracker')
-    except (ImportError, importlib.metadata.PackageNotFoundError):
-        pass
-    
-    # We're no longer using pkg_resources since it causes issues on some systems
-    # Return the hardcoded version instead
-    return VERSION
 
 def _check_prerequisites(check_token=True, check_client_id=True):
     """Helper function to check if credentials exist before running a command."""
@@ -147,14 +185,15 @@ def start_command(args):
     """
     Handles the 'start' command.
 
-    Installs the application as a startup service (if possible) and
-    launches the tray application in a detached background process.
+    Installs the application as a startup service, launches the service,
+    and launches the tray application in a detached background process.
+    All components run in background - closing terminal won't affect function.
     """
     print(f"{Fore.CYAN}=== Starting Simkl Scrobbler ==={Style.RESET_ALL}")
     logger.info("Executing start command.")
     if not _check_prerequisites(): return 1
 
-    # Attempt service installation
+    # Attempt service installation and starting
     print("[*] Ensuring background service is installed for auto-startup...")
     logger.info("Attempting to install/verify startup service.")
     try:
@@ -165,10 +204,10 @@ def start_command(args):
         else:
             # Log as warning, but proceed with launching tray app anyway
             logger.warning("Failed to install startup service (non-critical).")
-            print(f"{Fore.YELLOW}[!] Warning: Failed to install as a startup service. Scrobbler will run but won't start automatically on boot.{Style.RESET_ALL}")
+            print(f"{Fore.YELLOW}WARNING: Failed to install startup service (non-critical).{Style.RESET_ALL}")
     except Exception as e:
         logger.exception(f"Error during startup service installation: {e}")
-        print(f"{Fore.YELLOW}[!] Warning: Error installing startup service: {e}. Scrobbler will run but won't start automatically on boot.{Style.RESET_ALL}")
+        print(f"{Fore.YELLOW}ERROR: Failed to install Windows service: {e}{Style.RESET_ALL}")
 
     # Launch tray app in background
     print("[*] Launching application with tray icon in background...")
@@ -186,14 +225,30 @@ def start_command(args):
         if sys.platform == "win32":
             CREATE_NO_WINDOW = 0x08000000
             DETACHED_PROCESS = 0x00000008
-            subprocess.Popen(cmd, creationflags=CREATE_NO_WINDOW | DETACHED_PROCESS, close_fds=True, shell=False)
+            startupinfo = subprocess.STARTUPINFO()
+            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            subprocess.Popen(
+                cmd, 
+                creationflags=CREATE_NO_WINDOW | DETACHED_PROCESS, 
+                close_fds=True, 
+                shell=False,
+                startupinfo=startupinfo
+            )
             logger.info("Launched detached process on Windows.")
         else: # Assume Unix-like
-            subprocess.Popen(cmd, start_new_session=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, close_fds=True, shell=False)
+            subprocess.Popen(
+                cmd, 
+                start_new_session=True, 
+                stdout=subprocess.DEVNULL, 
+                stderr=subprocess.DEVNULL, 
+                close_fds=True, 
+                shell=False
+            )
             logger.info("Launched detached process on Unix-like system.")
 
         print(f"{Fore.GREEN}[✓] Scrobbler launched successfully in background.{Style.RESET_ALL}")
         print(f"[*] Look for the Simkl Scrobbler icon in your system tray.")
+        print(f"{Fore.GREEN}[✓] You can safely close this terminal window. All processes will continue running.{Style.RESET_ALL}")
         return 0
     except Exception as e:
         logger.exception(f"Failed to launch detached tray process: {e}")
@@ -204,34 +259,57 @@ def tray_command(args):
     """
     Handles the 'tray' command.
 
-    Runs the application with a system tray icon directly in the foreground
-    (or background if launched internally with --detach).
+    Runs ONLY the tray application in a detached process.
+    Does NOT install or start the background service.
+    Closing terminal won't affect the tray app.
     """
+    print(f"{Fore.CYAN}=== Starting Simkl Scrobbler (Tray Only Mode) ==={Style.RESET_ALL}")
     logger.info("Executing tray command.")
-    # Internal check for detached mode (used by start_command)
-    detached_mode = hasattr(args, 'detach') and args.detach
-    if not detached_mode:
-        print(f"{Fore.CYAN}=== Starting Simkl Scrobbler (Tray Mode) ==={Style.RESET_ALL}")
-        if not _check_prerequisites(): return 1
-        print(f"{Fore.YELLOW}[!] Running in foreground. Closing this terminal will stop the application.{Style.RESET_ALL}")
-        print(f"{Fore.YELLOW}[!] Use 'simkl-scrobbler start' to run persistently in the background.{Style.RESET_ALL}")
-    else:
-         # If detached, prerequisites should have been checked by start_command
-         logger.info("Running tray command in detached mode (internal call).")
+    if not _check_prerequisites(): return 1
 
-
-    print("[*] Launching application with system tray icon...")
+    print("[*] Launching tray application in background (without service)...")
     try:
-        run_tray_app() # This function blocks until the tray app exits
-        logger.info("Tray application exited normally.")
-        return 0
-    except KeyboardInterrupt:
-        logger.info("Tray application interrupted by user (KeyboardInterrupt).")
-        print(f"\n{Fore.YELLOW}[!] Tray application stopped.{Style.RESET_ALL}")
+        # Determine command based on execution context (frozen/script)
+        if getattr(sys, 'frozen', False):
+            cmd = [sys.executable, "tray"]
+            logger.debug("Launching frozen executable for tray.")
+        else:
+            cmd = [sys.executable, "-m", "simkl_scrobbler.tray_app"]
+            logger.debug("Launching tray via python module.")
+
+        # Platform-specific detached process creation
+        if sys.platform == "win32":
+            CREATE_NO_WINDOW = 0x08000000
+            DETACHED_PROCESS = 0x00000008
+            startupinfo = subprocess.STARTUPINFO()
+            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            subprocess.Popen(
+                cmd, 
+                creationflags=CREATE_NO_WINDOW | DETACHED_PROCESS, 
+                close_fds=True, 
+                shell=False,
+                startupinfo=startupinfo
+            )
+            logger.info("Launched detached tray process on Windows.")
+        else: # Assume Unix-like
+            subprocess.Popen(
+                cmd, 
+                start_new_session=True, 
+                stdout=subprocess.DEVNULL, 
+                stderr=subprocess.DEVNULL, 
+                close_fds=True, 
+                shell=False
+            )
+            logger.info("Launched detached tray process on Unix-like system.")
+
+        print(f"{Fore.GREEN}[✓] Tray application launched successfully in background.{Style.RESET_ALL}")
+        print(f"[*] Look for the Simkl Scrobbler icon in your system tray.")
+        print(f"{Fore.YELLOW}[!] Note: Only the tray app is running. No background service was installed.{Style.RESET_ALL}")
+        print(f"{Fore.GREEN}[✓] You can safely close this terminal window. The tray app will continue running.{Style.RESET_ALL}")
         return 0
     except Exception as e:
-        logger.exception(f"Error running tray application: {e}")
-        print(f"{Fore.RED}ERROR: Failed to start tray application: {e}{Style.RESET_ALL}", file=sys.stderr)
+        logger.exception(f"Failed to launch detached tray process: {e}")
+        print(f"{Fore.RED}ERROR: Failed to launch tray application: {e}{Style.RESET_ALL}", file=sys.stderr)
         return 1
 
 def service_command(args):
@@ -274,18 +352,23 @@ def service_command(args):
         return 1
 
 def install_service_command(args):
-    """Handles the 'install-service' command."""
+    """
+    Handles the 'install-service' command.
+    
+    ONLY installs the background service - does not start the tray app.
+    """
     print(f"{Fore.CYAN}=== Simkl Scrobbler Service Installation ==={Style.RESET_ALL}")
     logger.info("Executing install-service command.")
     # Check token prerequisite - service needs it to run later
     if not _check_prerequisites(check_token=True, check_client_id=False): return 1
 
-    print("[*] Attempting to install the application as a system startup service...")
+    print("[*] Installing the application as a system startup service...")
     try:
         success = install_service()
         if success:
             logger.info("Startup service installed successfully.")
             print(f"{Fore.GREEN}[✓] Service installed successfully! It will run automatically on system startup.{Style.RESET_ALL}")
+            print(f"{Fore.YELLOW}[!] Note: This command only installed the service. Use 'simkl-scrobbler start' to run the application now.{Style.RESET_ALL}")
             return 0
         else:
             logger.error("Service installation failed (install_service returned False).")
@@ -297,7 +380,11 @@ def install_service_command(args):
         return 1
 
 def uninstall_service_command(args):
-    """Handles the 'uninstall-service' command."""
+    """
+    Handles the 'uninstall-service' command.
+    
+    ONLY uninstalls the background service.
+    """
     print(f"{Fore.CYAN}=== Simkl Scrobbler Service Uninstallation ==={Style.RESET_ALL}")
     logger.info("Executing uninstall-service command.")
 
@@ -341,7 +428,11 @@ def service_status_command(args):
         return 1
 
 def version_command(args):
-    """Displays version information about the application."""
+    """
+    Displays version information about the application.
+    
+    Shows the current installed version of simkl-scrobbler.
+    """
     print(f"{Fore.CYAN}=== Simkl Scrobbler Version Information ==={Style.RESET_ALL}")
     logger.info(f"Displaying version information: {VERSION}")
     
@@ -386,43 +477,35 @@ def create_parser():
     # --- Start Command ---
     start_parser = subparsers.add_parser(
         "start",
-        help="Recommended: Install as startup service & run scrobbler in background with tray icon."
+        help="Run ALL components (background service + tray icon). Terminal can be closed."
     )
 
     # --- Tray Command ---
     tray_parser = subparsers.add_parser(
         "tray",
-        help="Run scrobbler with tray icon (stops when terminal closes)."
+        help="Run ONLY tray icon (no background service). Terminal can be closed."
     )
-    # Hidden internal argument for detaching process
-    tray_parser.add_argument("--detach", action="store_true", help=argparse.SUPPRESS)
 
     # --- Service Management Commands ---
     install_parser = subparsers.add_parser(
         "install-service",
-        help="Install the scrobbler as a system service to run automatically on startup."
+        help="ONLY install the background service (no tray icon). Does not start anything."
     )
     uninstall_parser = subparsers.add_parser(
         "uninstall-service",
-        help="Uninstall the system startup service."
+        help="ONLY uninstall the background service."
     )
     status_parser = subparsers.add_parser(
         "service-status",
-        help="Check the status of the system startup service."
+        help="Check the status of the background service."
     )
     
     # --- Version Command ---
     version_parser = subparsers.add_parser(
         "version",
-        help="Display version information about the application."
+        help="Display the current installed version of simkl-scrobbler."
     )
     
-    # --- Service Command (Potentially Deprecated) ---
-    # service_parser = subparsers.add_parser(
-    #     "service",
-    #     help="Run scrobbler as background process without tray icon (use 'start' instead)."
-    # )
-
     return parser
 
 def main():

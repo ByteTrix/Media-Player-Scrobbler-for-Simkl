@@ -1,5 +1,5 @@
 """
-Simkl Scrobbler - Automatically track and scrobble movies to Simkl
+Simkl Scrobbler package.
 """
 
 __version__ = "1.0.0"
