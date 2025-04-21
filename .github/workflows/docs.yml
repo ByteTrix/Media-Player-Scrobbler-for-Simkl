@@ -6,63 +6,51 @@ on:
     paths:
       - 'docs/**'
       - '**.md'
-      - 'mkdocs.yml' # Added mkdocs config file
-      - 'pyproject.toml' # Added project config for dependencies
+      - 'mkdocs.yml'
+      - 'pyproject.toml'
       - 'simkl_scrobbler/**'
   pull_request:
     branches: [ main ]
     paths:
       - 'docs/**'
       - '**.md'
-      - 'mkdocs.yml' # Added mkdocs config file
-      - 'pyproject.toml' # Added project config for dependencies
+      - 'mkdocs.yml'
+      - 'pyproject.toml'
   workflow_dispatch:
 
-permissions: # Added default permissions
+permissions:
   contents: read
 
 jobs:
-  deploy: # Renamed job for clarity
+  deploy:
     runs-on: ubuntu-latest
     permissions:
       contents: write # Needed for gh-pages deployment
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0 # Needed for mkdocs-git-revision-date-localized-plugin
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11' # Consistent with other workflows
-          cache: 'pip' # Changed from 'poetry' to 'pip' for consistency
-
-      - name: Install Poetry
-        run: |
-          pip install poetry
-          poetry config virtualenvs.create false
+          python-version: '3.11'
+          cache: 'pip'
 
       - name: Install dependencies
         run: |
-          # Make sure the lock file is up-to-date before installing
-          poetry lock
-          # Install project dependencies including docs dependencies
-          poetry install --with dev --no-interaction
-          # Install mkdocs and required plugins directly since they're not in pyproject.toml
           pip install mkdocs mkdocs-material mkdocs-git-revision-date-localized-plugin
+          pip install -e .
 
       - name: Build documentation
-        run: |
-          mkdocs build # Run directly without poetry since we installed globally
+        run: mkdocs build
 
       - name: Deploy to GitHub Pages
         if: github.ref == 'refs/heads/main'
-        uses: peaceiris/actions-gh-pages@v4 # Updated action version
+        uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./site
-          # Keep commit message concise or use default
-          # full_commit_message: 'docs: update documentation site'
           user_name: 'github-actions[bot]'
           user_email: 'github-actions[bot]@users.noreply.github.com'
-          # keep_files: false # Default is false, can be removed

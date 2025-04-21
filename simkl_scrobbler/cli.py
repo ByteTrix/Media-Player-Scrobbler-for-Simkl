@@ -4,6 +4,7 @@ import sys
 import pathlib
 import colorama
 import subprocess
+import webbrowser
 from colorama import Fore, Style
 from dotenv import load_dotenv
 from .simkl_api import authenticate
@@ -17,8 +18,8 @@ colorama.init()
 
 logger = logging.getLogger(__name__)
 
-# The client ID for the application - this should be set as an environment variable for builds
-# but we provide a GitHub repository secret-based application ID for users who install the package
+# The client ID for the application - this gets replaced during the build process
+# DO NOT CHANGE THIS STRING - it's automatically replaced by GitHub Actions during release builds
 DEFAULT_CLIENT_ID = os.getenv("SIMKL_CLIENT_ID", "SIMKL_CLIENT_ID_PLACEHOLDER")
 
 def init_command(args):

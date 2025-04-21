@@ -1,9 +1,8 @@
-name: Build and Release
+name: Build and Publish
 
 on:
-  push:
-    tags:
-      - 'v*.*.*'
+  release:
+    types: [created, edited]
   workflow_dispatch:
     inputs:
       version:
@@ -12,11 +11,16 @@ on:
         type: string
 
 jobs:
-  build:
+  build-and-publish:
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write  # Required for PyPI trusted publishing
+      contents: write  # Required for creating releases
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all history for changelog generation
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -24,11 +28,24 @@ jobs:
           python-version: '3.11'
           cache: 'pip'
 
-      - name: Install Poetry
+      - name: Install Poetry and dependencies
         run: |
           pip install poetry
           poetry config virtualenvs.create false
           poetry lock
+          poetry install -q #--quiet (-q) : Do not output any message.
+
+      - name: Set version
+        run: |
+          if [[ "${{ github.event_name }}" == "release" ]]; then
+            # Extract version from tag (remove v prefix)
+            VERSION=${GITHUB_REF#refs/tags/v}
+          else
+            # Use manually provided version
+            VERSION=${{ github.event.inputs.version }}
+          fi
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          poetry version $VERSION
 
       - name: Set SIMKL_CLIENT_ID
         env:
@@ -36,50 +53,55 @@ jobs:
         run: |
           echo "SIMKL_CLIENT_ID=$SIMKL_CLIENT_ID" >> $GITHUB_ENV
           if [ -z "$SIMKL_CLIENT_ID" ]; then
-            echo "::error::SIMKL_CLIENT_ID secret is not set"
+            echo "::error::SIMKL_CLIENT_ID secret is not set. Please add it to your repository secrets."
+            exit 1
+          fi
+          echo "Successfully set SIMKL_CLIENT_ID environment variable"
+
+      - name: Inject Client ID into code
+        run: |
+          if [ -n "$SIMKL_CLIENT_ID" ]; then
+            echo "Injecting SIMKL_CLIENT_ID into cli.py"
+            sed -i "s/SIMKL_CLIENT_ID_PLACEHOLDER/$SIMKL_CLIENT_ID/g" simkl_scrobbler/cli.py
+            
+            # Also inject into simkl_api.py for the bundled ID
+            sed -i "s/your_simkl_client_id_here/$SIMKL_CLIENT_ID/g" simkl_scrobbler/simkl_api.py
+            
+            echo "✅ Client ID successfully injected"
+          else
+            echo "❌ SIMKL_CLIENT_ID is not available in the environment"
             exit 1
           fi
 
-      - name: Inject Client ID
+      - name: Generate changelog
+        id: changelog
+        uses: metcalfc/changelog-generator@v4.1.0
+        with:
+          myToken: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and publish
         run: |
-          sed -i "s/SIMKL_CLIENT_ID_PLACEHOLDER/$SIMKL_CLIENT_ID/g" simkl_scrobbler/cli.py
-
-      - name: Update version
-        run: |
-          if [[ "${{ github.event_name }}" == "push" ]]; then
-            # Extract version from tag (remove v prefix)
-            VERSION=${GITHUB_REF#refs/tags/v}
-          else
-            # Use manually provided version
-            VERSION=${{ github.event.inputs.version }}
-          fi
-          poetry version $VERSION
-
-      - name: Build package
-        run: poetry build
-
+          poetry build
+          poetry publish
+        env:
+          POETRY_PYPI_TOKEN_PYPI: ${{ secrets.PYPI_API_TOKEN }}
+      
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: dist
           path: dist/
           retention-days: 7
-
-  publish:
-    needs: build
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-    permissions:
-      id-token: write  # For PyPI trusted publishing
-    steps:
-      - name: Download build artifacts
-        uses: actions/download-artifact@v4
+          
+      - name: Update release with changelog
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v1
         with:
-          name: dist
-          path: dist
-
-      - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          packages-dir: dist/
-          verbose: true
+          body: |
+            ## Changes in this release
+            ${{ steps.changelog.outputs.changelog }}
+          files: |
+            dist/*.tar.gz
+            dist/*.whl
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

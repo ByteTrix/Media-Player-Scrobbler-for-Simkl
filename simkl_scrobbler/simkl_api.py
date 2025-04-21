@@ -9,8 +9,11 @@ logger = logging.getLogger(__name__)
 
 SIMKL_API_BASE_URL = 'https://api.simkl.com'
 
-# Get the client ID from environment variable only
+# Get the client ID from environment variable or the bundled value
 DEFAULT_CLIENT_ID = os.getenv("SIMKL_CLIENT_ID")
+
+# Include a backup hardcoded client ID as fallback - replace with your actual client ID
+BUNDLED_CLIENT_ID = "your_simkl_client_id_here" 
 
 def is_internet_connected():
     """

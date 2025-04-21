@@ -8,7 +8,7 @@ import hashlib # Add hashlib import
 from dotenv import load_dotenv
 from .monitor import Monitor # Import Monitor instead of MonitorAwareScrobbler
 from .window_detection import get_active_window_info # Import directly
-from .simkl_api import search_movie, mark_as_watched, authenticate, get_movie_details, is_internet_connected, DEFAULT_CLIENT_ID
+from .simkl_api import search_movie, mark_as_watched, authenticate, get_movie_details, is_internet_connected, DEFAULT_CLIENT_ID, BUNDLED_CLIENT_ID
 import logging
 
 # Define the application data directory in the user's home folder
@@ -62,12 +62,17 @@ def load_configuration():
     access_token = os.getenv("SIMKL_ACCESS_TOKEN")
     
     if not client_id:
-        logger.error("Client ID not found. Using default client ID.")
+        logger.info("Client ID not found in environment. Using default client ID.")
         client_id = DEFAULT_CLIENT_ID
 
+    # If client ID is still a placeholder or not set, use the bundled client ID as fallback
+    if not client_id or client_id == "SIMKL_CLIENT_ID_PLACEHOLDER":
+        logger.info("Default client ID is a placeholder or empty. Using bundled client ID.")
+        client_id = BUNDLED_CLIENT_ID
+
     if not client_id:
-        # This case should ideally not happen if DEFAULT_CLIENT_ID is set
-        logger.error("Client ID not found even after checking default. Exiting.")
+        # This is a critical error - both DEFAULT_CLIENT_ID and BUNDLED_CLIENT_ID are empty
+        logger.error("Client ID not found even after checking all fallbacks. Exiting.")
         print("Critical Error: Client ID is missing. Please check installation.")
         sys.exit(1)
 
