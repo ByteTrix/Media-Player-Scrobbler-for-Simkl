@@ -99,13 +99,20 @@ jobs:
           path: dist/
           retention-days: 7
           
+      - name: Prepare Release Body File
+        id: prepare_body
+        run: |
+          echo "## Changes in this release" > BODY.md
+          echo "" >> BODY.md
+          echo "${{ steps.changelog.outputs.changelog || '- No automated changelog notes available for this release.' }}" >> BODY.md
+          echo "Release body content written to BODY.md"
+          cat BODY.md # Print file content for debugging
+
       - name: Update release with changelog (release event)
         if: github.event_name == 'release'
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
-          body: |
-            ## Changes in this release
-            ${{ steps.changelog.outputs.changelog }}
+          body_path: BODY.md
           files: |
             dist/*.tar.gz
             dist/*.whl
@@ -118,9 +125,7 @@ jobs:
         with:
           tag_name: ${{ github.ref_name }}
           name: Release ${{ github.ref_name }}
-          body: |
-            ## Changes in this release
-            ${{ steps.changelog.outputs.changelog }}
+          body_path: BODY.md
           files: |
             dist/*.tar.gz
             dist/*.whl

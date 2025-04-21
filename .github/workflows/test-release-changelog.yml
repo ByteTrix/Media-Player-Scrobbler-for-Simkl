@@ -1,0 +1,65 @@
+name: Test Release Changelog
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Test version tag (e.g., v0.0.1-test)'
+        required: false
+        default: 'v0.0.0-test'
+        type: string
+
+jobs:
+  test-changelog:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # Required for creating draft releases
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Fetch all history for changelog generation
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Generate changelog
+        id: changelog
+        uses: mikepenz/release-changelog-builder-action@v5
+        with:
+          # Use 'tag' mode to generate based on provided tag or latest tag
+          # Or keep 'HYBRID' if you want to test based on commits since last tag
+          mode: "HYBRID"
+          configuration: .github/changelog-config.json
+          token: ${{ secrets.GITHUB_TOKEN }}
+          # Optionally specify 'fromTag' and 'toTag' if needed for specific range testing
+          # fromTag: ${{ github.event.inputs.from_tag }} # Example if adding another input
+          # toTag: ${{ github.event.inputs.version }}
+
+      - name: Prepare Release Body File
+        id: prepare_body
+        run: |
+          echo "## Changes for Test Release ${{ github.event.inputs.version }}" > BODY.md
+          echo "" >> BODY.md
+          echo "**Generated Changelog:**" >> BODY.md
+          echo "${{ steps.changelog.outputs.changelog || '- No automated changelog notes generated.' }}" >> BODY.md
+          echo "---" >> BODY.md
+          echo "*(This is a test draft release)*" >> BODY.md
+          echo "Release body content written to BODY.md"
+          cat BODY.md # Print file content for debugging
+
+      - name: Create Draft Test Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.version }}
+          name: Test Release ${{ github.event.inputs.version }}
+          body_path: BODY.md
+          draft: true # Create a draft release
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Output Draft Release URL
+        run: echo "Draft release created. Check your repository's releases page."
