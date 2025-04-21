@@ -25,18 +25,18 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Get previous commit SHA
+        id: prev_commit
+        run: echo "sha=$(git rev-parse HEAD~1)" >> $GITHUB_OUTPUT
+
       - name: Generate changelog
         id: changelog
         uses: mikepenz/release-changelog-builder-action@v5
         with:
-          # Use 'tag' mode to generate based on provided tag or latest tag
-          # Or keep 'HYBRID' if you want to test based on commits since last tag
+          # Force comparison between previous and current commit for testing
           mode: "HYBRID"
           configuration: .github/changelog-config.json
           token: ${{ secrets.GITHUB_TOKEN }}
-          # Optionally specify 'fromTag' and 'toTag' if needed for specific range testing
-          # fromTag: ${{ github.event.inputs.from_tag }} # Example if adding another input
-          # toTag: ${{ github.event.inputs.version }}
 
       - name: Prepare Release Body File
         id: prepare_body
