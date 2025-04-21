@@ -39,3 +39,6 @@ master_test.log
 # OS specific files
 .DS_Store
 Thumbs.db
+
+# Wiki temporary directory
+wiki_temp/
