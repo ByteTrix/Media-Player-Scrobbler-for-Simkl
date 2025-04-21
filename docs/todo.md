@@ -15,15 +15,17 @@ This document tracks both completed features and planned improvements for Simkl 
 
 ## 🚧 In Progress
 
+- [ ] 🚹 Option to User Set Completion Percentage and Edit it Later
 - [ ] 😙 New Icon and Logo
 - [ ] 🪜 Testing Cross-Platform
 - [ ] 📱 Improve notification system
-- [ ] 🔐 Enhanced authentication flow
+
 
 ## 📝 Planned Features
 
 ### Short Term
 
+- [ ] 🔐 Enhanced authentication flow
 - [ ] 🧪 Create comprehensive automated test suite
 - [ ] 🔎 Add option to manually correct misidentified movies
 - [ ] 🖱️ Enhance the tray application with more controls

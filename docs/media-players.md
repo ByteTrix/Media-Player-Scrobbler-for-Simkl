@@ -79,11 +79,13 @@ graph TD
 2. Select "All" settings (bottom left)
 3. Navigate to Interface > Main interfaces
 4. Check "Web" option
-5. Optional: Set a password in the "Lua HTTP" section
+5. **Must**: Set a password in the "Lua HTTP" section (use password : simkl)
 6. Click "Save"
 7. Restart VLC
 
-**Default Address**: http://127.0.0.1:8080/
+See this Guide for best Understanding : [VLC Web Interface](https://github.com/azrafe7/vlc4youtube/blob/55946aaea09375cfa4dc0dbae0428ad13eb9e046/instructions/how-to-enable-vlc-web-interface.md)
+
+**Default Address**: http://127.0.0.1:8080/ 👈 Open this and Enter the Password You've Set (Make Sure VLC is Opened in Background)
 
 ### 🎬 MPC-HC/BE (Windows only)
 
