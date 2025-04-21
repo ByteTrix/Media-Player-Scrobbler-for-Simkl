@@ -6,6 +6,7 @@ __pycache__/
 playback_log.jsonl
 settings.json
 
+
 # Distribution / packaging
 dist/
 build/
@@ -42,3 +43,4 @@ Thumbs.db
 
 # Wiki temporary directory
 wiki_temp/
+tag_version.py
