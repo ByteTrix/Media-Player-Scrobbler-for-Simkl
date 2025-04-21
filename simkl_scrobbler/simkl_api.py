@@ -298,21 +298,29 @@ def poll_for_token(client_id, user_code, interval, expires_in):
     headers = {'Content-Type': 'application/json', 'simkl-api-key': client_id}
 
     print(f"\n---> Waiting for authorization for user code: {user_code}")
-    print(f"---> Please visit the Simkl website and enter the code.")
     logger.info(f"Simkl API: Polling for token with user code {user_code} every {interval}s for {expires_in}s.")
-    time.sleep(interval) # Initial wait before first poll
+    time.sleep(interval)  # Initial wait before first poll
     start_time = time.time()
     poll_count = 0
+    
+    # Retry configuration with exponential backoff
+    max_retries = 5
+    base_retry_delay = interval  # Start with the standard interval
+    max_retry_delay = 30  # Cap at 30 seconds
+    consecutive_errors = 0
 
     while time.time() - start_time < expires_in:
         poll_count += 1
         logger.debug(f"Simkl API: Polling attempt #{poll_count} for user code {user_code}.")
+        
         try:
-            response = requests.get(url, headers=headers)
+            response = requests.get(url, headers=headers, timeout=10)  # Add explicit timeout
             response_data = None
             try:
                 response_data = response.json()
                 logger.debug(f"Simkl API: Poll response data: {response_data}")
+                # Reset error counter on successful request
+                consecutive_errors = 0
             except ValueError:
                 logger.warning(f"Simkl API: Non-JSON response during polling: {response.text}")
 
@@ -327,26 +335,72 @@ def poll_for_token(client_id, user_code, interval, expires_in):
                     logger.warning("Simkl API: Authorization explicitly denied by user.")
                     print("\n---> Authorization denied by user.")
                     return None
-                else: # Still pending or unexpected 200 response
-                    if poll_count % (30 // interval or 1) == 0: # Print status roughly every 30s
-                         print(f"---> Still waiting for authorization... ({int(time.time() - start_time)}s / {expires_in}s)")
-            elif response.status_code == 400: # Pending authorization
-                 if poll_count % (60 // interval or 1) == 0: # Print dot roughly every 60s
-                     print(".", end="", flush=True)
+                else:  # Still pending or unexpected 200 response
+                    if poll_count % (30 // interval or 1) == 0:  # Print status roughly every 30s
+                        print(f"---> Still waiting for authorization... ({int(time.time() - start_time)}s / {expires_in}s)")
+            elif response.status_code == 400:  # Pending authorization
+                if poll_count % (60 // interval or 1) == 0:  # Print dot roughly every 60s
+                    print(".", end="", flush=True)
             elif response.status_code == 404:
                 logger.error("Simkl API: Device code expired or not found during polling.")
                 print("\n---> Device code expired or invalid.")
                 return None
-            else: # Other errors
+            else:  # Other errors
                 logger.warning(f"Simkl API: Unexpected status code {response.status_code} during polling.")
-                if response_data: logger.warning(f"Simkl API: Poll response data: {response_data}")
+                if response_data: 
+                    logger.warning(f"Simkl API: Poll response data: {response_data}")
+                
+                # Treat server errors (5xx) as potentially recoverable
+                if 500 <= response.status_code < 600:
+                    consecutive_errors += 1
+                    retry_delay = min(base_retry_delay * (2 ** consecutive_errors), max_retry_delay)
+                    logger.warning(f"Simkl API: Server error, retrying in {retry_delay}s")
+                    time.sleep(retry_delay)
+                    continue
 
-            time.sleep(interval) # Wait before next poll
+            # Normal delay between polls
+            time.sleep(interval)
 
+        except requests.exceptions.ConnectionError as e:
+            consecutive_errors += 1
+            
+            # Log specific error type for better diagnostics
+            if "RemoteDisconnected" in str(e):
+                logger.warning(f"Simkl API: Remote server disconnected during polling (attempt {consecutive_errors}): {e}")
+            else:
+                logger.warning(f"Simkl API: Connection error during polling (attempt {consecutive_errors}): {e}")
+            
+            # Calculate backoff delay with exponential increase
+            retry_delay = min(base_retry_delay * (2 ** consecutive_errors), max_retry_delay)
+            
+            # Check if we should continue retrying
+            if consecutive_errors > max_retries:
+                logger.error(f"Simkl API: Too many consecutive connection errors ({consecutive_errors}), will continue polling with longer delays")
+                # Don't give up completely, just use max delay
+                retry_delay = max_retry_delay
+            
+            print(f"\n---> Network error during polling, retrying in {retry_delay} seconds...")
+            time.sleep(retry_delay)
+            
+            # If we've tried many times but total time isn't near expiry, reset the counter to avoid
+            # extremely long delays while still providing backoff protection
+            if consecutive_errors > max_retries + 3 and time.time() - start_time < expires_in * 0.7:
+                consecutive_errors = max_retries
+        
+        except requests.exceptions.Timeout:
+            logger.warning(f"Simkl API: Request timed out during polling (attempt {consecutive_errors + 1})")
+            consecutive_errors += 1
+            retry_delay = min(base_retry_delay * (2 ** consecutive_errors), max_retry_delay)
+            print(f"\n---> Request timed out, retrying in {retry_delay} seconds...")
+            time.sleep(retry_delay)
+            
         except requests.exceptions.RequestException as e:
+            # Handle other request exceptions
             logger.error(f"Simkl API: Network error during polling: {e}", exc_info=True)
-            print("\n---> Network error during polling, retrying shortly...")
-            time.sleep(interval * 2) # Longer wait after network error
+            consecutive_errors += 1
+            retry_delay = min(base_retry_delay * (2 ** consecutive_errors), max_retry_delay)
+            print(f"\n---> Network error during polling, retrying in {retry_delay} seconds...")
+            time.sleep(retry_delay)
 
     logger.error("Simkl API: Authentication polling timed out.")
     print("\n---> Authentication timed out.")
