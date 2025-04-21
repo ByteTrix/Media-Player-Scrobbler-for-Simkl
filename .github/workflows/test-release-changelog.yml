@@ -35,7 +35,7 @@ jobs:
         with:
           # Force comparison between previous and current commit for testing
           mode: "HYBRID"
-          # configuration: .github/changelog-config.json
+          configuration: .github/changelog-config.json
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Prepare Release Body File
