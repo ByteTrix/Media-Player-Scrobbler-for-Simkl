@@ -54,11 +54,12 @@ These are good starting points for new contributors:
 
 ## 📆 Release Planning
 
-### v1.3.0
+### v1.5.0
+- Codebase Refactor
 - Improved notifications
 - More Menu in tray
 
-### v1.4.0
+### v1.5.5
 - Manual correction of misidentified content
 - Enhanced tray application
 
