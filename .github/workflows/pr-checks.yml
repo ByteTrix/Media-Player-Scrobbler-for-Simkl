@@ -25,14 +25,6 @@ jobs:
           types: |
             fix
             feat
-          scopes: |
-            core
-            ui
-            JIRA-\d+
-          requireScope: true
-          disallowScopes: |
-            release
-            [A-Z]+
           subjectPattern: ^(?![A-Z]).+$
           subjectPatternError: |
             The subject "{subject}" found in the pull request title "{title}"
