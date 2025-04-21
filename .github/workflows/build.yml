@@ -75,9 +75,10 @@ jobs:
 
       - name: Generate changelog
         id: changelog
-        uses: metcalfc/changelog-generator@v4.1.0
+        uses: mikepenz/release-changelog-builder-action@v5
         with:
-          myToken: ${{ secrets.GITHUB_TOKEN }}
+          configuration: .github/changelog-config.json
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and publish
         run: |
