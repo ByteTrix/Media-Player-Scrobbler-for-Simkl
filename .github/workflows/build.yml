@@ -9,6 +9,9 @@ on:
         description: 'Version to release (e.g., 1.2.3)'
         required: true
         type: string
+  push:
+    tags:
+      - 'v*'
 
 jobs:
   build-and-publish:
@@ -95,10 +98,25 @@ jobs:
           path: dist/
           retention-days: 7
           
-      - name: Update release with changelog
+      - name: Update release with changelog (release event)
         if: github.event_name == 'release'
         uses: softprops/action-gh-release@v1
         with:
+          body: |
+            ## Changes in this release
+            ${{ steps.changelog.outputs.changelog }}
+          files: |
+            dist/*.tar.gz
+            dist/*.whl
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create release with changelog (tag push)
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
           body: |
             ## Changes in this release
             ${{ steps.changelog.outputs.changelog }}
