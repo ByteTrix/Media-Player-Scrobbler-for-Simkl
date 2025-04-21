@@ -15,6 +15,7 @@ This document tracks both completed features and planned improvements for Simkl 
 
 ## 🚧 In Progress
 
+- [ ] 🚹 Option to User Set Completion Percentage and Edit it Later
 - [ ] 😙 New Icon and Logo
 - [ ] 🪜 Testing Cross-Platform
 - [ ] 📱 Improve notification system
