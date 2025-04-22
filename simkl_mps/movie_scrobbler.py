@@ -376,7 +376,7 @@ class MovieScrobbler:
                  self._log_playback_event("completion_threshold_reached")
                  
                  if self.simkl_id:
-                     # Try to mark as watched, if it fails due to being offline, it will add to backlog
+                     # it handles offline scenarios by adding to the backlog
                      self.mark_as_watched(self.simkl_id, self.movie_name or self.currently_tracking)
                  else:
                      # No Simkl ID (likely offline), add to backlog with temp ID
