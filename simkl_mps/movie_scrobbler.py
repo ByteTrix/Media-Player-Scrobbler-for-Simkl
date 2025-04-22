@@ -374,6 +374,7 @@ class MovieScrobbler:
             if completion_pct and completion_pct >= self.completion_threshold:
                  logger.info(f"Completion threshold ({self.completion_threshold}%) met for '{self.movie_name or self.currently_tracking}'")
                  self._log_playback_event("completion_threshold_reached")
+                 
                  if self.simkl_id:
                      # Try to mark as finished, if it fails due to being offline, it will add to backlog
                      self.mark_as_finished(self.simkl_id, self.movie_name or self.currently_tracking)
@@ -480,50 +481,115 @@ class MovieScrobbler:
         # Return the constructed final scrobble info
         return final_scrobble_info
 
-    def mark_as_finished(self, simkl_id, title):
-        """Mark a movie as finished, either via API or backlog. Sets self.completed on success."""
+    def mark_as_watched(self, simkl_id, title, movie_name=None):
+        """
+        Mark a movie as watched on SIMKL or add to backlog if offline.
+        Sets self.completed on success. Can be called either automatically when 
+        completion threshold is reached, or manually.
+        
+        Args:
+            simkl_id: The Simkl ID for the movie
+            title: Movie title (raw title or window title)
+            movie_name: Official movie name from Simkl (optional)
+        
+        Returns:
+            bool: True if successfully marked as watched, False otherwise
+        """
+        # Use the movie name if provided, otherwise use the title
+        display_title = movie_name or title
+        
         # Check testing_mode first
         if self.testing_mode:
-            logger.info(f"TEST MODE: Simulating marking '{title}' (ID: {simkl_id}) as watched")
+            logger.info(f"TEST MODE: Simulating marking '{display_title}' (ID: {simkl_id}) as watched")
             self.completed = True # Set completed flag in test mode
-            self._log_playback_event("marked_as_finished_test_mode")
+            self._log_playback_event("marked_as_watched_test_mode")
+            
+            # Send notification even in test mode
+            if self.notification_callback:
+                self.notification_callback(
+                    "Movie Marked as Watched (Test Mode)", 
+                    f"'{display_title}' was marked as watched (test mode)"
+                )
             return True
 
         if not self.client_id or not self.access_token:
-            logger.error("Cannot mark movie as finished: missing API credentials")
-            self._log_playback_event("marked_as_finished_fail_credentials")
-            logger.info(f"Adding '{title}' (ID: {simkl_id}) to backlog due to missing credentials")
+            logger.error("Cannot mark movie as watched: missing API credentials")
+            self._log_playback_event("marked_as_watched_fail_credentials")
+            logger.info(f"Adding '{display_title}' (ID: {simkl_id}) to backlog due to missing credentials")
             self.backlog_cleaner.add(simkl_id, title)
+            
+            # Notify about credentials issue
+            if self.notification_callback:
+                self.notification_callback(
+                    "Authentication Error", 
+                    f"Could not mark '{display_title}' as watched - missing credentials"
+                )
             return False
 
         try:
             # First check if we're online
             if not is_internet_connected():
-                logger.warning(f"System appears to be offline. Adding '{title}' (ID: {simkl_id}) to backlog for future syncing")
-                self._log_playback_event("marked_as_finished_offline")
+                logger.warning(f"System appears to be offline. Adding '{display_title}' (ID: {simkl_id}) to backlog for future syncing")
+                self._log_playback_event("marked_as_watched_offline")
                 self.backlog_cleaner.add(simkl_id, title)
+                
+                # Notify that movie will be synchronized later
+                if self.notification_callback:
+                    self.notification_callback(
+                        "Added to Offline Queue", 
+                        f"'{display_title}' will be marked as watched when back online"
+                    )
                 return False
             
             result = mark_as_watched(simkl_id, self.client_id, self.access_token)
             if result:
-                logger.info(f"Successfully marked '{title}' as watched on Simkl")
+                logger.info(f"Successfully marked '{display_title}' as watched on Simkl")
                 self.completed = True  # Update completed flag ONLY on success
                 # Log successful marking
-                self._log_playback_event("marked_as_finished_api_success")
+                self._log_playback_event("marked_as_watched_api_success")
+                
+                # Send success notification
+                if self.notification_callback:
+                    self.notification_callback(
+                        "Movie Marked as Watched", 
+                        f"'{display_title}' was successfully marked as watched on Simkl"
+                    )
                 return True
             else:
-                logger.warning(f"Failed to mark '{title}' as watched, adding to backlog")
+                logger.warning(f"Failed to mark '{display_title}' as watched, adding to backlog")
                 # Log API failure and backlog add
-                self._log_playback_event("marked_as_finished_api_fail")
+                self._log_playback_event("marked_as_watched_api_fail")
                 self.backlog_cleaner.add(simkl_id, title)
+                
+                # Notify about the failure but added to backlog
+                if self.notification_callback:
+                    self.notification_callback(
+                        "Marking Failed", 
+                        f"Failed to mark '{display_title}' as watched, added to backlog for retry"
+                    )
                 return False
         except Exception as e:
             logger.error(f"Error marking movie as watched: {e}")
             # Log exception and backlog add
-            self._log_playback_event("marked_as_finished_api_error", {"error": str(e)})
-            logger.info(f"Adding '{title}' (ID: {simkl_id}) to backlog due to error: {e}")
+            self._log_playback_event("marked_as_watched_api_error", {"error": str(e)})
+            logger.info(f"Adding '{display_title}' (ID: {simkl_id}) to backlog due to error: {e}")
             self.backlog_cleaner.add(simkl_id, title)
+            
+            # Notify about the error
+            if self.notification_callback:
+                self.notification_callback(
+                    "Error", 
+                    f"Error marking '{display_title}' as watched: {e}"
+                )
             return False
+            
+    # Keep mark_as_finished as an alias for backward compatibility
+    def mark_as_finished(self, simkl_id, title):
+        """
+        Legacy alias for mark_as_watched method.
+        Kept for backward compatibility.
+        """
+        return self.mark_as_watched(simkl_id, title)
 
     def process_backlog(self):
         """Process pending backlog items, resolving temp IDs if needed."""
@@ -644,8 +710,18 @@ class MovieScrobbler:
 
             # If this is the movie we're currently tracking, update its duration if needed
             if self.currently_tracking == title:
+                # Only notify if the ID or movie name are new/changed
+                is_new_identification = self.simkl_id != simkl_id or self.movie_name != movie_name
+                
                 self.simkl_id = simkl_id
                 self.movie_name = movie_name
+
+                # Show notification for identified title
+                if is_new_identification and self.notification_callback:
+                    self.notification_callback(
+                        "Movie Identified", 
+                        f"Playing: '{movie_name}'\nSimkl ID: {simkl_id}"
+                    )
 
                 # Update duration if cache provides a value and we don't have one,
                 # or if the cached value is different (though player value should take precedence)
@@ -684,20 +760,6 @@ class MovieScrobbler:
         # No need for debug log here, completion_threshold_reached event covers it
 
         return is_past_threshold
-
-    def mark_as_watched(self, movie_title, simkl_id, movie_name=None):
-        """Mark a movie as watched on SIMKL or add to backlog if offline"""
-        # ... (existing code)
-        
-        # Add notification
-        if self.notification_callback:
-            self.notification_callback(
-                "Movie Scrobbled", 
-                f"'{movie_name or movie_title}' was marked as watched on SIMKL.",
-                "info"
-            )
-            
-        # ... (rest of the method)
 
     def _log_no_internet_once(self, context):
         """Log a warning about no internet only once per context until connection is restored."""

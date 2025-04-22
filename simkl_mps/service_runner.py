@@ -37,6 +37,11 @@ class ScrobblerService:
                 "Failed to initialize. Please check your credentials."
             )
             return 1
+            
+        # Set the notification callback for the MovieScrobbler instance
+        if hasattr(self.scrobbler, 'monitor') and hasattr(self.scrobbler.monitor, 'scrobbler'):
+            self.scrobbler.monitor.scrobbler.set_notification_callback(self.show_notification)
+            logger.debug("Set notification callback on MovieScrobbler")
         
         # Start monitoring
         if not self.scrobbler.start():
