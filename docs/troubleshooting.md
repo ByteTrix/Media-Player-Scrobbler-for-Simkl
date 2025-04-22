@@ -76,10 +76,10 @@ pip show simkl-mps
 simkl-mps start --debug
 
 # Check logs (Windows)
-type %APPDATA%\kavinthangavel\simkl-mps\media-player-scrobbler-for-simkl.log
+type %APPDATA%\kavinthangavel\simkl-mps\simkl-mps.log
 
 # Check logs (macOS/Linux)
-cat ~/.local/share/kavinthangavel/simkl-mps/media-player-scrobbler-for-simkl.log
+cat ~/.local/share/kavinthangavel/simkl-mps/simkl-mps.log
 
 # Check service status
 simkl-mps service-status
