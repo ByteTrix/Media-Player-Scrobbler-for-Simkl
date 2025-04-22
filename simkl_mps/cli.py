@@ -204,14 +204,12 @@ def start_command(args):
             print(f"{Fore.RED}ERROR: Still missing credentials after initialization. Aborting start.{Style.RESET_ALL}", file=sys.stderr)
             return 1
 
-    # CRITICAL CHECK: Prevent recursive launching
-    # If we're already running in a detached process (a child process), just run the tray directly
-    # This is identified by an environment variable we'll set
     if os.environ.get("SIMKL_TRAY_SUBPROCESS") == "1":
         logger.info("Detected we're in the tray subprocess - running tray app directly")
         print("Running tray application directly...")
         from simkl_mps.tray_app import run_tray_app
         sys.exit(run_tray_app())
+
 
     # Attempt service installation and starting
     print("[*] Ensuring background service is installed for auto-startup...")
