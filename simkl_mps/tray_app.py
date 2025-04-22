@@ -30,8 +30,8 @@ class TrayApp:
         self.status = "stopped"  # running, paused, error, stopped
         self.status_details = ""
         self.last_scrobbled = None
-        self.config_path = APP_DATA_DIR / ".simkl_scrobbler.env"
-        self.log_path = APP_DATA_DIR / "simkl-scrobbler.log"
+        self.config_path = APP_DATA_DIR / ".simkl-mps.env"
+        self.log_path = APP_DATA_DIR / "simkl-mps.log"
         self.setup_icon()
     
     def setup_icon(self):
@@ -39,7 +39,7 @@ class TrayApp:
         try:
             image = self.create_image()
             self.tray_icon = pystray.Icon(
-                "simkl_scrobbler",
+                "simkl-mps",
                 image,
                 "SIMKL Scrobbler",
                 menu=self.create_menu()
@@ -171,7 +171,7 @@ class TrayApp:
 
     def show_help(self, _=None):
         """Show help information"""
-        webbrowser.open("https://github.com/kavinthangavel/simkl-scrobbler/wiki")
+        webbrowser.open("https://github.com/kavinthangavel/media-player-scrobbler-for-simkl/wiki")
 
     def show_about(self, _=None):
         """Show information about the application and ensure tray remains responsive after closing dialog"""
@@ -416,23 +416,12 @@ class TrayApp:
 def run_tray_app():
     """Run the application in tray mode"""
     try:
-        # Setup logging to file when run directly
-        if __name__ == "__main__":
-            # Configure additional file logging when run as standalone
-            from .main import APP_DATA_DIR
-            log_file = APP_DATA_DIR / "tray_app.log"
-            file_handler = logging.FileHandler(log_file)
-            file_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(name)s - %(message)s'))
-            logging.getLogger().addHandler(file_handler)
-            logging.getLogger().setLevel(logging.INFO)
-            logger.info(f"Tray application started directly, logging to {log_file}")
-        
+        # Remove any tray_app.log setup, use main logging config
         app = TrayApp()
         app.run()
     except Exception as e:
         logger.error(f"Critical error in tray app: {e}")
         print(f"Failed to start in tray mode: {e}")
-        
         # Fall back to console mode
         print("Falling back to console mode.")
         scrobbler = SimklScrobbler()

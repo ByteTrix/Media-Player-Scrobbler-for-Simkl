@@ -5,7 +5,8 @@
 # Apply to PRs modifying code within the main application package.
 feature:
 - changed-files:
-  - any-glob-to-any-file: 'simkl_scrobbler/**/*.py'
+  - any-glob-to-any-file: 'simkl_mps/**/*.py'
+  - any-glob-to-any-file: 'simkl_mps/**/*.py'
 
 # Label: 'documentation'
 # Apply to PRs modifying documentation files (in /docs or any .md/.rst file).
@@ -27,8 +28,10 @@ workflow:
 test:
 - changed-files:
   - any-glob-to-any-file: 'tests/**/*' # Files in the main tests directory
-  - any-glob-to-any-file: 'simkl_scrobbler/**/*_test.py' # Test files ending with _test.py
-  - any-glob-to-any-file: 'simkl_scrobbler/**/test_*.py' # Test files starting with test_
+  - any-glob-to-any-file: 'simkl_mps/**/*_test.py' # Test files ending with _test.py
+  - any-glob-to-any-file: 'simkl_mps/**/test_*.py' # Test files starting with test_
+  - any-glob-to-any-file: 'simkl_mps/**/*_test.py' # Test files ending with _test.py
+  - any-glob-to-any-file: 'simkl_mps/**/test_*.py' # Test files starting with test_
 
 # Label: 'dependencies'
 # Apply to PRs modifying dependency definition files.
@@ -47,6 +50,9 @@ bug:
 # Apply to PRs where the source branch name suggests a new feature or enhancement.
 enhancement:
 - head-branch-regex: '(feature|feat|enhance)\/.*' # Matches branches like feature/..., feat/..., enhance/...
+
+refactor:
+- head-branch-regex: '(refactor|chore)\/.*'
 
 # Label: 'breaking'
 # Apply to PRs that explicitly mention a breaking change in the description.

@@ -146,7 +146,7 @@ class MovieScrobbler:
             # VLC Integration (Cross-Platform)
             if 'vlc' in process_name_lower:
                 logger.debug(f"VLC detected: {process_name}")
-                from simkl_scrobbler.players import VLCIntegration
+                from simkl_mps.players import VLCIntegration
                 
                 # Create VLC integration instance if needed (lazy loading)
                 if not hasattr(self, '_vlc_integration'):
@@ -195,7 +195,7 @@ class MovieScrobbler:
             # PotPlayer Integration (Windows-only)
             elif any(player in process_name_lower for player in ['potplayer.exe', 'potplayermini.exe', 'potplayermini64.exe']):
                 logger.debug(f"PotPlayer detected: {process_name}")
-                from simkl_scrobbler.players import PotPlayerIntegration
+                from simkl_mps.players import PotPlayerIntegration
                 
                 # Create PotPlayer integration instance if needed (lazy loading)
                 if not hasattr(self, '_potplayer_integration'):
@@ -530,7 +530,7 @@ class MovieScrobbler:
         if not self.client_id or not self.access_token:
             logger.warning("[Offline Sync] Missing credentials, cannot process backlog.")
             return 0
-        from simkl_scrobbler.simkl_api import mark_as_watched, search_movie, is_internet_connected
+        from simkl_mps.simkl_api import mark_as_watched, search_movie, is_internet_connected
         if not is_internet_connected():
             logger.info("[Offline Sync] No internet connection. Backlog sync deferred.")
             return 0

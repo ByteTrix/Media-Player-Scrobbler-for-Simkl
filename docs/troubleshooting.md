@@ -9,7 +9,7 @@ This document provides solutions for common issues with Simkl Scrobbler.
 | Issue | Solution |
 |-------|----------|
 | "Command not found" after installation | Ensure Python scripts directory is in your PATH |
-| Installation fails with permission error | Use `pip install --user simkl-scrobbler` or create a virtual environment |
+| Installation fails with permission error | Use `pip install --user simkl-mps` or create a virtual environment |
 | Poetry installation fails | Ensure you have the latest version of Poetry (`poetry self update`) |
 
 ### 🔐 Authentication Issues
@@ -18,7 +18,7 @@ This document provides solutions for common issues with Simkl Scrobbler.
 |-------|----------|
 | Authentication fails | Check internet connection; verify correct PIN entry |
 | "Invalid client ID" error | Your custom client ID might be incorrect; remove it from config |
-| Token expired or invalid | Run `simkl-scrobbler init` again to re-authenticate |
+| Token expired or invalid | Run `simkl-mps init` again to re-authenticate |
 
 ### 🔍 Movie Detection Problems
 
@@ -53,7 +53,7 @@ This document provides solutions for common issues with Simkl Scrobbler.
 | Issue | Solution |
 |-------|----------|
 | AppleScript permission errors | Grant accessibility permissions in System Preferences > Security & Privacy > Privacy > Accessibility |
-| Window detection failures | Install optional dependencies: `pip install "simkl-scrobbler[macos]"` |
+| Window detection failures | Install optional dependencies: `pip install "simkl-mps[macos]"` |
 | Service doesn't start | Check Console.app for LaunchAgent errors |
 
 #### Linux
@@ -62,7 +62,7 @@ This document provides solutions for common issues with Simkl Scrobbler.
 |-------|----------|
 | Window detection not working | Install required utilities: `sudo apt install xdotool wmctrl` |
 | D-Bus connection errors | Ensure you're running in a standard desktop environment |
-| Systemd service issues | Check service status: `systemctl --user status simkl-scrobbler` |
+| Systemd service issues | Check service status: `systemctl --user status simkl-mps` |
 
 ## 🔬 Diagnostic Commands
 
@@ -70,22 +70,22 @@ Use these commands to help diagnose problems:
 
 ```bash
 # Check installation
-pip show simkl-scrobbler
+pip show simkl-mps
 
 # Run with debug logging (still in background)
-simkl-scrobbler start --debug
+simkl-mps start --debug
 
 # Check logs (Windows)
-type %APPDATA%\kavinthangavel\simkl-scrobbler\simkl_scrobbler.log
+type %APPDATA%\kavinthangavel\simkl-mps\media-player-scrobbler-for-simkl.log
 
 # Check logs (macOS/Linux)
-cat ~/.local/share/kavinthangavel/simkl-scrobbler/simkl_scrobbler.log
+cat ~/.local/share/kavinthangavel/simkl-mps/media-player-scrobbler-for-simkl.log
 
 # Check service status
-simkl-scrobbler service-status
+simkl-mps service-status
 
 # Run with debug logging
-simkl-scrobbler start --debug
+simkl-mps start --debug
 
 # Test API connectivity (Windows PowerShell)
 Invoke-WebRequest -Uri https://api.simkl.com/ -Method Head
@@ -113,19 +113,19 @@ If you need a fresh start:
 
 1. Close all instances of the application
 2. Delete the application data directory:
-   - Windows: `%APPDATA%\kavinthangavel\simkl-scrobbler`
-   - macOS: `~/Library/Application Support/kavinthangavel/simkl-scrobbler`
-   - Linux: `~/.local/share/kavinthangavel/simkl-scrobbler`
-3. Reinstall: `pip install --force-reinstall simkl-scrobbler`
-4. Reinitialize: `simkl-scrobbler init`
+   - Windows: `%APPDATA%\kavinthangavel\simkl-mps`
+   - macOS: `~/Library/Application Support/kavinthangavel/simkl-mps`
+   - Linux: `~/.local/share/kavinthangavel/simkl-mps`
+3. Reinstall: `pip install --force-reinstall simkl-mps`
+4. Reinitialize: `simkl-mps init`
 
 ## 🆘 Getting Help
 
 If you've tried the solutions above and still have issues:
 
-1. Run in debug mode to get detailed logs: `simkl-scrobbler start --debug`
+1. Run in debug mode to get detailed logs: `simkl-mps start --debug`
 2. Open a GitHub issue with:
    - Your operating system and version
-   - The application version (`simkl-scrobbler --version`)
+   - The application version (`simkl-mps --version`)
    - Relevant log excerpts
    - Steps to reproduce the problem

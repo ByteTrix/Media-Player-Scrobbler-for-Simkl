@@ -44,3 +44,8 @@ Thumbs.db
 # Wiki temporary directory
 wiki_temp/
 tag_version.py
+simkl-scrobbler.spec
+generate_icon.py
+simkl_mps/assets/wizard-small.bmp
+simkl_mps/assets/wizard.bmp
+gitpush.py

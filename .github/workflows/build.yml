@@ -71,13 +71,13 @@ jobs:
           # Inject Client ID
           echo "Injecting SIMKL_CLIENT_ID into credentials.py"
           # Use a different delimiter for sed in case the secret contains slashes
-          sed -i "s|SIMKL_CLIENT_ID_PLACEHOLDER|${SIMKL_CLIENT_ID}|g" simkl_scrobbler/credentials.py
+          sed -i "s|SIMKL_CLIENT_ID_PLACEHOLDER|${SIMKL_CLIENT_ID}|g" simkl_mps/credentials.py
 
           # Inject Client Secret
           echo "Injecting SIMKL_CLIENT_SECRET into credentials.py"
-          sed -i "s|SIMKL_CLIENT_SECRET_PLACEHOLDER|${SIMKL_CLIENT_SECRET}|g" simkl_scrobbler/credentials.py
+          sed -i "s|SIMKL_CLIENT_SECRET_PLACEHOLDER|${SIMKL_CLIENT_SECRET}|g" simkl_mps/credentials.py
 
-          echo "✅ Credentials successfully injected into simkl_scrobbler/credentials.py"
+          echo "✅ Credentials successfully injected into simkl_mps/credentials.py"
 
       - name: Build and publish
         run: |

@@ -27,7 +27,7 @@ After=network.target
 [Service]
 Type=simple
 User=$user
-ExecStart=$python_path -m simkl_scrobbler.service_runner
+ExecStart=$python_path -m simkl_mps.service_runner
 WorkingDirectory=$working_dir
 Restart=on-failure
 RestartSec=5s
@@ -48,7 +48,7 @@ LAUNCHD_PLIST_TEMPLATE = Template("""
     <array>
         <string>$python_path</string>
         <string>-m</string>
-        <string>simkl_scrobbler.service_runner</string>
+        <string>simkl_mps.service_runner</string>
     </array>
     <key>RunAtLoad</key>
     <true/>
@@ -57,15 +57,15 @@ LAUNCHD_PLIST_TEMPLATE = Template("""
     <key>WorkingDirectory</key>
     <string>$working_dir</string>
     <key>StandardErrorPath</key>
-    <string>$log_dir/simkl_scrobbler.err</string>
+    <string>$log_dir/simkl-mps.err</string>
     <key>StandardOutPath</key>
-    <string>$log_dir/simkl_scrobbler.out</string>
+    <string>$log_dir/simkl-mps.out</string>
 </dict>
 </plist>
 """)
 
 WINDOWS_SERVICE_BATCH_TEMPLATE = Template("""@echo off
-"%PYTHONPATH%" -m simkl_scrobbler.service_runner
+"%PYTHONPATH%" -m simkl_mps.service_runner
 """)
 
 def safe_file_operations(func):
@@ -146,7 +146,7 @@ def check_windows_service_exists():
     
     # Check service directory
     from .main import APP_DATA_DIR
-    batch_path = APP_DATA_DIR / "service" / "simkl_scrobbler_service.bat"
+    batch_path = APP_DATA_DIR / "service" / "simkl-mps_service.bat"
     if batch_path.exists():
         return True
     
@@ -154,8 +154,8 @@ def check_windows_service_exists():
 
 def check_linux_service_exists():
     """Check if the Linux service already exists"""
-    user_service_path = pathlib.Path.home() / ".config/systemd/user/simkl-scrobbler.service"
-    system_service_path = pathlib.Path("/etc/systemd/system/simkl-scrobbler.service")
+    user_service_path = pathlib.Path.home() / ".config/systemd/user/simkl-mps.service"
+    system_service_path = pathlib.Path("/etc/systemd/system/simkl-mps.service")
     
     return user_service_path.exists() or system_service_path.exists()
 
@@ -170,7 +170,7 @@ def install_service():
     
     # Check for env file
     from .main import APP_DATA_DIR
-    env_path = APP_DATA_DIR / ".simkl_scrobbler.env"
+    env_path = APP_DATA_DIR / ".simkl-mps.env"
     if not env_path.exists():
         logger.error("Cannot install service: No credentials found")
         return False
@@ -202,7 +202,7 @@ def install_windows_service():
         os.makedirs(service_dir, exist_ok=True)
         
         # Create batch file for the service
-        batch_path = service_dir / "simkl_scrobbler_service.bat"
+        batch_path = service_dir / "simkl-mps_service.bat"
         
         # Make sure we can write to the file by removing it first if it exists
         if batch_path.exists():
@@ -311,13 +311,13 @@ def install_windows_service():
         return False
 
 def kill_existing_processes(force=False):
-    """Kill any existing simkl_scrobbler service processes"""
+    """Kill any existing media player scrobbler for simkl service processes"""
     try:
         import psutil
         for proc in psutil.process_iter(['name', 'cmdline']):
             try:
                 cmdline = proc.info['cmdline']
-                if cmdline and any('simkl_scrobbler.service_runner' in cmd for cmd in cmdline):
+                if cmdline and any('simkl_mps.service_runner' in cmd for cmd in cmdline):
                     logger.info(f"Terminating existing process: {proc.pid}")
                     if force:
                         proc.kill()  # Force kill
@@ -378,7 +378,7 @@ def install_linux_service():
             user_mode = True
         
         # Create service file content
-        service_path = service_dir / "simkl-scrobbler.service"
+        service_path = service_dir / "simkl-mps.service"
         service_content = SYSTEMD_SERVICE_TEMPLATE.substitute(
             user=current_user,
             python_path=python_path,
@@ -396,14 +396,14 @@ def install_linux_service():
         if user_mode:
             # User mode systemd commands
             subprocess.run(["systemctl", "--user", "daemon-reload"], check=True)
-            subprocess.run(["systemctl", "--user", "enable", "simkl-scrobbler.service"], check=True)
-            subprocess.run(["systemctl", "--user", "start", "simkl-scrobbler.service"], check=True)
+            subprocess.run(["systemctl", "--user", "enable", "simkl-mps.service"], check=True)
+            subprocess.run(["systemctl", "--user", "start", "simkl-mps.service"], check=True)
             logger.info("User systemd service installed successfully")
         else:
             # System mode systemd commands
             subprocess.run(["systemctl", "daemon-reload"], check=True)
-            subprocess.run(["systemctl", "enable", "simkl-scrobbler.service"], check=True)
-            subprocess.run(["systemctl", "start", "simkl-scrobbler.service"], check=True)
+            subprocess.run(["systemctl", "enable", "simkl-mps.service"], check=True)
+            subprocess.run(["systemctl", "start", "simkl-mps.service"], check=True)
             logger.info("System systemd service installed successfully")
         
         return True
@@ -504,7 +504,7 @@ def uninstall_windows_service():
         try:
             from .main import APP_DATA_DIR
             service_dir = APP_DATA_DIR / "service"
-            batch_path = service_dir / "simkl_scrobbler_service.bat"
+            batch_path = service_dir / "simkl-mps_service.bat"
             if batch_path.exists():
                 safe_remove_file(batch_path)
         except Exception as e:
@@ -521,19 +521,19 @@ def uninstall_linux_service():
     """Uninstall Linux systemd service"""
     try:
         # Check user service first
-        user_service_path = pathlib.Path.home() / ".config/systemd/user/simkl-scrobbler.service"
+        user_service_path = pathlib.Path.home() / ".config/systemd/user/simkl-mps.service"
         if user_service_path.exists():
             # Stop and disable user service
-            subprocess.run(["systemctl", "--user", "stop", "simkl-scrobbler.service"], check=False)
-            subprocess.run(["systemctl", "--user", "disable", "simkl-scrobbler.service"], check=False)
+            subprocess.run(["systemctl", "--user", "stop", "simkl-mps.service"], check=False)
+            subprocess.run(["systemctl", "--user", "disable", "simkl-mps.service"], check=False)
             os.unlink(user_service_path)
             subprocess.run(["systemctl", "--user", "daemon-reload"], check=True)
         else:
             # Try system service
-            system_service_path = pathlib.Path("/etc/systemd/system/simkl-scrobbler.service")
+            system_service_path = pathlib.Path("/etc/systemd/system/simkl-mps.service")
             if os.access(system_service_path, os.W_OK):
-                subprocess.run(["systemctl", "stop", "simkl-scrobbler.service"], check=False)
-                subprocess.run(["systemctl", "disable", "simkl-scrobbler.service"], check=False)
+                subprocess.run(["systemctl", "stop", "simkl-mps.service"], check=False)
+                subprocess.run(["systemctl", "disable", "simkl-mps.service"], check=False)
                 os.unlink(system_service_path)
                 subprocess.run(["systemctl", "daemon-reload"], check=True)
         
@@ -582,7 +582,7 @@ def check_windows_service_status():
         for proc in psutil.process_iter(['name', 'cmdline']):
             try:
                 cmdline = proc.info['cmdline']
-                if cmdline and any('simkl_scrobbler.service_runner' in cmd for cmd in cmdline):
+                if cmdline and any('simkl_mps.service_runner' in cmd for cmd in cmdline):
                     return True
             except (psutil.NoSuchProcess, psutil.AccessDenied):
                 pass
@@ -609,7 +609,7 @@ def check_windows_service_status():
         except ImportError:
             # Very basic fallback - just check if batch file exists
             from .main import APP_DATA_DIR
-            batch_path = APP_DATA_DIR / "service" / "simkl_scrobbler_service.bat"
+            batch_path = APP_DATA_DIR / "service" / "simkl-mps_service.bat"
             return batch_path.exists()
 
 def check_linux_service_status():
@@ -617,7 +617,7 @@ def check_linux_service_status():
     try:
         # Check user service first
         result = subprocess.run(
-            ["systemctl", "--user", "is-active", "simkl-scrobbler.service"],
+            ["systemctl", "--user", "is-active", "simkl-mps.service"],
             capture_output=True, text=True, check=False
         )
         if "active" in result.stdout:
@@ -625,7 +625,7 @@ def check_linux_service_status():
         
         # Then check system service
         result = subprocess.run(
-            ["systemctl", "is-active", "simkl-scrobbler.service"],
+            ["systemctl", "is-active", "simkl-mps.service"],
             capture_output=True, text=True, check=False
         )
         return "active" in result.stdout
@@ -637,7 +637,7 @@ def check_linux_service_status():
             for proc in psutil.process_iter(['cmdline']):
                 try:
                     cmdline = proc.info['cmdline']
-                    if cmdline and any('simkl_scrobbler.service_runner' in cmd for cmd in cmdline):
+                    if cmdline and any('simkl_mps.service_runner' in cmd for cmd in cmdline):
                         return True
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
                     pass
@@ -661,7 +661,7 @@ def check_macos_service_status():
                 for proc in psutil.process_iter(['cmdline']):
                     try:
                         cmdline = proc.info['cmdline']
-                        if cmdline and any('simkl_scrobbler.service_runner' in cmd for cmd in cmdline):
+                        if cmdline and any('simkl_mps.service_runner' in cmd for cmd in cmdline):
                             return True
                     except (psutil.NoSuchProcess, psutil.AccessDenied):
                         pass

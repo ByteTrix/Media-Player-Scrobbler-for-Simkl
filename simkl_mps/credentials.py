@@ -22,18 +22,18 @@ SIMKL_CLIENT_ID = CLIENT_ID_PLACEHOLDER
 SIMKL_CLIENT_SECRET = CLIENT_SECRET_PLACEHOLDER
 
 # Determine the path for the .env file storing the access token
-APP_NAME_FOR_PATH = "simkl-scrobbler"
+APP_NAME_FOR_PATH = "simkl-mps"
 USER_SUBDIR_FOR_PATH = "kavinthangavel"
 try:
     # Prefer user-specific directory
     APP_DATA_DIR_FOR_PATH = pathlib.Path.home() / USER_SUBDIR_FOR_PATH / APP_NAME_FOR_PATH
     APP_DATA_DIR_FOR_PATH.mkdir(parents=True, exist_ok=True)
-    ENV_FILE_PATH = APP_DATA_DIR_FOR_PATH / ".simkl_scrobbler.env"
+    ENV_FILE_PATH = APP_DATA_DIR_FOR_PATH / ".simkl-mps.env"
     logger.debug(f"Using env file path: {ENV_FILE_PATH}")
 except Exception as e:
     # Fallback to current directory if home cannot be determined
     logger.warning(f"Could not determine home directory ({e}), using fallback env path.")
-    ENV_FILE_PATH = pathlib.Path(".simkl_scrobbler.env")
+    ENV_FILE_PATH = pathlib.Path(".simkl-mps.env")
 
 # Path for development credentials file (only used in development)
 DEV_CREDS_PATH = pathlib.Path(".env")

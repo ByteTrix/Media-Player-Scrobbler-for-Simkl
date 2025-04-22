@@ -4,11 +4,11 @@ This document describes advanced configuration options for Simkl Scrobbler.
 
 ## 📁 Configuration Files
 
-The primary configuration is stored in `.simkl_scrobbler.env` in the application data directory:
+The primary configuration is stored in `.simkl_mps.env` in the application data directory:
 
-- Windows: `%APPDATA%\kavinthangavel\simkl-scrobbler\.simkl_scrobbler.env`
-- macOS: `~/Library/Application Support/kavinthangavel/simkl-scrobbler/.simkl_scrobbler.env`
-- Linux: `~/.local/share/kavinthangavel/simkl-scrobbler/.simkl_scrobbler.env`
+- Windows: `%APPDATA%\kavinthangavel\media-player-scrobbler-for-simkl\.simkl_mps.env`
+- macOS: `~/Library/Application Support/kavinthangavel/media-player-scrobbler-for-simkl/.simkl_mps.env`
+- Linux: `~/.local/share/kavinthangavel/media-player-scrobbler-for-simkl/.simkl_mps.env`
 
 ## 🔧 Environment Variables
 
@@ -28,11 +28,11 @@ Key files and their locations:
 
 | File | Purpose | Location |
 |------|---------|----------|
-| `simkl_scrobbler.log` | Main application log | APP_DATA_DIR/kavinthangavel/simkl-scrobbler |
-| `playback_log.jsonl` | Detailed event log | APP_DATA_DIR/kavinthangavel/simkl-scrobbler |
-| `media_cache.json` | Movie info cache | APP_DATA_DIR/kavinthangavel/simkl-scrobbler |
-| `backlog.json` | Offline queue | APP_DATA_DIR/kavinthangavel/simkl-scrobbler |
-| `.simkl_scrobbler.env` | Configuration | APP_DATA_DIR/kavinthangavel/simkl-scrobbler |
+| `simkl_mps.log` | Main application log | APP_DATA_DIR/kavinthangavel/media-player-scrobbler-for-simkl |
+| `playback_log.jsonl` | Detailed event log | APP_DATA_DIR/kavinthangavel/media-player-scrobbler-for-simkl |
+| `media_cache.json` | Movie info cache | APP_DATA_DIR/kavinthangavel/media-player-scrobbler-for-simkl |
+| `backlog.json` | Offline queue | APP_DATA_DIR/kavinthangavel/media-player-scrobbler-for-simkl |
+| `.simkl_mps.env` | Configuration | APP_DATA_DIR/kavinthangavel/media-player-scrobbler-for-simkl |
 
 Where `APP_DATA_DIR` is platform-specific:
 - Windows: `%APPDATA%`
@@ -45,7 +45,7 @@ Where `APP_DATA_DIR` is platform-specific:
 
 By default, movies are marked as watched after reaching 80% completion. To change this:
 
-1. Create or edit `.simkl_scrobbler.env` in the application data directory
+1. Create or edit `.simkl_mps.env` in the application data directory
 2. Add: `SIMKL_COMPLETION_THRESHOLD=85` (or your preferred percentage)
 
 ### ⏲️ Custom Polling Interval
@@ -113,4 +113,4 @@ To completely reset the configuration:
 
 1. Close all instances of the application
 2. Delete the application data directory
-3. Reinitialize with `simkl-scrobbler init`
+3. Reinitialize with `media-player-scrobbler-for-simkl init`

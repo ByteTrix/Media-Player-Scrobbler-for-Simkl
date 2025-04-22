@@ -11,10 +11,10 @@ This guide covers detailed installation instructions for Simkl Scrobbler across 
 
 ```bash
 # Install using pip
-pip install simkl-scrobbler
+pip install simkl-mps
 
 # Initialize with your Simkl account
-simkl-scrobbler init
+simkl-mps init
 ```
 
 **After Installation Setup the Web Interface in Supported Players**
@@ -30,7 +30,7 @@ No additional requirements.
 For full functionality:
 ```bash
 # Install optional dependencies (recommended)
-pip install "simkl-scrobbler"
+pip install "simkl-mps"
 ```
 
 ### Linux
@@ -46,7 +46,7 @@ sudo dnf install wmctrl xdotool plyer
 sudo pacman -S wmctrl xdotool plyer
 
 # Install optional dependencies
-pip install "simkl-scrobbler"
+pip install "simkl-mps"
 ```
 
 ## 🔄 Alternative Installation Methods
@@ -60,29 +60,29 @@ pip install "simkl-scrobbler"
 python -m pip install --user pipx
 python -m pipx ensurepath  # Restart terminal after this
 
-# Install simkl-scrobbler
-pipx install simkl-scrobbler
+# Install simkl-mps
+pipx install simkl-mps
 
 # For macOS specific dependencies
-pipx install simkl-scrobbler --extras macos
+pipx install simkl-mps --extras macos
 
 # For Linux specific dependencies
-pipx install simkl-scrobbler --extras linux
+pipx install simkl-mps --extras linux
 ```
 
 ### Development Installation (from source)
 
 ```bash
 # Clone repository
-git clone https://github.com/kavinthangavel/simkl-movie-tracker.git
-cd simkl-movie-tracker
+git clone https://github.com/kavinthangavel/simkl-mps.git
+cd simkl-mps
 
 # Install with Poetry
 poetry install
 
 # Run commands
-poetry run simkl-scrobbler init
-poetry run simkl-scrobbler start
+poetry run simkl-mps init
+poetry run simkl-mps start
 ```
 
 ## ⚙️ Running as a Service
@@ -90,7 +90,7 @@ poetry run simkl-scrobbler start
 ### Installing as a Windows Service
 
 ```bash
-simkl-scrobbler install-service
+simkl-mps install-service
 ```
 
 This will install the application to run automatically at system startup.
@@ -98,7 +98,7 @@ This will install the application to run automatically at system startup.
 ### Installing as a Linux Service (systemd)
 
 ```bash
-simkl-scrobbler install-service
+simkl-mps install-service
 ```
 
 This creates and enables a systemd user service that starts automatically at login.
@@ -106,7 +106,7 @@ This creates and enables a systemd user service that starts automatically at log
 ### Installing as a macOS Launch Agent
 
 ```bash
-simkl-scrobbler install-service
+simkl-mps install-service
 ```
 
 This creates and loads a LaunchAgent that runs the application at login.
@@ -116,7 +116,7 @@ This creates and loads a LaunchAgent that runs the application at login.
 After installation, verify that the application is properly installed:
 
 ```bash
-simkl-scrobbler --version
+simkl-mps --version
 ```
 
 This should display the version number of the installed application.
