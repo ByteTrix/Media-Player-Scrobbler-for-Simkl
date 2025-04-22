@@ -1,5 +1,5 @@
 """
-System tray implementation for SIMKL Scrobbler.
+System tray implementation for Media Player Scrobbler for SIMKL.
 Provides a system tray icon and notifications for background operation.
 """
 
@@ -106,7 +106,7 @@ class TrayApp:
     def create_menu(self):
         """Create the system tray menu with a professional layout"""
         menu_items = [
-            pystray.MenuItem("📌 SIMKL Scrobbler", None),
+            pystray.MenuItem("📌 Scrobbler for SIMKL", None),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem(f"Status: {self.get_status_text()}", None, enabled=False),
             pystray.Menu.SEPARATOR,
@@ -208,12 +208,18 @@ class TrayApp:
         """Run the tray application"""
         logger.info("Starting SIMKL Scrobbler in tray mode")
         self.scrobbler = SimklScrobbler()
-        if not self.scrobbler.initialize():
-            print("Failed to initialize. Please check your credentials.")
+        initialized = self.scrobbler.initialize()
+        if initialized:
+            started = self.start_monitoring()
+            if not started:
+                self.status = "error"
+                self.status_details = "Failed to start monitoring"
+                self.update_icon()
+        else:
             self.status = "error"
+            self.status_details = "Failed to initialize"
             self.update_icon()
-            return
-        self.start_monitoring()
+        # Always show the tray icon, even if monitoring did not start
         try:
             self.tray_icon.run()
         except Exception as e:
@@ -230,25 +236,64 @@ class TrayApp:
 
     def start_monitoring(self, _=None):
         """Start the scrobbler monitoring"""
+        # Always check the actual running state
+        if self.scrobbler and hasattr(self.scrobbler, 'monitor'):
+            if not getattr(self.scrobbler.monitor, 'running', False):
+                self.monitoring_active = False
         if not self.monitoring_active:
-            if self.scrobbler.start():
-                self.monitoring_active = True
-                self.status = "running"
-                self.update_icon()
-                self.show_notification(
-                    "SIMKL Scrobbler",
-                    "Media monitoring started"
-                )
-                logger.info("Monitoring started from tray")
-                print("Monitoring started")
-            else:
+            # Make sure scrobbler is initialized
+            if not self.scrobbler:
+                self.scrobbler = SimklScrobbler()
+                if not self.scrobbler.initialize():
+                    self.status = "error"
+                    self.status_details = "Failed to initialize"
+                    self.update_icon()
+                    self.show_notification(
+                        "SIMKL Scrobbler Error",
+                        "Failed to initialize. Check your credentials."
+                    )
+                    logger.error("Failed to initialize scrobbler from tray app")
+                    self.monitoring_active = False
+                    return False
+            # Try to start the scrobbler
+            try:
+                started = self.scrobbler.start()
+                if started:
+                    self.monitoring_active = True
+                    self.status = "running"
+                    self.status_details = ""
+                    self.update_icon()
+                    self.show_notification(
+                        "SIMKL Scrobbler",
+                        "Media monitoring started"
+                    )
+                    logger.info("Monitoring started from tray")
+                    print("Monitoring started")
+                    return True
+                else:
+                    self.monitoring_active = False
+                    self.status = "error"
+                    self.status_details = "Failed to start"
+                    self.update_icon()
+                    self.show_notification(
+                        "SIMKL Scrobbler Error",
+                        "Failed to start monitoring"
+                    )
+                    logger.error("Failed to start monitoring from tray app")
+                    print("Failed to start monitoring")
+                    return False
+            except Exception as e:
+                self.monitoring_active = False
                 self.status = "error"
+                self.status_details = str(e)
                 self.update_icon()
+                logger.exception("Exception during start_monitoring in tray app")
                 self.show_notification(
                     "SIMKL Scrobbler Error",
-                    "Failed to start monitoring"
+                    f"Error starting monitoring: {e}"
                 )
-                print("Failed to start monitoring")
+                return False
+        return True
 
     def pause_monitoring(self, _=None):
         """Pause monitoring (actually pause scrobbling, not just stop)"""
@@ -290,6 +335,7 @@ class TrayApp:
             self.scrobbler.stop()
             self.monitoring_active = False
             self.status = "stopped"
+            self.status_details = ""
             self.update_icon()
             self.show_notification(
                 "SIMKL Scrobbler",

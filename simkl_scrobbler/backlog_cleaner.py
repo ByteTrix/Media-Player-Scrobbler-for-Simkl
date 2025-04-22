@@ -22,27 +22,41 @@ class BacklogCleaner:
         self.threshold_days = threshold_days  # New parameter for old entries threshold
 
     def _load_backlog(self):
-        """Load the backlog from file"""
+        """Load the backlog from file, creating the file if it does not exist."""
+        if not os.path.exists(self.app_data_dir):
+            try:
+                os.makedirs(self.app_data_dir, exist_ok=True)
+                logger.info(f"Created app data directory: {self.app_data_dir}")
+            except Exception as e:
+                logger.error(f"Failed to create app data directory: {e}")
+                return []
         if os.path.exists(self.backlog_file):
             try:
-                # Specify encoding for reading JSON
                 with open(self.backlog_file, 'r', encoding='utf-8') as f:
                     content = f.read().strip()
-                    if content:  # Only try to parse if file is not empty
-                        f.seek(0) # Reset file pointer before reading again for JSON parsing
+                    if content:
+                        f.seek(0)
                         return json.load(f)
                     else:
-                        logger.debug("Backlog file exists but is empty. Starting with empty backlog.") # Changed to debug
+                        logger.debug("Backlog file exists but is empty. Starting with empty backlog.")
                         return []
             except json.JSONDecodeError as e:
                 logger.error(f"Error loading backlog: {e}")
                 logger.info("Creating new empty backlog due to loading error")
-                # Set backlog to empty list and then save it
                 self.backlog = []
-                self._save_backlog() # Call without arguments
-                return [] # Return the newly created empty backlog
+                self._save_backlog()
+                return []
             except Exception as e:
                 logger.error(f"Error loading backlog: {e}")
+        else:
+            # File does not exist, create it
+            try:
+                with open(self.backlog_file, 'w', encoding='utf-8') as f:
+                    json.dump([], f)
+                logger.info(f"Created new backlog file: {self.backlog_file}")
+            except Exception as e:
+                logger.error(f"Failed to create backlog file: {e}")
+            return []
         return []
 
     def _save_backlog(self):

@@ -191,7 +191,17 @@ def start_command(args):
     """
     print(f"{Fore.CYAN}=== Starting Simkl Scrobbler ==={Style.RESET_ALL}")
     logger.info("Executing start command.")
-    if not _check_prerequisites(): return 1
+    # Try prerequisites, if missing access token, run init automatically
+    if not _check_prerequisites():
+        print(f"{Fore.YELLOW}[!] No access token found. Running initialization...{Style.RESET_ALL}")
+        init_result = init_command(args)
+        if init_result != 0:
+            print(f"{Fore.RED}ERROR: Initialization failed. Cannot start application.{Style.RESET_ALL}", file=sys.stderr)
+            return 1
+        # After successful init, check prerequisites again
+        if not _check_prerequisites():
+            print(f"{Fore.RED}ERROR: Still missing credentials after initialization. Aborting start.{Style.RESET_ALL}", file=sys.stderr)
+            return 1
 
     # Attempt service installation and starting
     print("[*] Ensuring background service is installed for auto-startup...")

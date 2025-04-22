@@ -378,8 +378,11 @@ class MovieScrobbler:
                      # Try to mark as finished, if it fails due to being offline, it will add to backlog
                      self.mark_as_finished(self.simkl_id, self.movie_name or self.currently_tracking)
                  else:
-                     logger.warning("Cannot mark as finished: Simkl ID unknown.")
-                     # Consider adding to backlog even without ID? Maybe not useful.
+                     # No Simkl ID (likely offline), add to backlog with temp ID
+                     temp_id = f"temp_{self.currently_tracking}_{int(time.time())}"
+                     logger.warning(f"No Simkl ID for '{self.currently_tracking}'. Adding to backlog with temp ID.")
+                     self.backlog_cleaner.add(temp_id, self.currently_tracking)
+                     self.completed = True  # Prevent repeated backlog adds
             
             # Reset the check timer
             self.last_progress_check = current_time 
@@ -402,6 +405,10 @@ class MovieScrobbler:
                 "total_duration_seconds": self.total_duration_seconds,
                 "estimated_duration_seconds": self.estimated_duration # Keep for reference
             }
+
+        # Reset no-internet log if connection is restored
+        if is_internet_connected():
+            self._reset_no_internet_log()
 
         return None
 
@@ -486,18 +493,15 @@ class MovieScrobbler:
             logger.error("Cannot mark movie as finished: missing API credentials")
             self._log_playback_event("marked_as_finished_fail_credentials")
             logger.info(f"Adding '{title}' (ID: {simkl_id}) to backlog due to missing credentials")
-            self.backlog_cleaner.add(simkl_id, title) # Use the existing BacklogCleaner instance
+            self.backlog_cleaner.add(simkl_id, title)
             return False
 
         try:
-            # Import inside method to avoid circular imports
-            from simkl_scrobbler.simkl_api import mark_as_watched, is_internet_connected
-            
             # First check if we're online
             if not is_internet_connected():
                 logger.warning(f"System appears to be offline. Adding '{title}' (ID: {simkl_id}) to backlog for future syncing")
                 self._log_playback_event("marked_as_finished_offline")
-                self.backlog.add(simkl_id, title)
+                self.backlog_cleaner.add(simkl_id, title)
                 return False
             
             result = mark_as_watched(simkl_id, self.client_id, self.access_token)
@@ -511,105 +515,95 @@ class MovieScrobbler:
                 logger.warning(f"Failed to mark '{title}' as watched, adding to backlog")
                 # Log API failure and backlog add
                 self._log_playback_event("marked_as_finished_api_fail")
-                self.backlog.add(simkl_id, title) # Backlog add logs itself
+                self.backlog_cleaner.add(simkl_id, title)
                 return False
         except Exception as e:
             logger.error(f"Error marking movie as watched: {e}")
             # Log exception and backlog add
             self._log_playback_event("marked_as_finished_api_error", {"error": str(e)})
             logger.info(f"Adding '{title}' (ID: {simkl_id}) to backlog due to error: {e}")
-            self.backlog.add(simkl_id, title) # Backlog add logs itself
+            self.backlog_cleaner.add(simkl_id, title)
             return False
 
     def process_backlog(self):
-        """Process pending backlog items"""
+        """Process pending backlog items, resolving temp IDs if needed."""
         if not self.client_id or not self.access_token:
+            logger.warning("[Offline Sync] Missing credentials, cannot process backlog.")
             return 0
-
         from simkl_scrobbler.simkl_api import mark_as_watched, search_movie, is_internet_connected
-
-        # First check if we're online - if not, exit early
         if not is_internet_connected():
-            logger.info("Backlog synchronization deferred: No internet connection available")
+            logger.info("[Offline Sync] No internet connection. Backlog sync deferred.")
             return 0
-
         success_count = 0
         pending = self.backlog_cleaner.get_pending()
-
         if not pending:
+            logger.info("[Offline Sync] No backlog entries to sync.")
             return 0
-
-        logger.info(f"Backlog synchronization started: Processing {len(pending)} items")
-
-        # Process in reverse order? Or keep order? Keep order for now.
-        items_to_process = list(pending) # Create copy to iterate over while modifying original
-
+        logger.info(f"[Offline Sync] Processing {len(pending)} backlog entries...")
+        items_to_process = list(pending)
         for item in items_to_process:
             simkl_id = item.get("simkl_id")
             title = item.get("title", "Unknown")
-            timestamp = item.get("timestamp")
-            
-            # Check if this is a temporary ID (offline mode)
-            is_temp_id = False
+            # Handle temp IDs
             if simkl_id and isinstance(simkl_id, str) and simkl_id.startswith("temp_"):
-                is_temp_id = True
-                logger.info(f"Resolving temporary ID for '{title}'")
-                # Search for the real movie ID
+                logger.info(f"[Offline Sync] Resolving temp ID for '{title}'...")
                 movie_result = search_movie(title, self.client_id, self.access_token)
-                
+                real_simkl_id = None
                 if movie_result:
-                    # Extract the real simkl_id from the search result
-                    real_simkl_id = None
                     if 'movie' in movie_result and 'ids' in movie_result['movie']:
                         ids = movie_result['movie']['ids']
                         real_simkl_id = ids.get('simkl') or ids.get('simkl_id')
                     elif 'ids' in movie_result:
                         ids = movie_result['ids']
                         real_simkl_id = ids.get('simkl') or ids.get('simkl_id')
-                    
-                    if real_simkl_id:
-                        logger.info(f"Successfully resolved ID for '{title}': {real_simkl_id}")
-                        # Update to use the real ID
-                        simkl_id = real_simkl_id
-                    else:
-                        logger.warning(f"Unable to resolve permanent ID for '{title}', skipping")
-                        continue
-                else:
-                    logger.warning(f"Unable to find '{title}' on Simkl API, skipping")
-                    continue
-
-            if simkl_id:
-                logger.info(f"Synchronizing: '{title}' (ID: {simkl_id})")
-                try:
-                    result = mark_as_watched(simkl_id, self.client_id, self.access_token)
+                if real_simkl_id:
+                    logger.info(f"[Offline Sync] Resolved '{title}' to Simkl ID {real_simkl_id}. Marking as watched...")
+                    result = mark_as_watched(real_simkl_id, self.client_id, self.access_token)
                     if result:
-                        logger.info(f"Successfully marked '{title}' as watched")
-                        # If it was a temp ID, remove it using the original temp ID
-                        if is_temp_id:
-                            original_id = item.get("simkl_id")
-                            self.backlog_cleaner.remove(original_id)
-                        else:
-                            self.backlog_cleaner.remove(simkl_id)
+                        logger.info(f"[Offline Sync] Successfully marked '{title}' as watched on Simkl.")
+                        self.backlog_cleaner.remove(simkl_id)
                         success_count += 1
-                        self._log_playback_event("backlog_sync_success", {"backlog_simkl_id": simkl_id, "backlog_title": title})
                     else:
-                        logger.warning(f"API sync failed for '{title}', will retry later")
-                        self._log_playback_event("backlog_sync_fail", {"backlog_simkl_id": simkl_id, "backlog_title": title})
-                        # Keep item in backlog for next try
-                except Exception as e:
-                    logger.error(f"Synchronization error for '{title}': {e}")
-                    self._log_playback_event("backlog_sync_error", {"backlog_simkl_id": simkl_id, "backlog_title": title, "error": str(e)})
-                    # Keep item in backlog for next try
+                        logger.warning(f"[Offline Sync] Failed to mark '{title}' as watched. Will retry.")
+                else:
+                    logger.warning(f"[Offline Sync] Could not resolve Simkl ID for '{title}'. Will retry.")
+            elif simkl_id:
+                logger.info(f"[Offline Sync] Syncing '{title}' (ID: {simkl_id}) to Simkl...")
+                result = mark_as_watched(simkl_id, self.client_id, self.access_token)
+                if result:
+                    logger.info(f"[Offline Sync] Successfully marked '{title}' as watched on Simkl.")
+                    self.backlog_cleaner.remove(simkl_id)
+                    success_count += 1
+                else:
+                    logger.warning(f"[Offline Sync] Failed to mark '{title}' as watched. Will retry.")
             else:
-                logger.warning(f"Invalid backlog entry (missing ID): {item}")
-                # Optionally remove invalid items? For now, keep them.
-
+                logger.warning(f"[Offline Sync] Invalid backlog entry: {item}")
         if success_count > 0:
-            logger.info(f"Backlog synchronization completed: {success_count} of {len(items_to_process)} items synchronized")
-        elif items_to_process:
-            logger.info("Backlog synchronization completed: No items synchronized successfully")
-
+            logger.info(f"[Offline Sync] Backlog sync complete. {success_count} entries synced.")
+        else:
+            logger.info("[Offline Sync] No entries were synced this cycle.")
         return success_count
+
+    def start_offline_sync_thread(self, interval_seconds=120):
+        """Start a background thread to periodically sync backlog when online."""
+        if hasattr(self, '_offline_sync_thread') and self._offline_sync_thread.is_alive():
+            return  # Already running
+        import threading
+        def sync_loop():
+            while True:
+                try:
+                    if is_internet_connected():
+                        logger.info("[Offline Sync] Internet detected. Processing backlog...")
+                        synced = self.process_backlog()
+                        if synced > 0:
+                            logger.info(f"[Offline Sync] Synced {synced} backlog entries to Simkl.")
+                    else:
+                        logger.debug("[Offline Sync] Still offline. Will retry later.")
+                except Exception as e:
+                    logger.error(f"[Offline Sync] Error during backlog sync: {e}")
+                time.sleep(interval_seconds)
+        self._offline_sync_thread = threading.Thread(target=sync_loop, daemon=True)
+        self._offline_sync_thread.start()
 
     def cache_movie_info(self, title, simkl_id, movie_name, runtime=None):
         """
@@ -704,3 +698,15 @@ class MovieScrobbler:
             )
             
         # ... (rest of the method)
+
+    def _log_no_internet_once(self, context):
+        """Log a warning about no internet only once per context until connection is restored."""
+        if not hasattr(self, '_no_internet_logged'):
+            self._no_internet_logged = {}
+        if not self._no_internet_logged.get(context, False):
+            logger.warning(f"No internet connection. {context}")
+            self._no_internet_logged[context] = True
+
+    def _reset_no_internet_log(self):
+        if hasattr(self, '_no_internet_logged'):
+            self._no_internet_logged = {}
