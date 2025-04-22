@@ -376,8 +376,8 @@ class MovieScrobbler:
                  self._log_playback_event("completion_threshold_reached")
                  
                  if self.simkl_id:
-                     # Try to mark as finished, if it fails due to being offline, it will add to backlog
-                     self.mark_as_finished(self.simkl_id, self.movie_name or self.currently_tracking)
+                     # Try to mark as watched, if it fails due to being offline, it will add to backlog
+                     self.mark_as_watched(self.simkl_id, self.movie_name or self.currently_tracking)
                  else:
                      # No Simkl ID (likely offline), add to backlog with temp ID
                      temp_id = f"temp_{self.currently_tracking}_{int(time.time())}"
@@ -582,14 +582,6 @@ class MovieScrobbler:
                     f"Error marking '{display_title}' as watched: {e}"
                 )
             return False
-            
-    # Keep mark_as_finished as an alias for backward compatibility
-    def mark_as_finished(self, simkl_id, title):
-        """
-        Legacy alias for mark_as_watched method.
-        Kept for backward compatibility.
-        """
-        return self.mark_as_watched(simkl_id, title)
 
     def process_backlog(self):
         """Process pending backlog items, resolving temp IDs if needed."""
