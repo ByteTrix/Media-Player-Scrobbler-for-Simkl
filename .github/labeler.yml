@@ -51,6 +51,9 @@ bug:
 enhancement:
 - head-branch-regex: '(feature|feat|enhance)\/.*' # Matches branches like feature/..., feat/..., enhance/...
 
+refactor:
+- head-branch-regex: '(refactor|chore)\/.*'
+
 # Label: 'breaking'
 # Apply to PRs that explicitly mention a breaking change in the description.
 breaking:
