@@ -1,8 +1,8 @@
 # SIMKL Movie Tracker
 
 [![GitHub License](https://img.shields.io/github/license/kavinthangavel/media-player-scrobbler-for-simkl)](https://github.com/kavinthangavel/media-player-scrobbler-for-simkl/blob/main/LICENSE)
-[![PyPI Version](https://img.shields.io/pypi/v/media-player-scrobbler-for-simkl)](https://pypi.org/project/media-player-scrobbler-for-simkl/)
-[![Python Versions](https://img.shields.io/pypi/pyversions/media-player-scrobbler-for-simkl)](https://pypi.org/project/media-player-scrobbler-for-simkl/)
+[![PyPI Version](https://img.shields.io/pypi/v/simkl-mps)](https://pypi.org/project/simkl-mps/)
+[![Python Versions](https://img.shields.io/pypi/pyversions/simkl-mps)](https://pypi.org/project/simkl-mps/)
 
 SIMKL Movie Tracker is an automatic scrobbler for [SIMKL](https://simkl.com) that tracks your media playback activity across various media players and updates your SIMKL account accordingly.
 
@@ -34,4 +34,4 @@ For detailed information, check out the following sections:
 
 ## License
 
-SIMKL Movie Tracker is licensed under the MIT License. See the [LICENSE](https://github.com/kavinthangavel/media-player-scrobbler-for-simkl/blob/main/LICENSE) file for details.
+SIMKL Movie Tracker is licensed under the GNU GPL v3 License. See the [LICENSE](https://github.com/kavinthangavel/media-player-scrobbler-for-simkl/blob/main/LICENSE) file for details.

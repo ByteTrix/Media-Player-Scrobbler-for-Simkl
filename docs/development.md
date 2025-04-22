@@ -129,7 +129,7 @@ For development, you can use the default client ID or register your own:
 
 ## 🔍 Debugging Tips
 
-- Use the `--debug` flag to enable detailed logging: `media-player-scrobbler-for-simkl start --debug`
+- Use the `--debug` flag to enable detailed logging: `simkl-mps start --debug`
 - Check logs in the application data directory
 - Use Python's debugger (pdb) or an IDE like PyCharm or VS Code for step-by-step debugging
 - Test player integration separately using the player-specific test scripts
