@@ -7,7 +7,7 @@ This document provides information for developers who want to contribute to Simk
 ```
 simkl-movie-tracker/
 ├── docs/                    # Documentation
-├── simkl_scrobbler/         # Main package
+├── simkl_mps/         # Main package
 │   ├── __init__.py          # Package initialization
 │   ├── backlog_cleaner.py   # Handles offline queue
 │   ├── cli.py               # Command-line interface
@@ -64,7 +64,7 @@ simkl-movie-tracker/
 poetry run pytest
 
 # Run tests with coverage
-poetry run pytest --cov=simkl_scrobbler
+poetry run pytest --cov=simkl_mps
 
 # Run specific test file
 poetry run pytest tests/test_specific_file.py
@@ -75,14 +75,14 @@ poetry run pytest tests/test_specific_file.py
 This project follows PEP 8 style guidelines. Use flake8 to check your code:
 
 ```bash
-poetry run flake8 simkl_scrobbler
+poetry run flake8 simkl_mps
 ```
 
 ## ➕ Adding a New Media Player
 
 To add support for a new media player:
 
-1. Create a new file in the `players/` directory (e.g., `simkl_scrobbler/players/new_player.py`)
+1. Create a new file in the `players/` directory (e.g., `simkl_mps/players/new_player.py`)
 2. Implement a class that follows the player integration interface:
    ```python
    class NewPlayerIntegration:
@@ -129,7 +129,7 @@ For development, you can use the default client ID or register your own:
 
 ## 🔍 Debugging Tips
 
-- Use the `--debug` flag to enable detailed logging: `simkl-scrobbler start --debug`
+- Use the `--debug` flag to enable detailed logging: `media-player-scrobbler-for-simkl start --debug`
 - Check logs in the application data directory
 - Use Python's debugger (pdb) or an IDE like PyCharm or VS Code for step-by-step debugging
 - Test player integration separately using the player-specific test scripts

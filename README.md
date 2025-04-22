@@ -27,13 +27,13 @@ A cross-platform automatic movie tracker that seamlessly integrates with [Simkl]
 
 ```bash
 # 📥 Install
-pip install simkl-scrobbler
+pip install simkl-mps
 
 # 🔑 Set up with your Simkl account
-simkl-scrobbler init
+simkl-mps init
 
 # 🚀 Start tracking your movies
-simkl-scrobbler start
+simkl-mps start
 ```
 
 ## 📚 Documentation
@@ -95,9 +95,9 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 <div align="center">
   <p>Made with ❤️ by <a href="https://github.com/kavinthangavel">kavinthangavel</a></p>
   <p>
-    <a href="https://github.com/kavinthangavel/simkl-movie-tracker/stargazers">⭐ Star us on GitHub</a> •
-    <a href="https://github.com/kavinthangavel/simkl-movie-tracker/issues">🐛 Report Bug</a> •
-    <a href="https://github.com/kavinthangavel/simkl-movie-tracker/issues">✨ Request Feature</a>
+    <a href="https://github.com/kavinthangavel/media-player-scrobbler-for-simkl/stargazers">⭐ Star us on GitHub</a> •
+    <a href="https://github.com/kavinthangavel/media-player-scrobbler-for-simkl/issues">🐛 Report Bug</a> •
+    <a href="https://github.com/kavinthangavel/media-player-scrobbler-for-simkl/issues">✨ Request Feature</a>
   </p>
 </div>
 

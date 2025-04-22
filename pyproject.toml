@@ -1,13 +1,13 @@
 [tool.poetry]
-name = "simkl-scrobbler"
+name = "simkl-mps"
 version = "1.2.9"
 description = "Automatic Movie Scrobbler for Simkl"
 authors = ["kavinthangavel <kavinthangavel.dev@gmail.com>"]
 license = "MIT"
 readme = "README.md"
 keywords = ["simkl", "scrobbler"]
-homepage = "https://github.com/kavinthangavel/simkl-scrobbler"
-repository = "https://github.com/kavinthangavel/simkl-scrobbler"
+homepage = "https://github.com/kavinthangavel/media-player-scrobbler-for-simkl"
+repository = "https://github.com/kavinthangavel/media-player-scrobbler-for-simkl"
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: End Users/Desktop",
@@ -15,7 +15,7 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3"
 ]
-packages = [{include = "simkl_scrobbler"}]
+packages = [{include = "simkl_mps"}]
 
 [tool.poetry.dependencies]
 python = ">=3.9,<3.14"
@@ -44,7 +44,8 @@ types-requests = ">=2.25.0" # For type hints when mocking requests
 pyinstaller = "^6.13.0"
 
 [tool.poetry.scripts]
-simkl-scrobbler = "simkl_scrobbler.cli:main"
+simkl-mps = "simkl_mps.cli:main"
+
 
 [tool.poetry.extras]
 linux = ["python-xlib", "PyGObject"]

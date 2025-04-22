@@ -23,7 +23,7 @@ def get_version():
     # Method 1: Use importlib.metadata (Python 3.8+) - most modern approach
     try:
         # Try both possible package names
-        for pkg_name in ['simkl-movie-tracker', 'simkl_scrobbler']:
+        for pkg_name in ['simkl-mps', 'simkl_mps']:
             try:
                 return importlib.metadata.version(pkg_name)
             except importlib.metadata.PackageNotFoundError:
@@ -52,7 +52,7 @@ def get_version():
     
     # Method 3: Check for __version__ in package __init__.py
     try:
-        from simkl_scrobbler import __version__
+        from simkl_mps import __version__
         return __version__
     except (ImportError, AttributeError):
         pass
@@ -60,8 +60,8 @@ def get_version():
     # Method 4: Check for a version file in the package
     try:
         # Determine the package directory
-        import simkl_scrobbler
-        pkg_dir = Path(simkl_scrobbler.__file__).parent
+        import simkl_mps
+        pkg_dir = Path(simkl_mps.__file__).parent
         version_file = pkg_dir / 'VERSION'
         if version_file.exists():
             return version_file.read_text().strip()
@@ -83,11 +83,11 @@ if len(sys.argv) > 1 and sys.argv[1] in ["--version", "-v", "version"]:
     sys.exit(0)
 
 # Only import other modules when not just checking version
-from simkl_scrobbler.simkl_api import authenticate
-from simkl_scrobbler.credentials import get_credentials, get_env_file_path
-from simkl_scrobbler.main import SimklScrobbler, APP_DATA_DIR # Import APP_DATA_DIR for log path display
-from simkl_scrobbler.tray_app import run_tray_app
-from simkl_scrobbler.service_manager import install_service, uninstall_service, service_status
+from simkl_mps.simkl_api import authenticate
+from simkl_mps.credentials import get_credentials, get_env_file_path
+from simkl_mps.main import SimklScrobbler, APP_DATA_DIR # Import APP_DATA_DIR for log path display
+from simkl_mps.tray_app import run_tray_app
+from simkl_mps.service_manager import install_service, uninstall_service, service_status
 
 # Initialize colorama for colored terminal output
 colorama.init()
@@ -102,7 +102,7 @@ def _check_prerequisites(check_token=True, check_client_id=True):
         print(f"{Fore.RED}ERROR: Client ID is missing. Application build might be corrupted. Please reinstall.{Style.RESET_ALL}", file=sys.stderr)
         error = True
     if check_token and not creds.get("access_token"):
-        print(f"{Fore.RED}ERROR: Access Token not found in '{env_path}'. Please run 'simkl-scrobbler init' first.{Style.RESET_ALL}", file=sys.stderr)
+        print(f"{Fore.RED}ERROR: Access Token not found in '{env_path}'. Please run 'simkl-mps init' first.{Style.RESET_ALL}", file=sys.stderr)
         error = True
     return not error
 
@@ -153,7 +153,7 @@ def init_command(args):
             env_path.parent.mkdir(parents=True, exist_ok=True)
             with open(env_path, "w", encoding='utf-8') as env_file:
                 # Add a comment indicating the source
-                env_file.write("# Simkl Access Token obtained via 'simkl-scrobbler init'\n")
+                env_file.write("# Simkl Access Token obtained via 'simkl-mps init'\n")
                 env_file.write(f"SIMKL_ACCESS_TOKEN={new_access_token}\n")
             logger.info(f"Access token successfully saved to {env_path}.")
             print(f"{Fore.GREEN}[✓] Access token saved successfully.{Style.RESET_ALL}")
@@ -170,7 +170,7 @@ def init_command(args):
     verifier_scrobbler = SimklScrobbler()
     if not verifier_scrobbler.initialize():
          logger.error("Configuration verification failed after initialization attempt.")
-         print(f"{Fore.RED}ERROR: Configuration verification failed. Check logs for details: {APP_DATA_DIR / 'simkl_scrobbler.log'}{Style.RESET_ALL}", file=sys.stderr)
+         print(f"{Fore.RED}ERROR: Configuration verification failed. Check logs for details: {APP_DATA_DIR / 'simkl-mps.log'}{Style.RESET_ALL}", file=sys.stderr)
          print(f"{Fore.YELLOW}Hint: If the token seems valid but verification fails, check Simkl API status or report a bug.{Style.RESET_ALL}")
          return 1
 
@@ -179,7 +179,7 @@ def init_command(args):
     print(f"{Fore.GREEN}✓ Initialization Complete!{Style.RESET_ALL}")
     print(f"{Fore.GREEN}========================================={Style.RESET_ALL}")
     print(f"\n[*] To start monitoring and scrobbling, run:")
-    print(f"    {Fore.WHITE}simkl-scrobbler start{Style.RESET_ALL}")
+    print(f"    {Fore.WHITE}simkl-mps start{Style.RESET_ALL}")
     return 0
 
 def start_command(args):
@@ -210,7 +210,7 @@ def start_command(args):
     if os.environ.get("SIMKL_TRAY_SUBPROCESS") == "1":
         logger.info("Detected we're in the tray subprocess - running tray app directly")
         print("Running tray application directly...")
-        from simkl_scrobbler.tray_app import run_tray_app
+        from simkl_mps.tray_app import run_tray_app
         sys.exit(run_tray_app())
 
     # Attempt service installation and starting
@@ -238,7 +238,7 @@ def start_command(args):
             # Get the directory where the executable is located
             exe_dir = Path(sys.executable).parent
             # Use the dedicated tray executable we created in the build spec
-            tray_exe = exe_dir / "simkl-scrobbler-tray.exe"
+            tray_exe = exe_dir / "simkl-mps-tray.exe"
             if tray_exe.exists():
                 cmd = [str(tray_exe)]
                 logger.debug(f"Launching dedicated tray executable: {tray_exe}")
@@ -247,7 +247,7 @@ def start_command(args):
                 cmd = [sys.executable, "tray"]
                 logger.debug("Launching frozen executable for tray (fallback method).")
         else:
-            cmd = [sys.executable, "-m", "simkl_scrobbler.tray_app"]
+            cmd = [sys.executable, "-m", "simkl_mps.tray_app"]
             logger.debug("Launching tray via python module.")
 
         # Platform-specific detached process creation
@@ -313,7 +313,7 @@ def tray_command(args):
     if os.environ.get("SIMKL_TRAY_SUBPROCESS") == "1":
         logger.info("Detected we're in the tray subprocess - running tray app directly")
         print("Running tray application directly...")
-        from simkl_scrobbler.tray_app import run_tray_app
+        from simkl_mps.tray_app import run_tray_app
         sys.exit(run_tray_app())
     
     print("[*] Launching tray application in background (without service)...")
@@ -323,7 +323,7 @@ def tray_command(args):
             # Get the directory where the executable is located
             exe_dir = Path(sys.executable).parent
             # Use the dedicated tray executable we created in the build spec
-            tray_exe = exe_dir / "simkl-scrobbler-tray.exe"
+            tray_exe = exe_dir / "simkl-mps-tray.exe"
             if tray_exe.exists():
                 cmd = [str(tray_exe)]
                 logger.debug(f"Launching dedicated tray executable: {tray_exe}")
@@ -335,7 +335,7 @@ def tray_command(args):
                 env["SIMKL_TRAY_SUBPROCESS"] = "1"  # Mark this as a subprocess
                 logger.debug("Launching frozen executable for tray (fallback method).")
         else:
-            cmd = [sys.executable, "-m", "simkl_scrobbler.tray_app"]
+            cmd = [sys.executable, "-m", "simkl_mps.tray_app"]
             logger.debug("Launching tray via python module.")
 
         # Platform-specific detached process creation
@@ -404,7 +404,7 @@ def service_command(args):
             start_args = [sys.executable, "service-run"] # Assuming a dedicated entry point if frozen
             logger.debug("Launching frozen executable for service runner.")
         else:
-            start_args = [sys.executable, "-m", "simkl_scrobbler.service_runner"]
+            start_args = [sys.executable, "-m", "simkl_mps.service_runner"]
             logger.debug("Launching service runner via python module.")
 
         if sys.platform == "win32":
@@ -416,7 +416,7 @@ def service_command(args):
             logger.info("Launched detached service process on Unix-like system.")
 
         print(f"{Fore.GREEN}[✓] Background service process started successfully.{Style.RESET_ALL}")
-        print(f"[*] Check logs for activity: {APP_DATA_DIR / 'simkl_scrobbler.log'}")
+        print(f"[*] Check logs for activity: {APP_DATA_DIR / 'simkl-mps.log'}")
         return 0
     except Exception as e:
         logger.exception(f"Failed to launch background service process: {e}")
@@ -440,7 +440,7 @@ def install_service_command(args):
         if success:
             logger.info("Startup service installed successfully.")
             print(f"{Fore.GREEN}[✓] Service installed successfully! It will run automatically on system startup.{Style.RESET_ALL}")
-            print(f"{Fore.YELLOW}[!] Note: This command only installed the service. Use 'simkl-scrobbler start' to run the application now.{Style.RESET_ALL}")
+            print(f"{Fore.YELLOW}[!] Note: This command only installed the service. Use 'simkl-mps start' to run the application now.{Style.RESET_ALL}")
             return 0
         else:
             logger.error("Service installation failed (install_service returned False).")
@@ -492,7 +492,7 @@ def service_status_command(args):
              print(f"[*] You can try starting it manually or restarting your computer.")
         else: # False or other string indicates not installed/configured
              print(f"{Fore.YELLOW}[!] Service is not installed or not configured for startup.{Style.RESET_ALL}")
-             print(f"[*] Use 'simkl-scrobbler install-service' to install it.")
+             print(f"[*] Use 'simkl-mps install-service' to install it.")
         return 0
     except Exception as e:
         logger.exception(f"Error checking service status: {e}")
@@ -503,7 +503,7 @@ def version_command(args):
     """
     Displays version information about the application.
     
-    Shows the current installed version of simkl-scrobbler.
+    Shows the current installed version of simkl-mps.
     """
     print(f"{Fore.CYAN}=== Simkl Scrobbler Version Information ==={Style.RESET_ALL}")
     logger.info(f"Displaying version information: {VERSION}")
@@ -575,7 +575,7 @@ def create_parser():
     # --- Version Command ---
     version_parser = subparsers.add_parser(
         "version",
-        help="Display the current installed version of simkl-scrobbler."
+        help="Display the current installed version of simkl-mps."
     )
     
     return parser
@@ -634,7 +634,7 @@ def main():
             logger.exception(f"Unhandled exception during command '{args.command}': {e}")
             print(f"\n{Fore.RED}UNEXPECTED ERROR: An error occurred during the '{args.command}' command.{Style.RESET_ALL}", file=sys.stderr)
             print(f"{Fore.RED}Details: {e}{Style.RESET_ALL}", file=sys.stderr)
-            print(f"{Fore.YELLOW}Please check the log file for more information: {APP_DATA_DIR / 'simkl_scrobbler.log'}{Style.RESET_ALL}", file=sys.stderr)
+            print(f"{Fore.YELLOW}Please check the log file for more information: {APP_DATA_DIR / 'simkl-mps.log'}{Style.RESET_ALL}", file=sys.stderr)
             return 1
     else:
         # Should not happen if subparsers are required, but good practice

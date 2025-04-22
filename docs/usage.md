@@ -6,25 +6,25 @@ This guide covers the various ways to use Simkl Scrobbler.
 
 ```bash
 # Initial setup (only needed once)
-simkl-scrobbler init
+simkl-mps init
 
 # Start tracking in foreground mode
-simkl-scrobbler start
+simkl-mps start
 
 # Launch in system tray
-simkl-scrobbler tray
+simkl-mps tray
 
 # Run as a background service
-simkl-scrobbler service
+simkl-mps service
 
 # Check service status
-simkl-scrobbler service-status
+simkl-mps service-status
 
 # Process pending offline items
-simkl-scrobbler process-backlog
+simkl-mps process-backlog
 
 # Show all available commands
-simkl-scrobbler --help
+simkl-mps --help
 ```
 
 ## 🚀 Run Modes
@@ -32,7 +32,7 @@ simkl-scrobbler --help
 ### 🔄 Background Mode
 
 ```bash
-simkl-scrobbler start
+simkl-mps start
 ```
 
 Runs silently in the background. This is the standard way to run the application for regular usage.
@@ -40,7 +40,7 @@ Runs silently in the background. This is the standard way to run the application
 ### 🖥️ System Tray Mode
 
 ```bash
-simkl-scrobbler tray
+simkl-mps tray
 ```
 
 Runs as a system tray application, allowing you to:
@@ -52,7 +52,7 @@ Runs as a system tray application, allowing you to:
 ### 🔄 Service Mode
 
 ```bash
-simkl-scrobbler service
+simkl-mps service
 ```
 
 Runs as a background service with no UI. Useful for headless operation or when you want the application to run independently of user sessions.
@@ -61,13 +61,13 @@ Runs as a background service with no UI. Useful for headless operation or when y
 
 ```bash
 # Install as a system service
-simkl-scrobbler install-service
+simkl-mps install-service
 
 # Uninstall the service
-simkl-scrobbler uninstall-service
+simkl-mps uninstall-service
 
 # Check service status
-simkl-scrobbler service-status
+simkl-mps service-status
 ```
 
 This installs the application to run automatically when your system starts, with platform-specific implementations:
@@ -79,16 +79,16 @@ This installs the application to run automatically when your system starts, with
 
 ```bash
 # Show detailed help
-simkl-scrobbler --help
+simkl-mps --help
 
 # Show application version
-simkl-scrobbler --version
+simkl-mps --version
 
 # Run with debug logging
-simkl-scrobbler start --debug
+simkl-mps start --debug
 
 # Use a specific config file
-simkl-scrobbler start --config /path/to/config.env
+simkl-mps start --config /path/to/config.env
 ```
 
 ## 📁 Log Files
@@ -97,10 +97,10 @@ Check these files for troubleshooting:
 
 ```
 # Main application log
-[APP_DATA_DIR]/kavinthangavel/simkl-scrobbler/simkl_scrobbler.log
+[APP_DATA_DIR]/kavinthangavel/simkl-mps/media-player-scrobbler-for-simkl.log
 
 # Detailed playback events
-[APP_DATA_DIR]/kavinthangavel/simkl-scrobbler/playback_log.jsonl
+[APP_DATA_DIR]/kavinthangavel/simkl-mps/playback_log.jsonl
 ```
 
 Where `[APP_DATA_DIR]` is platform-specific:
@@ -122,11 +122,11 @@ You can set these environment variables to customize behavior:
 
 ## 🔍 Recommended Workflow
 
-1. Run `simkl-scrobbler init` to set up your Simkl account
-2. Test with `simkl-scrobbler start` to ensure detection works in background mode
+1. Run `simkl-mps init` to set up your Simkl account
+2. Test with `simkl-mps start` to ensure detection works in background mode
 3. For daily use, either:
-   - Use `simkl-scrobbler tray` for easy access to controls
-   - Install as a service with `simkl-scrobbler install-service` for automatic startup
+   - Use `simkl-mps tray` for easy access to controls
+   - Install as a service with `simkl-mps install-service` for automatic startup
 
 ## 📊 Operation Flow
 

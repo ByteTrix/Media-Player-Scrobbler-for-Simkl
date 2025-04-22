@@ -15,7 +15,7 @@ from .simkl_api import search_movie, get_movie_details, is_internet_connected
 from .credentials import get_credentials
 
 # --- Constants ---
-APP_NAME = "simkl-scrobbler"
+APP_NAME = "simkl-mps"
 USER_SUBDIR = "kavinthangavel" # User-specific subdirectory
 
 # --- Path Setup ---
@@ -88,7 +88,7 @@ def load_configuration():
         sys.exit(1)
     if not access_token:
         logger.critical("Configuration Error: Access Token not found. Please run initialization.")
-        print("ERROR: Access Token is missing. Please run 'simkl-scrobbler init' to authenticate.", file=sys.stderr)
+        print("ERROR: Access Token is missing. Please run 'simkl-mps init' to authenticate.", file=sys.stderr)
         sys.exit(1)
 
     logger.info("Application configuration loaded successfully.")
