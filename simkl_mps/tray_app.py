@@ -235,6 +235,12 @@ class TrayApp:
                     logger.error("Failed to initialize scrobbler from tray app")
                     self.monitoring_active = False
                     return False
+                    
+            # Set notification callback on the MovieScrobbler instance
+            if hasattr(self.scrobbler, 'monitor') and hasattr(self.scrobbler.monitor, 'scrobbler'):
+                self.scrobbler.monitor.scrobbler.set_notification_callback(self.show_notification)
+                logger.debug("Set notification callback on MovieScrobbler")
+                
             # Try to start the scrobbler
             try:
                 started = self.scrobbler.start()
