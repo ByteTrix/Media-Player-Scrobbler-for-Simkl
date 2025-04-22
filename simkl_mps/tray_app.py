@@ -176,33 +176,14 @@ class TrayApp:
     def show_about(self, _=None):
         """Show information about the application and ensure tray remains responsive after closing dialog"""
         about_text = (
-            "SIMKL Scrobbler\n\n"
-            "Automatically tracks and scrobbles movies you watch to your SIMKL account.\n\n"
-            "Supports multiple media players and provides automatic movie identification.\n\n"
-            "Author: Kavin Thangavel\n"
-            "Website: https://github.com/kavinthangavel/simkl-movie-tracker\n\n"
-            "© 2023-2024 All Rights Reserved"
+            "SIMKL Scrobbler\n"
+            "Version: 1.0.0\n"
+            "Author: kavinthangavel\n"
+            "\nMedia Player Scrobbler for SIMKL.\n"
+            "Tracks movies you watch and syncs with your Simkl account."
         )
-        def show_dialog():
-            try:
-                if sys.platform == 'win32':
-                    import ctypes
-                    ctypes.windll.user32.MessageBoxW(0, about_text, "About SIMKL Scrobbler", 0)
-                else:
-                    try:
-                        import tkinter as tk
-                        from tkinter import messagebox
-                        root = tk.Tk()
-                        root.withdraw()
-                        messagebox.showinfo("About SIMKL Scrobbler", about_text)
-                        root.destroy()
-                    except Exception:
-                        print("\nAbout SIMKL Scrobbler:")
-                        print(about_text)
-            except Exception as e:
-                logger.error(f"Error showing about dialog: {e}")
-        # Run the dialog in a thread so it doesn't block the tray event loop
-        threading.Thread(target=show_dialog, daemon=True).start()
+        self.show_notification("About", about_text)
+        logger.info("Displayed About notification from tray.")
 
     def run(self):
         """Run the tray application"""
@@ -224,15 +205,14 @@ class TrayApp:
             self.tray_icon.run()
         except Exception as e:
             logger.error(f"Error running tray icon: {e}")
-            print(f"Error with system tray: {e}")
-            print("Falling back to console mode. Press Ctrl+C to stop.")
+            self.show_notification("Tray Error", f"Error with system tray: {e}")
+            # Fallback to console mode if tray fails
             try:
                 while self.scrobbler and self.monitoring_active:
                     time.sleep(1)
             except KeyboardInterrupt:
                 if self.monitoring_active:
                     self.stop_monitoring()
-                print("Stopped monitoring.")
 
     def start_monitoring(self, _=None):
         """Start the scrobbler monitoring"""
@@ -268,7 +248,6 @@ class TrayApp:
                         "Media monitoring started"
                     )
                     logger.info("Monitoring started from tray")
-                    print("Monitoring started")
                     return True
                 else:
                     self.monitoring_active = False
@@ -280,7 +259,6 @@ class TrayApp:
                         "Failed to start monitoring"
                     )
                     logger.error("Failed to start monitoring from tray app")
-                    print("Failed to start monitoring")
                     return False
             except Exception as e:
                 self.monitoring_active = False
@@ -310,7 +288,6 @@ class TrayApp:
                 "Monitoring paused"
             )
             logger.info("Monitoring paused from tray")
-            print("Monitoring paused")
 
     def resume_monitoring(self, _=None):
         """Resume monitoring from paused state"""
@@ -327,7 +304,6 @@ class TrayApp:
                 "Monitoring resumed"
             )
             logger.info("Monitoring resumed from tray")
-            print("Monitoring resumed")
 
     def stop_monitoring(self, _=None):
         """Stop the scrobbler monitoring"""
@@ -342,7 +318,6 @@ class TrayApp:
                 "Media monitoring stopped"
             )
             logger.info("Monitoring stopped from tray")
-            print("Monitoring stopped")
             return True
         return False
 
@@ -411,7 +386,7 @@ class TrayApp:
             )
         except Exception as e:
             logger.error(f"Failed to show notification: {e}")
-            print(f"{title}: {message}")
+            # Fallback to logging only
 
 def run_tray_app():
     """Run the application in tray mode"""

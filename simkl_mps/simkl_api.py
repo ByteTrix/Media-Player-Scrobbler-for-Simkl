@@ -311,7 +311,7 @@ def poll_for_token(client_id, user_code, interval, expires_in):
     headers = _add_user_agent(headers)
     print("Waiting for user authorization (this may take a minute)...")
     
-    time.sleep(25)
+    time.sleep(18)
     
     start_time = time.time()
     poll_count = 0
@@ -365,6 +365,7 @@ def poll_for_token(client_id, user_code, interval, expires_in):
 
     print("\n Authentication timed out")
     return None
+
 def authenticate(client_id=None):
     """
     Handles the complete Simkl OAuth device authentication flow.
@@ -379,29 +380,26 @@ def authenticate(client_id=None):
         logger.critical("Simkl API: Authentication cannot proceed without a Client ID.")
         return None
 
-    print("\nInitiating Simkl Device Authentication...")
-    logger.info("Simkl API: Initiating device authentication flow.")
+    logger.info("Initiating Simkl Device Authentication...")
     device_info = get_device_code(client_id)
     if not device_info:
         logger.error("Simkl API: Failed to obtain device code.")
-        print("Error: Could not obtain device code from Simkl.")
+        print("ERROR: Could not obtain device code from Simkl.")
         return None
 
     user_code = device_info.get('user_code')
     verification_url = device_info.get('verification_url')
-    # Use API suggested interval, ensure minimum reasonable value
     interval = max(device_info.get('interval', 5), 3)
-    # Use API suggested expiry, ensure minimum reasonable value (e.g., 5 mins)
     expires_in = 60
     logger.info(f"Simkl API: Using auth interval={interval}s, expires_in={expires_in}s.")
 
     if not all([user_code, verification_url]):
         logger.error("Simkl API: Incomplete device information received from Simkl.")
-        print("Error: Incomplete authentication information received from Simkl.")
+        print("ERROR: Incomplete authentication information received from Simkl.")
         return None
 
-    # Display instructions clearly
-    print("\n" + "=" * 60)
+    # Display instructions clearly in terminal
+    print("=" * 60)
     print("ACTION REQUIRED:")
     print(f"1. Go to: {verification_url}")
     print(f"2. Enter the code: {user_code}")
@@ -414,10 +412,9 @@ def authenticate(client_id=None):
     if access_token_info and 'access_token' in access_token_info:
         token = access_token_info['access_token']
         logger.info("Simkl API: Authentication successful, token obtained.")
-        print("\n---> Authentication Complete. Access token received.")
+        print("\nAuthentication Complete. Access token received.\n")
         return token
     else:
         logger.error("Simkl API: Authentication process failed, timed out, or was denied.")
-        print("\n---> Authentication failed, timed out, or was denied by user.")
-        print("---> If you need more time, please run the 'init' command again.")
+        print("\nERROR: Authentication failed, timed out, or was denied by user.\nIf you need more time, please run the 'init' command again.")
         return None
