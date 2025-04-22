@@ -170,7 +170,7 @@ def init_command(args):
     verifier_scrobbler = SimklScrobbler()
     if not verifier_scrobbler.initialize():
          logger.error("Configuration verification failed after initialization attempt.")
-         print(f"{Fore.RED}ERROR: Configuration verification failed. Check logs for details: {APP_DATA_DIR / 'simkl-mps.log'}{Style.RESET_ALL}", file=sys.stderr)
+         print(f"{Fore.RED}ERROR: Configuration verification failed. Check logs for details: {APP_DATA_DIR / 'simkl_mps.log'}{Style.RESET_ALL}", file=sys.stderr)
          print(f"{Fore.YELLOW}Hint: If the token seems valid but verification fails, check Simkl API status or report a bug.{Style.RESET_ALL}")
          return 1
 
