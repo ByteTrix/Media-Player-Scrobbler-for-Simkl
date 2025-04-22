@@ -6,6 +6,7 @@ managing the background service, and checking status.
 """
 import argparse
 import sys
+import os
 import colorama
 import subprocess
 import logging
@@ -82,11 +83,11 @@ if len(sys.argv) > 1 and sys.argv[1] in ["--version", "-v", "version"]:
     sys.exit(0)
 
 # Only import other modules when not just checking version
-from .simkl_api import authenticate
-from .credentials import get_credentials, get_env_file_path
-from .main import SimklScrobbler, APP_DATA_DIR # Import APP_DATA_DIR for log path display
-from .tray_app import run_tray_app
-from .service_manager import install_service, uninstall_service, service_status
+from simkl_scrobbler.simkl_api import authenticate
+from simkl_scrobbler.credentials import get_credentials, get_env_file_path
+from simkl_scrobbler.main import SimklScrobbler, APP_DATA_DIR # Import APP_DATA_DIR for log path display
+from simkl_scrobbler.tray_app import run_tray_app
+from simkl_scrobbler.service_manager import install_service, uninstall_service, service_status
 
 # Initialize colorama for colored terminal output
 colorama.init()
@@ -203,6 +204,15 @@ def start_command(args):
             print(f"{Fore.RED}ERROR: Still missing credentials after initialization. Aborting start.{Style.RESET_ALL}", file=sys.stderr)
             return 1
 
+    # CRITICAL CHECK: Prevent recursive launching
+    # If we're already running in a detached process (a child process), just run the tray directly
+    # This is identified by an environment variable we'll set
+    if os.environ.get("SIMKL_TRAY_SUBPROCESS") == "1":
+        logger.info("Detected we're in the tray subprocess - running tray app directly")
+        print("Running tray application directly...")
+        from simkl_scrobbler.tray_app import run_tray_app
+        sys.exit(run_tray_app())
+
     # Attempt service installation and starting
     print("[*] Ensuring background service is installed for auto-startup...")
     logger.info("Attempting to install/verify startup service.")
@@ -225,8 +235,17 @@ def start_command(args):
     try:
         # Determine command based on execution context (frozen/script)
         if getattr(sys, 'frozen', False):
-            cmd = [sys.executable, "tray"]
-            logger.debug("Launching frozen executable for tray.")
+            # Get the directory where the executable is located
+            exe_dir = Path(sys.executable).parent
+            # Use the dedicated tray executable we created in the build spec
+            tray_exe = exe_dir / "simkl-scrobbler-tray.exe"
+            if tray_exe.exists():
+                cmd = [str(tray_exe)]
+                logger.debug(f"Launching dedicated tray executable: {tray_exe}")
+            else:
+                # Fallback to passing 'tray' as argument to main executable
+                cmd = [sys.executable, "tray"]
+                logger.debug("Launching frozen executable for tray (fallback method).")
         else:
             cmd = [sys.executable, "-m", "simkl_scrobbler.tray_app"]
             logger.debug("Launching tray via python module.")
@@ -237,22 +256,33 @@ def start_command(args):
             DETACHED_PROCESS = 0x00000008
             startupinfo = subprocess.STARTUPINFO()
             startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            
+            # Create environment with subprocess marker to prevent recursion
+            env = os.environ.copy()
+            env["SIMKL_TRAY_SUBPROCESS"] = "1"  # Mark this as a subprocess
+            
             subprocess.Popen(
                 cmd, 
                 creationflags=CREATE_NO_WINDOW | DETACHED_PROCESS, 
                 close_fds=True, 
                 shell=False,
-                startupinfo=startupinfo
+                startupinfo=startupinfo,
+                env=env  # Pass the environment with our marker
             )
             logger.info("Launched detached process on Windows.")
         else: # Assume Unix-like
+            # Create environment with subprocess marker
+            env = os.environ.copy()
+            env["SIMKL_TRAY_SUBPROCESS"] = "1"  # Mark this as a subprocess
+            
             subprocess.Popen(
                 cmd, 
                 start_new_session=True, 
                 stdout=subprocess.DEVNULL, 
                 stderr=subprocess.DEVNULL, 
                 close_fds=True, 
-                shell=False
+                shell=False,
+                env=env  # Pass the environment with our marker
             )
             logger.info("Launched detached process on Unix-like system.")
 
@@ -277,12 +307,33 @@ def tray_command(args):
     logger.info("Executing tray command.")
     if not _check_prerequisites(): return 1
 
+    # CRITICAL CHECK: Prevent recursive launching
+    # If we're already running in a detached process (a child process), just run the tray directly
+    # This is identified by an environment variable we'll set
+    if os.environ.get("SIMKL_TRAY_SUBPROCESS") == "1":
+        logger.info("Detected we're in the tray subprocess - running tray app directly")
+        print("Running tray application directly...")
+        from simkl_scrobbler.tray_app import run_tray_app
+        sys.exit(run_tray_app())
+    
     print("[*] Launching tray application in background (without service)...")
     try:
         # Determine command based on execution context (frozen/script)
         if getattr(sys, 'frozen', False):
-            cmd = [sys.executable, "tray"]
-            logger.debug("Launching frozen executable for tray.")
+            # Get the directory where the executable is located
+            exe_dir = Path(sys.executable).parent
+            # Use the dedicated tray executable we created in the build spec
+            tray_exe = exe_dir / "simkl-scrobbler-tray.exe"
+            if tray_exe.exists():
+                cmd = [str(tray_exe)]
+                logger.debug(f"Launching dedicated tray executable: {tray_exe}")
+            else:
+                # Fallback to passing 'tray' as argument to main executable
+                # BUT we need to set an environment variable to prevent recursion
+                cmd = [sys.executable, "tray"]
+                env = os.environ.copy()
+                env["SIMKL_TRAY_SUBPROCESS"] = "1"  # Mark this as a subprocess
+                logger.debug("Launching frozen executable for tray (fallback method).")
         else:
             cmd = [sys.executable, "-m", "simkl_scrobbler.tray_app"]
             logger.debug("Launching tray via python module.")
@@ -293,22 +344,33 @@ def tray_command(args):
             DETACHED_PROCESS = 0x00000008
             startupinfo = subprocess.STARTUPINFO()
             startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            
+            # Create environment with subprocess marker
+            env = os.environ.copy()
+            env["SIMKL_TRAY_SUBPROCESS"] = "1"  # Mark this as a subprocess
+            
             subprocess.Popen(
                 cmd, 
                 creationflags=CREATE_NO_WINDOW | DETACHED_PROCESS, 
                 close_fds=True, 
                 shell=False,
-                startupinfo=startupinfo
+                startupinfo=startupinfo,
+                env=env  # Pass the environment with our marker
             )
             logger.info("Launched detached tray process on Windows.")
         else: # Assume Unix-like
+            # Create environment with subprocess marker
+            env = os.environ.copy()
+            env["SIMKL_TRAY_SUBPROCESS"] = "1"  # Mark this as a subprocess
+            
             subprocess.Popen(
                 cmd, 
                 start_new_session=True, 
                 stdout=subprocess.DEVNULL, 
                 stderr=subprocess.DEVNULL, 
                 close_fds=True, 
-                shell=False
+                shell=False,
+                env=env  # Pass the environment with our marker
             )
             logger.info("Launched detached tray process on Unix-like system.")
 

@@ -18,7 +18,7 @@ classifiers = [
 packages = [{include = "simkl_scrobbler"}]
 
 [tool.poetry.dependencies]
-python = ">=3.9"
+python = ">=3.9,<3.14"
 requests = ">=2.25.0"
 guessit = ">=3.3.0"
 python-dotenv = ">=0.15.0"
@@ -41,6 +41,7 @@ flake8 = ">=5,<8" # Use v5 for Python 3.7 compatibility
 pytest-mock = ">=3.6.1"
 requests = ">=2.25.0" # Add requests here too for mocking context
 types-requests = ">=2.25.0" # For type hints when mocking requests
+pyinstaller = "^6.13.0"
 
 [tool.poetry.scripts]
 simkl-scrobbler = "simkl_scrobbler.cli:main"
