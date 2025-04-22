@@ -412,7 +412,7 @@ def service_command(args):
             logger.info("Launched detached service process on Unix-like system.")
 
         print(f"{Fore.GREEN}[✓] Background service process started successfully.{Style.RESET_ALL}")
-        print(f"[*] Check logs for activity: {APP_DATA_DIR / 'simkl-mps.log'}")
+        print(f"[*] Check logs for activity: {APP_DATA_DIR / 'simkl_mps.log'}")
         return 0
     except Exception as e:
         logger.exception(f"Failed to launch background service process: {e}")
@@ -630,7 +630,7 @@ def main():
             logger.exception(f"Unhandled exception during command '{args.command}': {e}")
             print(f"\n{Fore.RED}UNEXPECTED ERROR: An error occurred during the '{args.command}' command.{Style.RESET_ALL}", file=sys.stderr)
             print(f"{Fore.RED}Details: {e}{Style.RESET_ALL}", file=sys.stderr)
-            print(f"{Fore.YELLOW}Please check the log file for more information: {APP_DATA_DIR / 'simkl-mps.log'}{Style.RESET_ALL}", file=sys.stderr)
+            print(f"{Fore.YELLOW}Please check the log file for more information: {APP_DATA_DIR / 'simkl_mps.log'}{Style.RESET_ALL}", file=sys.stderr)
             return 1
     else:
         # Should not happen if subparsers are required, but good practice

@@ -8,6 +8,17 @@ import requests
 import time
 import logging
 import socket
+import platform
+import sys
+try:
+    from simkl_mps import __version__
+except ImportError:
+    __version__ = "unknown"
+
+APP_NAME = "simkl-mps"
+PY_VER = f"{sys.version_info.major}.{sys.version_info.minor}"
+OS_NAME = platform.system()
+USER_AGENT = f"{APP_NAME}/{__version__} (Python {PY_VER}; {OS_NAME})"
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +51,11 @@ def is_internet_connected():
     logger.warning("Internet connectivity check failed for all services.")
     return False
 
+def _add_user_agent(headers):
+    headers = dict(headers) if headers else {}
+    headers["User-Agent"] = USER_AGENT
+    return headers
+
 def search_movie(title, client_id, access_token):
     """
     Searches for a movie by title on Simkl using the /search/movie endpoint.
@@ -65,6 +81,7 @@ def search_movie(title, client_id, access_token):
         'simkl-api-key': client_id,
         'Authorization': f'Bearer {access_token}'
     }
+    headers = _add_user_agent(headers)
     params = {'q': title, 'extended': 'full'}
 
     try:
@@ -129,6 +146,7 @@ def _fallback_search_movie(title, client_id, access_token):
         'simkl-api-key': client_id,
         'Authorization': f'Bearer {access_token}'
     }
+    headers = _add_user_agent(headers)
     params = {'q': title, 'type': 'movie', 'extended': 'full'}
     try:
         response = requests.get(f'{SIMKL_API_BASE_URL}/search/all', headers=headers, params=params)
@@ -175,6 +193,7 @@ def mark_as_watched(simkl_id, client_id, access_token):
         'simkl-api-key': client_id,
         'Authorization': f'Bearer {access_token}'
     }
+    headers = _add_user_agent(headers)
     data = {'movies': [{'ids': {'simkl': simkl_id}, 'status': 'completed'}]}
 
     logger.info(f"Simkl API: Marking movie ID {simkl_id} as watched...")
@@ -221,6 +240,7 @@ def get_movie_details(simkl_id, client_id, access_token):
         'simkl-api-key': client_id,
         'Authorization': f'Bearer {access_token}'
     }
+    headers = _add_user_agent(headers)
     params = {'extended': 'full'}
     try:
         logger.info(f"Simkl API: Fetching details for movie ID {simkl_id}...")
@@ -256,6 +276,7 @@ def get_device_code(client_id):
         return None
     url = f"{SIMKL_API_BASE_URL}/oauth/pin?client_id={client_id}"
     headers = {'Content-Type': 'application/json'}
+    headers = _add_user_agent(headers)
     logger.info("Simkl API: Requesting device code for authentication...")
     try:
         response = requests.get(url, headers=headers)
@@ -287,6 +308,7 @@ def poll_for_token(client_id, user_code, interval, expires_in):
         'Content-Type': 'application/json',
         'simkl-api-key': client_id
     }
+    headers = _add_user_agent(headers)
     print("Waiting for user authorization (this may take a minute)...")
     
     time.sleep(25)

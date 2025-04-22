@@ -170,7 +170,7 @@ def install_service():
     
     # Check for env file
     from .main import APP_DATA_DIR
-    env_path = APP_DATA_DIR / ".simkl-mps.env"
+    env_path = APP_DATA_DIR / ".simkl_mps.env"
     if not env_path.exists():
         logger.error("Cannot install service: No credentials found")
         return False

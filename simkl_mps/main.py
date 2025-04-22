@@ -28,7 +28,7 @@ except Exception as e:
     sys.exit(1)
 
 # --- Logging Setup ---
-log_file_path = APP_DATA_DIR / f"{APP_NAME}.log"
+log_file_path = APP_DATA_DIR / "simkl_mps.log"
 
 # Console Handler (Warnings and above)
 stream_handler = logging.StreamHandler()
@@ -133,8 +133,6 @@ class SimklScrobbler:
             backlog_count = self.monitor.scrobbler.process_backlog()
             if backlog_count > 0:
                 logger.info(f"Successfully processed {backlog_count} items from the backlog.")
-            else:
-                logger.info("No items found in the backlog.")
         except Exception as e:
              logger.error(f"Error processing backlog during initialization: {e}", exc_info=True)
              # Continue initialization even if backlog processing fails

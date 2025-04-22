@@ -30,8 +30,8 @@ class TrayApp:
         self.status = "stopped"  # running, paused, error, stopped
         self.status_details = ""
         self.last_scrobbled = None
-        self.config_path = APP_DATA_DIR / ".simkl-mps.env"
-        self.log_path = APP_DATA_DIR / "simkl-mps.log"
+        self.config_path = APP_DATA_DIR / ".simkl_mps.env"
+        self.log_path = APP_DATA_DIR / "simkl_mps.log"
         self.setup_icon()
     
     def setup_icon(self):
