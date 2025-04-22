@@ -171,7 +171,7 @@ class TrayApp:
 
     def show_help(self, _=None):
         """Show help information"""
-        webbrowser.open("https://github.com/kavinthangavel/simkl-mps/wiki")
+        webbrowser.open("https://github.com/kavinthangavel/media-player-scrobbler-for-simkl/wiki")
 
     def show_about(self, _=None):
         """Show information about the application and ensure tray remains responsive after closing dialog"""
