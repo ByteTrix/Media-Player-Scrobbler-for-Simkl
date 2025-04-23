@@ -68,7 +68,7 @@ graph LR
       <td align="center"><img src="https://upload.wikimedia.org/wikipedia/commons/3/38/VLC_icon.png" width="40px"/><br/>VLC</td>
       <td align="center"><img src="https://upload.wikimedia.org/wikipedia/commons/7/76/Media_Player_Classic_logo.png" width="40px"/><br/>MPC-HC</td>
       <td align="center"><img src="https://upload.wikimedia.org/wikipedia/commons/7/73/Mpv_logo_%28official%29.png" width="40px"/><br/>MPV</td>
-      <td align="center">🎮<br/>Many More</td>
+      <td align="center">🎮<br/><a href="docs/media-players.md">Many More</a></td>
     </tr>
   </table>
 </div>
