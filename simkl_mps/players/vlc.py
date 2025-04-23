@@ -1,5 +1,5 @@
 """
-VLC integration module for SIMKL scrobbler.
+VLC integration module for Media Player Scrobbler for SIMKL.
 Provides functionality to interact with VLC's web interface across platforms.
 """
 

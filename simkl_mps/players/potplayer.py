@@ -1,5 +1,5 @@
 """
-PotPlayer integration for SIMKL Scrobbler.
+PotPlayer integration for Media Player Scrobbler for SIMKL.
 Allows getting position and duration data from PotPlayer via its WebRemote interface.
 """
 

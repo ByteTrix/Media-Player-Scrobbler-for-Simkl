@@ -1,5 +1,5 @@
 """
-Media Player Classic (MPC-HC/BE) integration for SIMKL Scrobbler.
+Media Player Classic (MPC-HC/BE) integration for Media Player Scrobbler for SIMKL.
 Allows getting position and duration data from MPC-HC and MPC-BE.
 """
 

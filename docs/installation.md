@@ -1,6 +1,6 @@
 # 📥 Installation Guide
 
-This guide covers detailed installation instructions for Simkl Scrobbler across different platforms.
+This guide covers detailed installation instructions for Media Player Scrobbler for SIMKL across different platforms.
 
 ## ✅ Prerequisites
 
@@ -14,7 +14,7 @@ This guide covers detailed installation instructions for Simkl Scrobbler across 
 pip install simkl-mps
 
 # Initialize with your Simkl account
-simkl-mps init
+simkl-mps i    # or: simkl-mps init
 ```
 
 **After Installation Setup the Web Interface in Supported Players**
@@ -81,42 +81,33 @@ cd simkl-mps
 poetry install
 
 # Run commands
-poetry run simkl-mps init
-poetry run simkl-mps start
+poetry run simkl-mps i    # or: init
+poetry run simkl-mps s    # or: start
 ```
-
-## ⚙️ Running as a Service
-
-### Installing as a Windows Service
-
-```bash
-simkl-mps install-service
-```
-
-This will install the application to run automatically at system startup.
-
-### Installing as a Linux Service (systemd)
-
-```bash
-simkl-mps install-service
-```
-
-This creates and enables a systemd user service that starts automatically at login.
-
-### Installing as a macOS Launch Agent
-
-```bash
-simkl-mps install-service
-```
-
-This creates and loads a LaunchAgent that runs the application at login.
 
 ## ✔️ Verifying Installation
 
 After installation, verify that the application is properly installed:
 
 ```bash
-simkl-mps --version
+simkl-mps -v    # or: --version
+simkl-mps V     # or: version
 ```
 
-This should display the version number of the installed application.
+This will display version information about the installed application.
+
+## 🚀 Starting the Application
+
+There are two ways to run the application:
+
+1. Background Mode (recommended for daily use):
+```bash
+simkl-mps s    # or: simkl-mps start
+```
+This runs the application detached in the background. You can safely close the terminal.
+
+2. Interactive Mode (useful for debugging):
+```bash
+simkl-mps t    # or: simkl-mps tray
+```
+This runs the application attached to the terminal, showing logs. The application will stop when you close the terminal.

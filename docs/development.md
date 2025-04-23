@@ -1,6 +1,6 @@
 # 💻 Development Guide
 
-This document provides information for developers who want to contribute to Simkl Scrobbler.
+This document provides information for developers who want to contribute to Media Player Scrobbler for SIMKL.
 
 ## 📂 Project Structure
 
@@ -136,7 +136,7 @@ For development, you can use the default client ID or register your own:
 
 ## 🏗️ Architecture Overview
 
-Simkl Scrobbler uses a modular architecture:
+Media Player Scrobbler for SIMKL uses a modular architecture:
 
 1. **🪟 Window Detection Layer**: Platform-specific code to detect media player windows
 2. **🎮 Media Player Integration Layer**: Interfaces with specific players to get playback information

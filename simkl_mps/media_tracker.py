@@ -1,5 +1,5 @@
 """
-Media Tracker module for SIMKL Scrobbler.
+Media Tracker module for Media Player Scrobbler for SIMKL.
 This is the main coordinator module that brings together all components.
 """
 

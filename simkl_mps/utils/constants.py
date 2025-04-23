@@ -1,4 +1,4 @@
-"""Constants for SIMKL Scrobbler"""
+"""Constants for Media Player Scrobbler for SIMKL"""
 
 # Playback states
 PLAYING = 'playing'

@@ -1,5 +1,5 @@
 """
-Main application module for the Simkl Scrobbler.
+Main application module for the Media Player Scrobbler for SIMKL.
 
 Sets up logging, defines the main application class (SimklScrobbler),
 handles initialization, monitoring loop, and graceful shutdown.
@@ -105,7 +105,7 @@ class SimklScrobbler:
         Returns:
             bool: True if initialization is successful, False otherwise.
         """
-        logger.info("Initializing Simkl Scrobbler core components...")
+        logger.info("Initializing Media Player Scrobbler for SIMKL core components...")
         try:
             self.client_id, self.access_token = load_configuration()
         except SystemExit:
@@ -125,7 +125,7 @@ class SimklScrobbler:
         except Exception as e:
              logger.error(f"Error processing backlog during initialization: {e}", exc_info=True)
 
-        logger.info("Simkl Scrobbler initialization complete.")
+        logger.info("Media Player Scrobbler for SIMKL initialization complete.")
         return True
 
     def start(self):
@@ -239,7 +239,7 @@ class SimklScrobbler:
 
 def run_as_background_service():
     """
-    Runs the Simkl Scrobbler as a background service.
+    Runs the Media Player Scrobbler for SIMKL as a background service.
     
     Similar to main() but designed for daemon/service operation without
     keeping the main thread active with a sleep loop.
@@ -247,7 +247,7 @@ def run_as_background_service():
     Returns:
         SimklScrobbler: The running scrobbler instance for the service manager to control.
     """
-    logger.info("Starting Simkl Scrobbler as a background service.")
+    logger.info("Starting Media Player Scrobbler for SIMKL as a background service.")
     scrobbler_instance = SimklScrobbler()
     
     if not scrobbler_instance.initialize():
@@ -258,17 +258,17 @@ def run_as_background_service():
         logger.critical("Failed to start the scrobbler monitor thread in background mode.")
         return None
         
-    logger.info("Simkl Scrobbler background service started successfully.")
+    logger.info("simkl-mps background service started successfully.")
     return scrobbler_instance
 
 def main():
     """
-    Main entry point for running the Simkl Scrobbler directly.
+    Main entry point for running the Media Player Scrobbler for SIMKL directly.
 
     Initializes and starts the scrobbler, keeping the main thread alive
     until interrupted (e.g., by Ctrl+C).
     """
-    logger.info("Simkl Scrobbler application starting in foreground mode.")
+    logger.info("simkl-mps application starting in foreground mode.")
     scrobbler_instance = SimklScrobbler()
 
     if not scrobbler_instance.initialize():
@@ -289,7 +289,7 @@ def main():
             scrobbler_instance.stop()
             break
 
-    logger.info("Simkl Scrobbler application stopped.")
+    logger.info("simkl-mps application stopped.")
     sys.exit(0)
 
 if __name__ == "__main__":

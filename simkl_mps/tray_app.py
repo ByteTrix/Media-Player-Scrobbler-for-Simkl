@@ -13,12 +13,19 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 import pystray
 from plyer import notification
-from .main import SimklScrobbler, APP_DATA_DIR
+
+# Import constants only, not the whole module
+from simkl_mps.main import APP_DATA_DIR, APP_NAME
 
 logger = logging.getLogger(__name__)
 
+def get_simkl_scrobbler():
+    """Lazy import for SimklScrobbler to avoid circular imports"""
+    from simkl_mps.main import SimklScrobbler
+    return SimklScrobbler
+
 class TrayApp:
-    """System tray application for SIMKL Scrobbler"""
+    """System tray application for simkl-mps"""
     
     def __init__(self):
         self.scrobbler = None
@@ -29,7 +36,17 @@ class TrayApp:
         self.last_scrobbled = None
         self.config_path = APP_DATA_DIR / ".simkl_mps.env"
         self.log_path = APP_DATA_DIR / "simkl_mps.log"
-        self.assets_dir = Path(__file__).parent / "assets"
+
+        if getattr(sys, 'frozen', False):
+
+            base_path = Path(sys._MEIPASS)
+        else:
+
+            base_path = Path(__file__).parent
+            
+        self.assets_dir = base_path / "assets"
+        logger.info(f"Assets directory set to: {self.assets_dir}")
+        
         self.setup_icon()
     
     def setup_icon(self):
@@ -40,7 +57,7 @@ class TrayApp:
             self.tray_icon = pystray.Icon(
                 "simkl-mps",
                 image,
-                "Scrobbler for SIMKL",
+                "MPS for SIMKL",
                 menu=self.create_menu()
             )
             logger.info("Tray icon setup successfully")
@@ -152,7 +169,7 @@ class TrayApp:
     def create_menu(self):
         """Create the system tray menu with a professional layout"""
         menu_items = [
-            pystray.MenuItem("📌 Scrobbler for SIMKL", None),
+            pystray.MenuItem("📌 MPS for SIMKL", None),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem(f"Status: {self.get_status_text()}", None, enabled=False),
             pystray.Menu.SEPARATOR,
@@ -197,7 +214,7 @@ class TrayApp:
                 if self.status_details:
                     status_text += f" - {self.status_details}"
                 
-                self.tray_icon.title = f"SIMKL Scrobbler - {status_text}"
+                self.tray_icon.title = f"MPS for SIMKL - {status_text}"
                 
                 logger.debug(f"Updated tray icon to status: {self.status}")
             except Exception as e:
@@ -237,7 +254,7 @@ class TrayApp:
     def show_about(self, _=None):
         """Show information about the application"""
         about_text = (
-            "SIMKL Scrobbler\n"
+            "MPS for SIMKL\n"
             "Version: 1.0.0\n"
             "Author: kavinthangavel\n"
             "\nMedia Player Scrobbler for SIMKL.\n"
@@ -248,8 +265,8 @@ class TrayApp:
 
     def run(self):
         """Run the tray application"""
-        logger.info("Starting SIMKL Scrobbler in tray mode")
-        self.scrobbler = SimklScrobbler()
+        logger.info("Starting Media Player Scrobbler for SIMKL in tray mode")
+        self.scrobbler = get_simkl_scrobbler()()
         initialized = self.scrobbler.initialize()
         if initialized:
             started = self.start_monitoring()
@@ -279,11 +296,11 @@ class TrayApp:
                 
         if not self.monitoring_active:
             if not self.scrobbler:
-                self.scrobbler = SimklScrobbler()
+                self.scrobbler = get_simkl_scrobbler()()
                 if not self.scrobbler.initialize():
                     self.update_status("error", "Failed to initialize")
                     self.show_notification(
-                        "SIMKL Scrobbler Error",
+                        "simkl-mps Error",
                         "Failed to initialize. Check your credentials."
                     )
                     logger.error("Failed to initialize scrobbler from tray app")
@@ -299,7 +316,7 @@ class TrayApp:
                     self.monitoring_active = True
                     self.update_status("running")
                     self.show_notification(
-                        "SIMKL Scrobbler",
+                        "simkl-mps",
                         "Media monitoring started"
                     )
                     logger.info("Monitoring started from tray")
@@ -308,7 +325,7 @@ class TrayApp:
                     self.monitoring_active = False
                     self.update_status("error", "Failed to start")
                     self.show_notification(
-                        "SIMKL Scrobbler Error",
+                        "simkl-mps Error",
                         "Failed to start monitoring"
                     )
                     logger.error("Failed to start monitoring from tray app")
@@ -318,7 +335,7 @@ class TrayApp:
                 self.update_status("error", str(e))
                 logger.exception("Exception during start_monitoring in tray app")
                 self.show_notification(
-                    "SIMKL Scrobbler Error",
+                    "simkl-mps Error",
                     f"Error starting monitoring: {e}"
                 )
                 return False
@@ -333,7 +350,7 @@ class TrayApp:
                 self.scrobbler.stop()
             self.update_status("paused")
             self.show_notification(
-                "SIMKL Scrobbler",
+                "simkl-mps",
                 "Monitoring paused"
             )
             logger.info("Monitoring paused from tray")
@@ -347,7 +364,7 @@ class TrayApp:
                 self.scrobbler.start()
             self.update_status("running")
             self.show_notification(
-                "SIMKL Scrobbler",
+                "simkl-mps",
                 "Monitoring resumed"
             )
             logger.info("Monitoring resumed from tray")
@@ -359,7 +376,7 @@ class TrayApp:
             self.monitoring_active = False
             self.update_status("stopped")
             self.show_notification(
-                "SIMKL Scrobbler",
+                "simkl-mps",
                 "Media monitoring stopped"
             )
             logger.info("Monitoring stopped from tray")
@@ -373,19 +390,19 @@ class TrayApp:
                 count = self.scrobbler.monitor.scrobbler.process_backlog()
                 if count > 0:
                     self.show_notification(
-                        "SIMKL Scrobbler",
+                        "simkl-mps",
                         f"Processed {count} backlog items"
                     )
                 else:
                     self.show_notification(
-                        "SIMKL Scrobbler",
+                        "simkl-mps",
                         "No backlog items to process"
                     )
             except Exception as e:
                 logger.error(f"Error processing backlog: {e}")
                 self.update_status("error")
                 self.show_notification(
-                    "SIMKL Scrobbler Error",
+                    "simkl-mps Error",
                     "Failed to process backlog"
                 )
         threading.Thread(target=_process, daemon=True).start()
@@ -401,13 +418,13 @@ class TrayApp:
             else:
                 os.system(f"xdg-open '{str(log_path)}'")
             self.show_notification(
-                "SIMKL Scrobbler",
+                "simkl-mps",
                 "Log folder opened."
             )
         except Exception as e:
             logger.error(f"Error opening log file: {e}")
             self.show_notification(
-                "SIMKL Scrobbler Error",
+                "simkl-mps Error",
                 f"Could not open log file: {e}"
             )
 
@@ -425,7 +442,7 @@ class TrayApp:
             notification.notify(
                 title=title,
                 message=message,
-                app_name="SIMKL Scrobbler",
+                app_name="MPS for SIMKL",
                 timeout=5
             )
         except Exception as e:
@@ -440,6 +457,10 @@ def run_tray_app():
         logger.error(f"Critical error in tray app: {e}")
         print(f"Failed to start in tray mode: {e}")
         print("Falling back to console mode.")
+        
+        # Only import SimklScrobbler here to avoid circular imports
+        from simkl_mps.main import SimklScrobbler
+        
         scrobbler = SimklScrobbler()
         if scrobbler.initialize():
             print("Scrobbler initialized. Press Ctrl+C to exit.")
