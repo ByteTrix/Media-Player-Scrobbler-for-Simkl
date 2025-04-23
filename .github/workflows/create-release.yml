@@ -7,7 +7,7 @@ on:
         required: true
         type: string
     secrets:
-      GITHUB_TOKEN:
+      RELEASE_TOKEN:
         required: true
 
 jobs:
@@ -62,4 +62,4 @@ jobs:
           make_latest: true
           discussion_category_name: "Releases"
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
