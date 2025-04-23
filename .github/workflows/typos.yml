@@ -1,15 +1,20 @@
-name: Check for typos
+name: Typo Check
 
 on:
-  [push, pull_request, workflow_dispatch]
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
 
 jobs:
-  check-typos:
+  typos:
+    name: Check for typos
     runs-on: ubuntu-latest
-
     steps:
-      - uses: actions/checkout@v4
-      - run: git fetch origin ${{ github.base_ref }}
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-      - name: Run spellcheck
-        uses: crate-ci/typos@v1.31.1
+      - name: Run typos check
+        uses: crate-ci/typos@v1.13.10
+        with:
+          config: ./.github/typos_config.toml

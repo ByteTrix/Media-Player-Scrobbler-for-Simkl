@@ -1,0 +1,10 @@
+# Typos configuration file
+
+[default]
+extend-ignore-re = [
+  # Add regexes to ignore specific patterns
+]
+
+[default.extend-words]
+# Add exceptions to the dictionary
+datas = "datas"
