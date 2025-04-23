@@ -382,24 +382,6 @@
   
 </li>
         
-          <li class="md-nav__item">
-  <a href="#service-mode" class="md-nav__link">
-    <span class="md-ellipsis">
-      🔄 Service Mode
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#system-service-auto-start" class="md-nav__link">
-    <span class="md-ellipsis">
-      ⚙️ System Service (Auto-start)
-    </span>
-  </a>
-  
-</li>
-        
       </ul>
     </nav>
   
@@ -609,24 +591,6 @@
   
 </li>
         
-          <li class="md-nav__item">
-  <a href="#service-mode" class="md-nav__link">
-    <span class="md-ellipsis">
-      🔄 Service Mode
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#system-service-auto-start" class="md-nav__link">
-    <span class="md-ellipsis">
-      ⚙️ System Service (Auto-start)
-    </span>
-  </a>
-  
-</li>
-        
       </ul>
     </nav>
   
@@ -697,80 +661,61 @@
 
 
 <h1 id="usage-guide">🎮 Usage Guide<a class="headerlink" href="#usage-guide" title="Permanent link">&para;</a></h1>
-<p>This guide covers the various ways to use Simkl Scrobbler.</p>
+<p>This guide covers the various ways to use MPS for SIMKL (Media Player Scrobbler for SIMKL).</p>
 <h2 id="basic-commands">📋 Basic Commands<a class="headerlink" href="#basic-commands" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># Initial setup (only needed once)</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>simkl-mps<span class="w"> </span>init
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>simkl-mps<span class="w"> </span>i<span class="w">        </span><span class="c1"># or: simkl-mps init</span>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="c1"># Start tracking in foreground mode</span>
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>simkl-mps<span class="w"> </span>start
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="c1"># Start tracking in background mode</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>simkl-mps<span class="w"> </span>s<span class="w">        </span><span class="c1"># or: simkl-mps start</span>
 <a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="c1"># Launch in system tray</span>
-<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>simkl-mps<span class="w"> </span>tray
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="c1"># Launch in system tray (shows logs)</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>simkl-mps<span class="w"> </span>t<span class="w">        </span><span class="c1"># or: simkl-mps tray</span>
 <a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>
-<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="c1"># Run as a background service</span>
-<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>simkl-mps<span class="w"> </span>service
-<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>
-<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="c1"># Check service status</span>
-<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>simkl-mps<span class="w"> </span>service-status
-<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>
-<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="c1"># Process pending offline items</span>
-<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>simkl-mps<span class="w"> </span>process-backlog
-<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>
-<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a><span class="c1"># Show all available commands</span>
-<a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>simkl-mps<span class="w"> </span>--help
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="c1"># Show version information</span>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>simkl-mps<span class="w"> </span>-v<span class="w">       </span><span class="c1"># or: simkl-mps --version</span>
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>simkl-mps<span class="w"> </span>V<span class="w">        </span><span class="c1"># or: simkl-mps version</span>
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="c1"># Show all available commands</span>
+<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>simkl-mps<span class="w"> </span>--help
 </code></pre></div>
+<blockquote>
+<p><strong>Note:</strong> The application is displayed as "MPS for SIMKL" in the system tray and other user interfaces, while the command-line tool name remains <code>simkl-mps</code>.</p>
+</blockquote>
 <h2 id="run-modes">🚀 Run Modes<a class="headerlink" href="#run-modes" title="Permanent link">&para;</a></h2>
 <h3 id="background-mode">🔄 Background Mode<a class="headerlink" href="#background-mode" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>simkl-mps<span class="w"> </span>start
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>simkl-mps<span class="w"> </span>s<span class="w">        </span><span class="c1"># or: simkl-mps start</span>
 </code></pre></div>
-<p>Runs silently in the background. This is the standard way to run the application for regular usage.</p>
+<p>Runs the tray application detached in the background. This is the standard way to run the application for regular usage. You can safely close the terminal after starting.</p>
 <h3 id="system-tray-mode">🖥️ System Tray Mode<a class="headerlink" href="#system-tray-mode" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>simkl-mps<span class="w"> </span>tray
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>simkl-mps<span class="w"> </span>t<span class="w">        </span><span class="c1"># or: simkl-mps tray</span>
 </code></pre></div>
-<p>Runs as a system tray application, allowing you to:
+<p>Runs the tray application attached to the current terminal, showing logs. The application will stop when you close the terminal. This mode allows you to:
 - Start/stop monitoring
 - Process the backlog
 - View logs
 - Exit the application</p>
-<h3 id="service-mode">🔄 Service Mode<a class="headerlink" href="#service-mode" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>simkl-mps<span class="w"> </span>service
-</code></pre></div>
-<p>Runs as a background service with no UI. Useful for headless operation or when you want the application to run independently of user sessions.</p>
-<h3 id="system-service-auto-start">⚙️ System Service (Auto-start)<a class="headerlink" href="#system-service-auto-start" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># Install as a system service</span>
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>simkl-mps<span class="w"> </span>install-service
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
-<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="c1"># Uninstall the service</span>
-<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>simkl-mps<span class="w"> </span>uninstall-service
-<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>
-<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="c1"># Check service status</span>
-<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>simkl-mps<span class="w"> </span>service-status
-</code></pre></div>
-<p>This installs the application to run automatically when your system starts, with platform-specific implementations:
-- Windows: Registry startup entry
-- macOS: LaunchAgent
-- Linux: systemd user service</p>
 <h2 id="command-line-arguments">💻 Command-Line Arguments<a class="headerlink" href="#command-line-arguments" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># Show detailed help</span>
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>simkl-mps<span class="w"> </span>--help
-<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>
-<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="c1"># Show application version</span>
-<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>simkl-mps<span class="w"> </span>--version
-<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>
-<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="c1"># Run with debug logging</span>
-<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>simkl-mps<span class="w"> </span>start<span class="w"> </span>--debug
-<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>
-<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="c1"># Use a specific config file</span>
-<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a>simkl-mps<span class="w"> </span>start<span class="w"> </span>--config<span class="w"> </span>/path/to/config.env
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># Show detailed help</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>simkl-mps<span class="w"> </span>--help
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="c1"># Show version information</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>simkl-mps<span class="w"> </span>-v<span class="w">       </span><span class="c1"># or: simkl-mps --version</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>simkl-mps<span class="w"> </span>V<span class="w">        </span><span class="c1"># or: simkl-mps version</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="c1"># Run with debug logging</span>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>simkl-mps<span class="w"> </span>s<span class="w"> </span>--debug<span class="w">    </span><span class="c1"># or: simkl-mps start --debug</span>
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>
+<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="c1"># Use a specific config file</span>
+<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>simkl-mps<span class="w"> </span>s<span class="w"> </span>--config<span class="w"> </span>/path/to/config.env<span class="w">    </span><span class="c1"># or: simkl-mps start --config /path/to/config.env</span>
 </code></pre></div>
 <h2 id="log-files">📁 Log Files<a class="headerlink" href="#log-files" title="Permanent link">&para;</a></h2>
 <p>Check these files for troubleshooting:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a># Main application log
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>[APP_DATA_DIR]/kavinthangavel/simkl-mps/media-player-scrobbler-for-simkl.log
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>
-<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a># Detailed playback events
-<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>[APP_DATA_DIR]/kavinthangavel/simkl-mps/playback_log.jsonl
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a># Main application log
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>[APP_DATA_DIR]/kavinthangavel/simkl-mps/media-player-scrobbler-for-simkl.log
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a># Detailed playback events
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>[APP_DATA_DIR]/kavinthangavel/simkl-mps/playback_log.jsonl
 </code></pre></div>
 <p>Where <code>[APP_DATA_DIR]</code> is platform-specific:
 - Windows: <code>%APPDATA%</code>
@@ -816,32 +761,24 @@
 </table>
 <h2 id="recommended-workflow">🔍 Recommended Workflow<a class="headerlink" href="#recommended-workflow" title="Permanent link">&para;</a></h2>
 <ol>
-<li>Run <code>simkl-mps init</code> to set up your Simkl account</li>
-<li>Test with <code>simkl-mps start</code> to ensure detection works in background mode</li>
-<li>For daily use, either:</li>
-<li>Use <code>simkl-mps tray</code> for easy access to controls</li>
-<li>Install as a service with <code>simkl-mps install-service</code> for automatic startup</li>
+<li>Run <code>simkl-mps i</code> (or <code>init</code>) to set up your Simkl account</li>
+<li>Test with <code>simkl-mps t</code> (or <code>tray</code>) to ensure detection works and view logs</li>
+<li>For daily use, run <code>simkl-mps s</code> (or <code>start</code>) to launch in background mode</li>
 </ol>
 <h2 id="operation-flow">📊 Operation Flow<a class="headerlink" href="#operation-flow" title="Permanent link">&para;</a></h2>
 <p>The following diagram illustrates how the different run modes operate:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>graph TD
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>    A[Simkl Scrobbler] --&gt; B[Background Mode]
-<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>    A --&gt; C[System Tray Mode]
-<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>    A --&gt; D[Service Mode]
-<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>    A --&gt; E[System Service]
-<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>
-<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a>    B --&gt;|No UI| F[Standard Tracking]
-<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a>    C --&gt;|Tray Icon| G[Control Panel]
-<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a>    D --&gt;|No UI| H[Independent Tracking]
-<a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a>    E --&gt;|Auto-start| I[Boot Tracking]
-<a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a>
-<a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a>    F --&gt; J[Simkl API]
-<a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a>    G --&gt; J
-<a id="__codelineno-7-14" name="__codelineno-7-14" href="#__codelineno-7-14"></a>    H --&gt; J
-<a id="__codelineno-7-15" name="__codelineno-7-15" href="#__codelineno-7-15"></a>    I --&gt; J
-<a id="__codelineno-7-16" name="__codelineno-7-16" href="#__codelineno-7-16"></a>
-<a id="__codelineno-7-17" name="__codelineno-7-17" href="#__codelineno-7-17"></a>    style A fill:#f9d5e5,stroke:#333,stroke-width:2px
-<a id="__codelineno-7-18" name="__codelineno-7-18" href="#__codelineno-7-18"></a>    style J fill:#d5f5e3,stroke:#333,stroke-width:2px
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>graph TD
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>    A[MPS for SIMKL] --&gt; B[Background Mode]
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>    A --&gt; C[System Tray Mode]
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>    B --&gt;|Detached| F[Background Tracking]
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>    C --&gt;|Terminal Attached| G[Interactive Control]
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>    F --&gt; J[Simkl API]
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>    G --&gt; J
+<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a>
+<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a>    style A fill:#f9d5e5,stroke:#333,stroke-width:2px
+<a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a>    style J fill:#d5f5e3,stroke:#333,stroke-width:2px
 </code></pre></div>
 
 
@@ -865,7 +802,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="April 22, 2025 14:13:17">April 22, 2025</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="April 23, 2025 10:33:00">April 23, 2025</span>
   </span>
 
     
