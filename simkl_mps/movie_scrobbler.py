@@ -257,10 +257,18 @@ class MovieScrobbler:
 
     def _update_tracking(self, window_info=None):
         """Update tracking for the current movie, including position and duration if possible."""
+        current_time = time.time()
+        
+        # Update watch time for active movie
+        if self.state == PLAYING and self.last_update_time:
+            elapsed = current_time - self.last_update_time
+            if elapsed > 0 and elapsed < 30:  # Sanity check
+                self.watch_time += elapsed
+        
+        self.last_update_time = current_time
+
         if not self.currently_tracking or not self.last_update_time:
             return None
-
-        current_time = time.time()
 
         process_name = window_info.get('process_name') if window_info else None
         pos, dur = None, None

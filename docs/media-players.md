@@ -110,17 +110,21 @@ See this Guide for best Understanding : [VLC Web Interface](https://github.com/a
    # For Windows
    input-ipc-server=\\.\pipe\mpvsocket
    ```
-3. Restart MPV
+3. Restart MPV.
+
+This enables advanced position tracking for accurate scrobbling.
 
 ### 🎮 PotPlayer (Windows only)
 
-1. Open PotPlayer
-2. Go to Preferences (F5) > Others > Web Control Interface
-3. Check "Listen to HTTP request on port:" (default 8080)
-4. Click "Apply" and "OK"
-5. Restart PotPlayer
+1. Open PotPlayer.
+2. Go to Preferences (F5) > Others > Web Control Interface.
+3. Check "Listen to HTTP request on port:" (default is 8080).
+4. Click "Apply" and "OK".
+5. Restart PotPlayer.
 
-**Default Address**: http://127.0.0.1:8080/
+**Default Address:** http://127.0.0.1:8080/
+
+This enables advanced position tracking for accurate scrobbling.
 
 ## 🔧 Troubleshooting Player Integration
 
