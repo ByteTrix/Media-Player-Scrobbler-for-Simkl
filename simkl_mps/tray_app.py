@@ -29,7 +29,17 @@ class TrayApp:
         self.last_scrobbled = None
         self.config_path = APP_DATA_DIR / ".simkl_mps.env"
         self.log_path = APP_DATA_DIR / "simkl_mps.log"
-        self.assets_dir = Path(__file__).parent / "assets"
+
+        if getattr(sys, 'frozen', False):
+
+            base_path = Path(sys._MEIPASS)
+        else:
+
+            base_path = Path(__file__).parent
+            
+        self.assets_dir = base_path / "assets"
+        logger.info(f"Assets directory set to: {self.assets_dir}")
+        
         self.setup_icon()
     
     def setup_icon(self):
