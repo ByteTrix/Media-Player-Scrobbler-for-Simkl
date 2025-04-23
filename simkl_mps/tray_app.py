@@ -84,6 +84,9 @@ class TrayApp:
             else:
                 logger.error(f"No suitable icon found in assets directory: {self.assets_dir}")
                 return self._create_fallback_image()
+        except FileNotFoundError as e:
+            logger.error(f"Icon file not found: {e}", exc_info=True)
+            return self._create_fallback_image()
         except Exception as e:
             logger.error(f"Error loading status icon: {e}", exc_info=True)
             return self._create_fallback_image()
