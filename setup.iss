@@ -1,4 +1,5 @@
 #define MyAppName "Media Player Scrobbler for SIMKL"
+#define MyAppShortName "MPS for SIMKL"
 #define MyAppPublisher "kavinthangavel"
 #define MyAppURL "https://github.com/kavinthangavel/simkl-movie-tracker"
 #define MyAppExeName "MPSS"
@@ -9,6 +10,7 @@
 #define MyAppUpdateURL "https://github.com/kavinthangavel/simkl-movie-tracker/releases"
 #define MyAppReadmeURL "https://github.com/kavinthangavel/simkl-movie-tracker#readme"
 #define MyAppIssuesURL "https://github.com/kavinthangavel/simkl-movie-tracker/issues"
+#define MyLicense "GNU GPL v3"
 
 [Setup]
 ; NOTE: The value of AppId uniquely identifies this application.
@@ -22,11 +24,11 @@ AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppIssuesURL}
 AppUpdatesURL={#MyAppUpdateURL}
 DefaultDirName={autopf}\{#MyAppName}
-DefaultGroupName={#MyAppName}
+DefaultGroupName={#MyAppShortName}
 AllowNoIcons=yes
-; Privilege level settings - allow user to choose
-PrivilegesRequired=admin
-PrivilegesRequiredOverridesAllowed=dialog
+; Privilege level settings - set to lowest for per-user installation 
+; and allow the user to choose to run as admin if needed
+PrivilegesRequired=lowest
 ; 64-bit only application
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
@@ -38,10 +40,12 @@ SetupIconFile=simkl_mps\assets\simkl-mps.ico
 Compression=lzma2/ultra64
 SolidCompression=yes
 ; Uninstall settings
-UninstallDisplayIcon={app}\{#MyAppExeName}
-UninstallDisplayName={#MyAppName}
-; Modern UI
+UninstallDisplayIcon={app}\{#MyAppExeName}.exe
+UninstallDisplayName={#MyAppShortName}
+; Modern UI settings
 WizardStyle=modern
+WizardResizable=yes
+WizardSizePercent=120
 ; This adds Windows 10/11 compatibility settings
 MinVersion=10.0.17763
 ; App metadata
@@ -59,14 +63,35 @@ LicenseFile=LICENSE
 SetupMutex={#MyAppName}Setup
 AlwaysRestart=no
 RestartIfNeededByRun=yes
+DisableDirPage=auto
+DisableProgramGroupPage=auto
+UsedUserAreasWarning=no
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
+[Messages]
+WelcomeLabel1=Welcome to the [name] Setup Wizard
+WelcomeLabel2=This will install [name/ver] on your computer.%n%nMedia Player Scrobbler for SIMKL automatically tracks what you watch in your media players and updates your SIMKL.com account.%n%nIt is recommended that you close all other applications before continuing.
+FinishedHeadingLabel=Completing the [name] Setup Wizard
+FinishedLabel=Setup has finished installing [name] on your computer. The application may be launched by selecting the installed shortcuts.
+AboutSetupMenuItem=About [name]...
+AboutSetupTitle=About [name]
+AboutSetupMessage=[name] version [ver]%n[name] Media Player Scrobbler for SIMKL%n%nLicense: {#MyLicense}%n%nCopyright © kavinthangavel%n{#MyAppURL}
+
+[CustomMessages]
+LaunchAppDesc=Start MPS for SIMKL after installation
+DesktopIconDesc=Create a desktop shortcut
+StartupIconDesc=Start automatically when Windows starts
+UpdateDesc=Schedule weekly update checks (recommended)
+AboutApp=About Media Player Scrobbler for SIMKL
+VersionInfo=Version: {#MyAppVersion}
+LicenseInfo=License: {#MyLicense}
+
 [Tasks]
-Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}";
-Name: "startupicon"; Description: "Start {#MyAppName} when Windows starts"; GroupDescription: "Windows Startup"
-Name: "scheduledupdate"; Description: "Schedule weekly update checks (recommended)"; GroupDescription: "Update Settings";
+Name: "desktopicon"; Description: "{cm:DesktopIconDesc}"; GroupDescription: "Shortcuts:"
+Name: "startupicon"; Description: "{cm:StartupIconDesc}"; GroupDescription: "Startup options:"
+Name: "scheduledupdate"; Description: "{cm:UpdateDesc}"; GroupDescription: "Update options:"
 
 [Files]
 ; Main executable
@@ -77,38 +102,57 @@ Source: "dist\MPS for Simkl.exe"; DestDir: "{app}"; Flags: ignoreversion signonc
 Source: "dist\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 ; Include updater script directly
 Source: "simkl_mps\utils\updater.ps1"; DestDir: "{app}"; Flags: ignoreversion
+; Create version file to help with About dialog
+Source: "LICENSE"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
-; Start Menu entries
-Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
-Name: "{group}\Start Media Scrobbler"; Filename: "{app}\{#MyAppExeName}"; Parameters: "start"
-Name: "{group}\{cm:ProgramOnTheWeb,{#MyAppName}}"; Filename: "{#MyAppURL}"
-Name: "{group}\{cm:UninstallProgram,{#MyAppName}}"; Filename: "{uninstallexe}"
+; Start Menu entries - simplified to just have "Start Scrobbler"
+Name: "{group}\{#MyAppShortName}"; Filename: "{app}\{#MyAppExeName}"; Parameters: "start"; Comment: "Start SIMKL scrobbler in the background"
+Name: "{group}\{cm:UninstallProgram,{#MyAppShortName}}"; Filename: "{uninstallexe}"
 
-; Desktop icons (optional based on tasks)
-Name: "{commondesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon; Check: IsAdminInstallMode
-Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon; Check: not IsAdminInstallMode
+; Desktop icon - simplified to just one "Start Scrobbler" icon
+Name: "{commondesktop}\{#MyAppShortName}"; Filename: "{app}\{#MyAppExeName}"; Parameters: "start"; Tasks: desktopicon; Check: IsAdminInstallMode; Comment: "Start SIMKL scrobbler in the background"
+Name: "{userdesktop}\{#MyAppShortName}"; Filename: "{app}\{#MyAppExeName}"; Parameters: "start"; Tasks: desktopicon; Check: not IsAdminInstallMode; Comment: "Start SIMKL scrobbler in the background"
 
-; Startup entry (optional based on tasks)
-Name: "{userstartup}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Parameters: "start"; Tasks: startupicon; Check: not IsAdminInstallMode
+; Startup entry - renamed to "MPS for Simkl.exe" with specific icon
+Name: "{userstartup}\{#MyAppShortName}"; Filename: "{app}\{#MyAppTrayName}"; Parameters: "start"; IconFilename: "{app}\{#MyAppTrayName}"; Tasks: startupicon; Check: not IsAdminInstallMode; Comment: "Start SIMKL scrobbler in the background"
+Name: "{commonstartup}\{#MyAppShortName}"; Filename: "{app}\{#MyAppTrayName}"; Parameters: "start"; IconFilename: "{app}\{#MyAppTrayName}"; Tasks: startupicon; Check: IsAdminInstallMode; Comment: "Start SIMKL scrobbler in the background"
 
 [Run]
 ; Options to run after installation
-Filename: "{app}\{#MyAppExeName}"; Description: "Start Media Scrobbler"; Parameters: "start"; Flags: nowait postinstall skipifsilent runascurrentuser
-Filename: "{#MyAppURL}"; Description: "Visit the project website"; Flags: postinstall shellexec skipifsilent  
+Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchAppDesc}"; Parameters: "start"; Flags: nowait postinstall skipifsilent runascurrentuser
+Filename: "{#MyAppURL}"; Description: "Visit website"; Flags: postinstall shellexec skipifsilent unchecked
 
 [UninstallRun]
-; Stop any running processes before uninstall
-Filename: "taskkill.exe"; Parameters: "/F /IM ""{#MyAppExeName}"" /T"; Flags: runhidden skipifdoesntexist; RunOnceId: "KillMain"
-Filename: "taskkill.exe"; Parameters: "/F /IM ""{#MyAppTrayName}"" /T"; Flags: runhidden skipifdoesntexist; RunOnceId: "KillTray"
+; Improved process termination for uninstallation
+; First try to gracefully close the app
+Filename: "{app}\{#MyAppExeName}.exe"; Parameters: "exit"; Flags: runhidden skipifdoesntexist; RunOnceId: "GracefulExit"
+; Wait a moment before forcefully terminating
+Filename: "{sys}\cmd.exe"; Parameters: "/c timeout /t 2 /nobreak > nul"; Flags: runhidden; RunOnceId: "WaitForExit"
+; Forcefully terminate any remaining processes
+Filename: "taskkill.exe"; Parameters: "/F /IM ""{#MyAppExeName}.exe"" /T"; Flags: runhidden skipifdoesntexist; RunOnceId: "KillMain"
+Filename: "taskkill.exe"; Parameters: "/F /IM ""MPS for Simkl.exe"" /T"; Flags: runhidden skipifdoesntexist; RunOnceId: "KillTray"
+; Add a Windows PowerShell command to find and kill all related processes - fix curly braces escaping
+Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -Command ""Get-Process | Where-Object {{$_.Path -like '*{{app}}*'}} | Stop-Process -Force"""; Flags: runhidden skipifdoesntexist runascurrentuser; RunOnceId: "KillAllRelated"
+; Final wait to ensure processes have terminated
+Filename: "{sys}\cmd.exe"; Parameters: "/c timeout /t 1 /nobreak > nul"; Flags: runhidden; RunOnceId: "FinalWait"
 
 [Registry]
+; Create a version information file for the about dialog
+Root: HKCU; Subkey: "Software\{#MyAppPublisher}\{#MyAppName}"; ValueType: string; ValueName: "Version"; ValueData: "{#MyAppVersion}"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\{#MyAppPublisher}\{#MyAppName}"; ValueType: string; ValueName: "License"; ValueData: "{#MyLicense}"; Flags: uninsdeletekey
+
 ; Custom app registration (for uninstall)
 Root: HKLM; Subkey: "Software\Microsoft\Windows\CurrentVersion\Uninstall\{{3FF84A4E-B9C2-4F49-A8DE-5F7EA15F5D88}_is1"; ValueType: string; ValueName: "DisplayIcon"; ValueData: "{app}\{#MyAppExeName}"; Flags: uninsdeletekey; Check: IsAdminInstallMode
 Root: HKLM; Subkey: "Software\Microsoft\Windows\CurrentVersion\Uninstall\{{3FF84A4E-B9C2-4F49-A8DE-5F7EA15F5D88}_is1"; ValueType: string; ValueName: "DisplayName"; ValueData: "{#MyAppName}"; Flags: uninsdeletekey; Check: IsAdminInstallMode
 Root: HKLM; Subkey: "Software\Microsoft\Windows\CurrentVersion\Uninstall\{{3FF84A4E-B9C2-4F49-A8DE-5F7EA15F5D88}_is1"; ValueType: string; ValueName: "DisplayVersion"; ValueData: "{#MyAppVersion}"; Flags: uninsdeletekey; Check: IsAdminInstallMode
 Root: HKLM; Subkey: "Software\Microsoft\Windows\CurrentVersion\Uninstall\{{3FF84A4E-B9C2-4F49-A8DE-5F7EA15F5D88}_is1"; ValueType: string; ValueName: "Publisher"; ValueData: "{#MyAppPublisher}"; Flags: uninsdeletekey; Check: IsAdminInstallMode
 Root: HKLM; Subkey: "Software\Microsoft\Windows\CurrentVersion\Uninstall\{{3FF84A4E-B9C2-4F49-A8DE-5F7EA15F5D88}_is1"; ValueType: string; ValueName: "URLInfoAbout"; ValueData: "{#MyAppURL}"; Flags: uninsdeletekey; Check: IsAdminInstallMode
+
+; Custom app registration for uninstall with explicit icon path
+Root: HKLM; Subkey: "Software\Microsoft\Windows\CurrentVersion\Uninstall\{{3FF84A4E-B9C2-4F49-A8DE-5F7EA15F5D88}_is1"; ValueType: string; ValueName: "UninstallString"; ValueData: """{uninstallexe}"""; Flags: uninsdeletekey; Check: IsAdminInstallMode
+Root: HKLM; Subkey: "Software\Microsoft\Windows\CurrentVersion\Uninstall\{{3FF84A4E-B9C2-4F49-A8DE-5F7EA15F5D88}_is1"; ValueType: string; ValueName: "DisplayIcon"; ValueData: "{app}\{#MyAppExeName}.exe"; Flags: uninsdeletekey; Check: IsAdminInstallMode
+Root: HKLM; Subkey: "Software\Microsoft\Windows\CurrentVersion\Uninstall\{{3FF84A4E-B9C2-4F49-A8DE-5F7EA15F5D88}_is1"; ValueType: string; ValueName: "DisplayName"; ValueData: "{#MyAppShortName}"; Flags: uninsdeletekey; Check: IsAdminInstallMode
 
 ; User installation registry entries (non-admin installations)
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Uninstall\{{3FF84A4E-B9C2-4F49-A8DE-5F7EA15F5D88}_is1"; ValueType: string; ValueName: "DisplayIcon"; ValueData: "{app}\{#MyAppExeName}"; Flags: uninsdeletekey; Check: not IsAdminInstallMode
@@ -117,9 +161,14 @@ Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Uninstall\{{3FF84
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Uninstall\{{3FF84A4E-B9C2-4F49-A8DE-5F7EA15F5D88}_is1"; ValueType: string; ValueName: "Publisher"; ValueData: "{#MyAppPublisher}"; Flags: uninsdeletekey; Check: not IsAdminInstallMode
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Uninstall\{{3FF84A4E-B9C2-4F49-A8DE-5F7EA15F5D88}_is1"; ValueType: string; ValueName: "URLInfoAbout"; ValueData: "{#MyAppURL}"; Flags: uninsdeletekey; Check: not IsAdminInstallMode
 
+; User installation registry entries with updated uninstaller name and icon
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Uninstall\{{3FF84A4E-B9C2-4F49-A8DE-5F7EA15F5D88}_is1"; ValueType: string; ValueName: "UninstallString"; ValueData: """{uninstallexe}"""; Flags: uninsdeletekey; Check: not IsAdminInstallMode
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Uninstall\{{3FF84A4E-B9C2-4F49-A8DE-5F7EA15F5D88}_is1"; ValueType: string; ValueName: "DisplayIcon"; ValueData: "{app}\{#MyAppExeName}.exe"; Flags: uninsdeletekey; Check: not IsAdminInstallMode
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Uninstall\{{3FF84A4E-B9C2-4F49-A8DE-5F7EA15F5D88}_is1"; ValueType: string; ValueName: "DisplayName"; ValueData: "{#MyAppShortName}"; Flags: uninsdeletekey; Check: not IsAdminInstallMode
+
 ; Auto-update settings
-Root: HKCU; Subkey: "Software\{#MyAppPublisher}\{#MyAppName}"; ValueType: string; ValueName: "InstallPath"; ValueData: "{app}"; Flags: uninsdeletekey; Check: not IsAdminInstallMode
-Root: HKCU; Subkey: "Software\{#MyAppPublisher}\{#MyAppName}"; ValueType: string; ValueName: "Version"; ValueData: "{#MyAppVersion}"; Flags: uninsdeletekey; Check: not IsAdminInstallMode
+Root: HKCU; Subkey: "Software\{#MyAppPublisher}\{#MyAppName}"; ValueType: string; ValueName: "InstallPath"; ValueData: "{app}"; Flags: uninsdeletekey
+Root: HKLM; Subkey: "Software\{#MyAppPublisher}\{#MyAppName}"; ValueType: string; ValueName: "InstallPath"; ValueData: "{app}"; Flags: uninsdeletekey; Check: IsAdminInstallMode
 
 ; Add to Apps & Features list for non-admin installs (Windows 10+)
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Uninstall\{{3FF84A4E-B9C2-4F49-A8DE-5F7EA15F5D88}_is1"; ValueType: string; ValueName: "InstallLocation"; ValueData: "{app}"; Flags: uninsdeletekey; Check: not IsAdminInstallMode
@@ -168,23 +217,120 @@ begin
   end;
 end;
 
+// Create a version file with info for the app to use
+procedure CreateVersionFile;
+var
+  VersionFilePath: String;
+  VersionContents: String;
+begin
+  VersionFilePath := ExpandConstant('{app}\version.txt');
+  VersionContents := '{#MyAppVersion}';
+  
+  if not SaveStringToFile(VersionFilePath, VersionContents, False) then
+    Log('Failed to create version.txt file');
+end;
+
 // Called after files are copied
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
   if CurStep = ssPostInstall then
   begin
+    // Create version file
+    CreateVersionFile();
+    
+    // Create scheduled task if selected
     if WizardIsTaskSelected('scheduledupdate') then
       CreateUpdateScheduledTask();
   end;
 end;
 
-// Called when uninstalling
+// Enhanced cleanup during uninstallation
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+var
+  ConfigDirs: array of String;
+  i: Integer;
+  CleanupAll: Boolean;
+  UserProfileDir, AppDataDir, LocalAppDataDir: String;
 begin
   if CurUninstallStep = usPostUninstall then
   begin
+    // Remove scheduled task
     RemoveUpdateScheduledTask();
-    if SuppressibleMsgBox('Do you want to remove all user settings?', mbConfirmation, MB_YESNO, IDNO) = IDYES then
-      DelTree(ExpandConstant('{localappdata}\' + CONFIG_FOLDER), True, True, True);
+    
+    // Ask user about data removal
+    CleanupAll := SuppressibleMsgBox('Do you want to remove all user settings, logs, and application data?', 
+                                     mbConfirmation, MB_YESNO, IDNO) = IDYES;
+    
+    if CleanupAll then
+    begin
+      // Get reliable paths for Windows environment folders
+      UserProfileDir := GetEnv('USERPROFILE');
+      AppDataDir := GetEnv('APPDATA');
+      LocalAppDataDir := GetEnv('LOCALAPPDATA');
+      
+      // All possible config directories to check and remove - Windows specific
+      SetArrayLength(ConfigDirs, 6);
+      
+      // Primary location: C:\Users\username\kavinthangavel\simkl-mps
+      ConfigDirs[0] := UserProfileDir + '\kavinthangavel\' + CONFIG_FOLDER;
+      
+      // Other possible locations - using environment variables instead of constants
+      ConfigDirs[1] := LocalAppDataDir + '\' + CONFIG_FOLDER;
+      ConfigDirs[2] := AppDataDir + '\' + CONFIG_FOLDER;
+      ConfigDirs[3] := UserProfileDir + '\' + CONFIG_FOLDER; 
+      ConfigDirs[4] := UserProfileDir + '\AppData\Local\' + CONFIG_FOLDER;
+      ConfigDirs[5] := UserProfileDir + '\Documents\' + CONFIG_FOLDER;
+      
+      // Log what directories we're checking
+      Log('Looking for configuration directories to clean up...');
+      
+      // Loop through all possible locations and delete them if they exist
+      for i := 0 to GetArrayLength(ConfigDirs) - 1 do
+      begin
+        if DirExists(ConfigDirs[i]) then
+        begin
+          Log('Deleting configuration directory: ' + ConfigDirs[i]);
+          if not DelTree(ConfigDirs[i], True, True, True) then
+          begin
+            Log('Failed to delete directory with DelTree: ' + ConfigDirs[i]);
+            // Try CMD as fallback for difficult directories
+            Exec('cmd.exe', '/c rd /s /q "' + ConfigDirs[i] + '"', '', SW_HIDE, ewWaitUntilTerminated, i);
+          end;
+        end else
+          Log('Directory not found: ' + ConfigDirs[i]);
+      end;
+      
+      // Also clean registry entries
+      RegDeleteKeyIncludingSubkeys(HKCU, 'Software\{#MyAppPublisher}\{#MyAppName}');
+      if IsAdminInstallMode then
+        RegDeleteKeyIncludingSubkeys(HKLM, 'Software\{#MyAppPublisher}\{#MyAppName}');
+    end;
   end;
+end;
+
+// Enhanced uninstall preparation
+function InitializeUninstall(): Boolean;
+var
+  ResultCode: Integer;
+  ProcessName: string;
+begin
+  // Ensure all application processes are terminated before continuing
+  ProcessName := ExtractFileName(ExpandConstant('{app}\{#MyAppExeName}.exe'));
+  
+  // Try graceful exit first
+  Exec(ExpandConstant('{app}\{#MyAppExeName}.exe'), 'exit', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  
+  // Wait briefly
+  Sleep(1000);
+  
+  // Forceful termination of any remaining processes
+  Exec('taskkill.exe', '/F /IM "' + ProcessName + '" /T', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Sleep(500);
+  
+  // Also try to terminate the tray application
+  Exec('taskkill.exe', '/F /IM "MPS for Simkl.exe" /T', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Sleep(500);
+  
+  // Success - let uninstallation proceed
+  Result := True;
 end;
