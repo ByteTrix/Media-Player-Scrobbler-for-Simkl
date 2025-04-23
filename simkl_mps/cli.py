@@ -1,5 +1,5 @@
 """
-Command-Line Interface (CLI) for the Simkl Scrobbler application.
+Command-Line Interface (CLI) for the Media Player Scrobbler for SIMKL application.
 
 Provides commands for initialization, starting/stopping the service,
 managing the background service, and checking status.
@@ -69,7 +69,7 @@ VERSION = get_version()
 
 
 if len(sys.argv) > 1 and sys.argv[1] in ["--version", "-v", "version"]:
-    print(f"Simkl Scrobbler v{VERSION}")
+    print(f"simkl-mps v{VERSION}")
     print(f"Python: {sys.version.split()[0]}")
     print(f"Platform: {sys.platform}")
     sys.exit(0)
@@ -102,7 +102,7 @@ def init_command(args):
     Checks existing credentials, performs OAuth device flow if necessary,
     and saves the access token. Verifies the final configuration.
     """
-    print(f"{Fore.CYAN}=== Simkl Scrobbler Initialization ==={Style.RESET_ALL}")
+    print(f"{Fore.CYAN}=== Media Player Scrobbler for SIMKL Initialization ==={Style.RESET_ALL}")
     env_path = get_env_file_path()
     print(f"[*] Using Access Token file: {env_path}")
     logger.info("Initiating initialization process.")
@@ -178,7 +178,7 @@ def start_command(args):
     and launches the tray application in a detached background process.
     All components run in background - closing terminal won't affect function.
     """
-    print(f"{Fore.CYAN}=== Starting Simkl Scrobbler ==={Style.RESET_ALL}")
+    print(f"{Fore.CYAN}=== Starting Media Player Scrobbler for SIMKL ==={Style.RESET_ALL}")
     logger.info("Executing start command.")
 
     if not _check_prerequisites():
@@ -254,7 +254,7 @@ def start_command(args):
             logger.info("Launched detached process on Unix-like system.")
 
         print(f"{Fore.GREEN}[✓] Scrobbler launched successfully in background.{Style.RESET_ALL}")
-        print(f"[*] Look for the Simkl Scrobbler icon in your system tray.")
+        print(f"[*] Look for the simkl-mps icon in your system tray.")
         print(f"{Fore.GREEN}[✓] You can safely close this terminal window. All processes will continue running.{Style.RESET_ALL}")
         return 0
     except Exception as e:
@@ -270,7 +270,7 @@ def tray_command(args):
     Logs will be printed to the terminal.
     Closing the terminal will stop the application.
     """
-    print(f"{Fore.CYAN}=== Starting Simkl Scrobbler (Tray Foreground Mode) ==={Style.RESET_ALL}")
+    print(f"{Fore.CYAN}=== Starting Media Player Scrobbler for SIMKL (Tray Foreground Mode) ==={Style.RESET_ALL}")
     logger.info("Executing tray command (foreground).")
     if not _check_prerequisites(): return 1
 
@@ -297,10 +297,10 @@ def version_command(args):
     
     Shows the current installed version of simkl-mps.
     """
-    print(f"{Fore.CYAN}=== Simkl Scrobbler Version Information ==={Style.RESET_ALL}")
+    print(f"{Fore.CYAN}=== simkl-mps Version Information ==={Style.RESET_ALL}")
     logger.info(f"Displaying version information: {VERSION}")
     
-    print(f"Simkl Scrobbler v{VERSION}")
+    print(f"simkl-mps v{VERSION}")
     print(f"Python: {sys.version.split()[0]}")
     print(f"Platform: {sys.platform}")
 
@@ -321,7 +321,7 @@ def create_parser():
         argparse.ArgumentParser: The configured argument parser.
     """
     parser = argparse.ArgumentParser(
-        description="Simkl Scrobbler: Automatically scrobble movie watch history to Simkl.",
+        description="simkl-mps: Automatically scrobble movie watch history to Simkl.",
         formatter_class=argparse.RawTextHelpFormatter # Preserve help text formatting
     )
 

@@ -1,6 +1,6 @@
 # 📥 Installation Guide
 
-This guide covers detailed installation instructions for Simkl Scrobbler across different platforms.
+This guide covers detailed installation instructions for Media Player Scrobbler for SIMKL across different platforms.
 
 ## ✅ Prerequisites
 

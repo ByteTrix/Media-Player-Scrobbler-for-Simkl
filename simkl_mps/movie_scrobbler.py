@@ -1,5 +1,5 @@
 """
-Movie scrobbler module for SIMKL Scrobbler.
+Movie scrobbler module for Media Player Scrobbler for SIMKL.
 Handles movie detection and scrobbling to SIMKL.
 """
 

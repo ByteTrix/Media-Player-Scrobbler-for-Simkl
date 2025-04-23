@@ -1,5 +1,5 @@
 """
-Simkl Scrobbler package.
+Media Player Scrobbler for SIMKL package.
 """
 
 __version__ = "1.0.0"

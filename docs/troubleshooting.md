@@ -1,6 +1,6 @@
 # 🔧 Troubleshooting Guide
 
-This document provides solutions for common issues with Simkl Scrobbler.
+This document provides solutions for common issues with Media Player Scrobbler for SIMKL.
 
 ## 🚨 Common Issues and Solutions
 

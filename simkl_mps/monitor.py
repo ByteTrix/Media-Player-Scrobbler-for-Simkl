@@ -1,5 +1,5 @@
 """
-Monitor module for SIMKL Scrobbler.
+Monitor module for Media Player Scrobbler for SIMKL.
 Handles continuous window monitoring and scrobbling.
 """
 

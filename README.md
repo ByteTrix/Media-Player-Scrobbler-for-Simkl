@@ -54,7 +54,7 @@ The application monitors your active windows to detect media players, extracts t
 
 ```mermaid
 graph LR
-    A[Media Player] -->|Window Title| B[Simkl Scrobbler]
+    A[Media Player] -->|Window Title| B[simkl-mps]
     B -->|Parse Title| C[Movie Identification]
     C -->|Track Progress| D[Simkl API]
     D -->|Mark as Watched| E[Simkl Profile]

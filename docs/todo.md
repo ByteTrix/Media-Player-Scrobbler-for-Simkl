@@ -1,6 +1,6 @@
 # 📋 Todo List
 
-This document tracks both completed features and planned improvements for Simkl Scrobbler.
+This document tracks both completed features and planned improvements for Media Player Scrobbler for SIMKL.
 
 ## ✅ Completed
 

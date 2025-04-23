@@ -1,6 +1,6 @@
 # 🎮 Usage Guide
 
-This guide covers the various ways to use Simkl Scrobbler.
+This guide covers the various ways to use Media Player Scrobbler for SIMKL.
 
 ## 📋 Basic Commands
 
@@ -102,7 +102,7 @@ The following diagram illustrates how the different run modes operate:
 
 ```mermaid
 graph TD
-    A[Simkl Scrobbler] --> B[Background Mode]
+    A[Media Player Scrobbler for SIMKL] --> B[Background Mode]
     A --> C[System Tray Mode]
     
     B -->|Detached| F[Background Tracking]

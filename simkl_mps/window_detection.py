@@ -1,5 +1,5 @@
 """
-Platform-specific window detection for SIMKL Scrobbler.
+Platform-specific window detection for Media Player Scrobbler for SIMKL.
 Provides utility functions for detecting windows and media players across platforms.
 """
 
