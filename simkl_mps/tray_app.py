@@ -48,27 +48,18 @@ class TrayApp:
             logger.error(f"Error setting up tray icon: {e}")
             raise
     
-    def load_icon_for_status(self):
-        """Load the appropriate icon based on current status and platform"""
         try:
-            if sys.platform == "win32":
-                icon_path = self.assets_dir / f"simkl-mps-{self.status}.ico"
-                if not icon_path.exists():
-                    icon_path = self.assets_dir / "simkl-mps.ico"
-            else:
-                icon_path = self.assets_dir / f"simkl-mps-{self.status}.png"
-                if not icon_path.exists():
-                    icon_path = self.assets_dir / "simkl-mps.png"
-            
+            icon_name = f"simkl-mps-{self.status}.ico" if sys.platform == "win32" else f"simkl-mps-{self.status}.png"
+            icon_path = self.assets_dir / icon_name
             if not icon_path.exists():
-                icon_path = self.assets_dir / "simkl-mps.png"
-                
+                icon_path = self.assets_dir / "simkl-mps.png" # Default icon
+
             if icon_path.exists():
                 logger.debug(f"Loading tray icon: {icon_path}")
                 return Image.open(icon_path)
             else:
                 raise FileNotFoundError(f"Icon not found: {icon_path}")
-        except Exception as e:
+        except FileNotFoundError as e:
             logger.error(f"Error loading status icon: {e}")
             return self._create_fallback_image()
     
