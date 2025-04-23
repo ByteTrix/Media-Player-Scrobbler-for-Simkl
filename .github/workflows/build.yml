@@ -14,11 +14,10 @@ on:
       - 'v*'
 
 jobs:
-  build-and-publish:
+  prepare-release:
     runs-on: ubuntu-latest
-    permissions:
-      id-token: write  # Required for PyPI trusted publishing
-      contents: write  # Required for creating releases
+    outputs:
+      version: ${{ steps.get_version.outputs.version }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -28,13 +27,26 @@ jobs:
       - name: Determine version
         id: get_version
         run: |
-          if [[ "${{ github.event_name }}" == "release" ]]; then
+          if [[ "${{ github.event_name }}" == "push" && "${{ github.ref_type }}" == "tag" ]]; then
+            VERSION=${GITHUB_REF#refs/tags/v}
+          elif [[ "${{ github.event_name }}" == "release" ]]; then
             VERSION=${GITHUB_REF#refs/tags/v}
           else
             VERSION=${{ github.event.inputs.version }}
           fi
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Using version: $VERSION"
+
+  publish-pypi:
+    needs: prepare-release
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write  # Required for PyPI trusted publishing
+      contents: write  # Required for creating releases
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -46,11 +58,10 @@ jobs:
         run: |
           pip install poetry
           poetry config virtualenvs.create false
-          poetry lock
-          poetry install -q #--quiet (-q) : Do not output any message.
+          poetry install
 
       - name: Set version in pyproject.toml
-        run: poetry version ${{ env.VERSION }}
+        run: poetry version ${{ needs.prepare-release.outputs.version }}
 
       # This step now injects the secrets directly into the credentials.py file
       - name: Inject Simkl Credentials into Code
@@ -85,28 +96,789 @@ jobs:
           poetry publish
         env:
           POETRY_PYPI_TOKEN_PYPI: ${{ secrets.PYPI_API_TOKEN }}
-          VERSION: ${{ env.VERSION }}
+          VERSION: ${{ needs.prepare-release.outputs.version }}
       
-      - name: Upload build artifacts
+      - name: Upload Python package artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: dist
+          name: python-package
           path: dist/
           retention-days: 3
 
-      - name: Create and Upload Release
+  build-windows:
+    needs: prepare-release
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install poetry
+          poetry config virtualenvs.create false
+          poetry install
+
+      - name: Set version in pyproject.toml
+        run: poetry version ${{ needs.prepare-release.outputs.version }}
+
+      - name: Inject Simkl Credentials into Code
+        env:
+          SIMKL_CLIENT_ID: ${{ secrets.SIMKL_CLIENT_ID }}
+          SIMKL_CLIENT_SECRET: ${{ secrets.SIMKL_CLIENT_SECRET }}
+        shell: bash
+        run: |
+          # Check if secrets are available
+          if [ -z "$SIMKL_CLIENT_ID" ]; then
+            echo "::error::SIMKL_CLIENT_ID secret is not set."
+            exit 1
+          fi
+          if [ -z "$SIMKL_CLIENT_SECRET" ]; then
+            echo "::error::SIMKL_CLIENT_SECRET secret is not set."
+            exit 1
+          fi
+
+          # Inject Client ID and Secret
+          sed -i "s|SIMKL_CLIENT_ID_PLACEHOLDER|${SIMKL_CLIENT_ID}|g" simkl_mps/credentials.py
+          sed -i "s|SIMKL_CLIENT_SECRET_PLACEHOLDER|${SIMKL_CLIENT_SECRET}|g" simkl_mps/credentials.py
+
+      - name: Install Inno Setup
+        run: |
+          choco install innosetup -y
+
+      - name: Build with PyInstaller
+        run: |
+          pip install pyinstaller
+          python -m PyInstaller --clean simkl-mps.spec
+
+      - name: Test PyInstaller build
+        shell: bash
+        run: |
+          python test_build.py windows
+
+      - name: Build Installer with Inno Setup
+        run: |
+          $version = "${{ needs.prepare-release.outputs.version }}"
+          (Get-Content setup.iss) -replace '#define MyAppVersion "[^"]*"', "#define MyAppVersion `"$version`"" | Set-Content setup_temp.iss
+          & 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe' /Q setup_temp.iss
+          
+      - name: Rename and move installer
+        run: |
+          $version = "${{ needs.prepare-release.outputs.version }}"
+          mkdir -p artifacts
+          Move-Item dist\installer\MPSS_Setup.exe artifacts\MPSS_Setup_$version.exe
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: artifacts/
+          retention-days: 3
+
+  build-macos:
+    needs: prepare-release
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install poetry pillow
+          poetry config virtualenvs.create false
+          poetry install
+
+      - name: Set version in pyproject.toml
+        run: poetry version ${{ needs.prepare-release.outputs.version }}
+
+      - name: Generate macOS icon (.icns file)
+        run: |
+          # Create a basic .iconset structure
+          mkdir -p simkl-mps.iconset
+          
+          # Create necessary icons if not exist
+          for size in 16 32 64 128 256 512 1024; do
+            if [ ! -f "simkl_mps/assets/simkl-mps-$size.png" ] && [ -f "simkl_mps/assets/simkl-mps.png" ]; then
+              # If size-specific icon doesn't exist but base icon does, resize it
+              sips -z $size $size simkl_mps/assets/simkl-mps.png --out simkl_mps/assets/simkl-mps-$size.png
+            fi
+          done
+          
+          # Convert existing PNG icons to iconset format
+          if [ -f "simkl_mps/assets/simkl-mps-16.png" ]; then
+            cp simkl_mps/assets/simkl-mps-16.png simkl-mps.iconset/icon_16x16.png
+          fi
+          
+          if [ -f "simkl_mps/assets/simkl-mps-32.png" ]; then
+            cp simkl_mps/assets/simkl-mps-32.png simkl-mps.iconset/icon_16x16@2x.png
+            cp simkl_mps/assets/simkl-mps-32.png simkl-mps.iconset/icon_32x32.png
+          fi
+          
+          if [ -f "simkl_mps/assets/simkl-mps-64.png" ]; then
+            cp simkl_mps/assets/simkl-mps-64.png simkl-mps.iconset/icon_32x32@2x.png
+          fi
+          
+          if [ -f "simkl_mps/assets/simkl-mps-128.png" ]; then
+            cp simkl_mps/assets/simkl-mps-128.png simkl-mps.iconset/icon_128x128.png
+          fi
+          
+          if [ -f "simkl_mps/assets/simkl-mps-256.png" ]; then
+            cp simkl_mps/assets/simkl-mps-256.png simkl-mps.iconset/icon_128x128@2x.png
+            cp simkl_mps/assets/simkl-mps-256.png simkl-mps.iconset/icon_256x256.png
+          fi
+          
+          if [ -f "simkl_mps/assets/simkl-mps-512.png" ]; then
+            cp simkl_mps/assets/simkl-mps-512.png simkl-mps.iconset/icon_256x256@2x.png
+            cp simkl_mps/assets/simkl-mps-512.png simkl-mps.iconset/icon_512x512.png
+          fi
+          
+          if [ -f "simkl_mps/assets/simkl-mps-1024.png" ]; then
+            cp simkl_mps/assets/simkl-mps-1024.png simkl-mps.iconset/icon_512x512@2x.png
+          fi
+          
+          # Fill in any missing icons with resized versions
+          for size in 16 32 64 128 256 512; do
+            if [ ! -f "simkl-mps.iconset/icon_${size}x${size}.png" ]; then
+              # Find the nearest larger icon
+              found=false
+              for src_size in 1024 512 256 128 64 32 16; do
+                if [ $src_size -ge $size ] && [ -f "simkl_mps/assets/simkl-mps-${src_size}.png" ]; then
+                  sips -z $size $size "simkl_mps/assets/simkl-mps-${src_size}.png" --out "simkl-mps.iconset/icon_${size}x${size}.png"
+                  found=true
+                  break
+                fi
+              done
+              
+              # If still not found, use the base icon
+              if [ "$found" = false ] && [ -f "simkl_mps/assets/simkl-mps.png" ]; then
+                sips -z $size $size "simkl_mps/assets/simkl-mps.png" --out "simkl-mps.iconset/icon_${size}x${size}.png"
+              fi
+            fi
+            
+            # Create @2x version if missing
+            if [ ! -f "simkl-mps.iconset/icon_${size}x${size}@2x.png" ] && [ $((size*2)) -le 1024 ]; then
+              doubled_size=$((size*2))
+              # Find the nearest larger icon
+              found=false
+              for src_size in 1024 512 256 128 64 32; do
+                if [ $src_size -ge $doubled_size ] && [ -f "simkl_mps/assets/simkl-mps-${src_size}.png" ]; then
+                  sips -z $doubled_size $doubled_size "simkl_mps/assets/simkl-mps-${src_size}.png" --out "simkl-mps.iconset/icon_${size}x${size}@2x.png"
+                  found=true
+                  break
+                fi
+              done
+              
+              # If still not found, use the base icon
+              if [ "$found" = false ] && [ -f "simkl_mps/assets/simkl-mps.png" ]; then
+                sips -z $doubled_size $doubled_size "simkl_mps/assets/simkl-mps.png" --out "simkl-mps.iconset/icon_${size}x${size}@2x.png"
+              fi
+            fi
+          done
+          
+          # Generate .icns file using iconutil
+          iconutil -c icns simkl-mps.iconset -o simkl_mps/assets/simkl-mps.icns
+          
+          # Clean up
+          rm -rf simkl-mps.iconset
+          
+          echo "✅ macOS icon (.icns) created successfully"
+          ls -la simkl_mps/assets/simkl-mps.icns
+
+      - name: Inject Simkl Credentials into Code
+        env:
+          SIMKL_CLIENT_ID: ${{ secrets.SIMKL_CLIENT_ID }}
+          SIMKL_CLIENT_SECRET: ${{ secrets.SIMKL_CLIENT_SECRET }}
+        run: |
+          # Check if secrets are available
+          if [ -z "$SIMKL_CLIENT_ID" ]; then
+            echo "::error::SIMKL_CLIENT_ID secret is not set."
+            exit 1
+          fi
+          if [ -z "$SIMKL_CLIENT_SECRET" ]; then
+            echo "::error::SIMKL_CLIENT_SECRET secret is not set."
+            exit 1
+          fi
+
+          # Inject credentials
+          sed -i '' "s|SIMKL_CLIENT_ID_PLACEHOLDER|${SIMKL_CLIENT_ID}|g" simkl_mps/credentials.py
+          sed -i '' "s|SIMKL_CLIENT_SECRET_PLACEHOLDER|${SIMKL_CLIENT_SECRET}|g" simkl_mps/credentials.py
+
+      - name: Build with PyInstaller
+        run: |
+          pip install pyinstaller
+          python -m PyInstaller --clean simkl-mps.spec
+          
+          # Make sure the updater script is executable
+          chmod +x simkl_mps/utils/updater.sh
+          
+          # Copy and set permissions for updater script in app bundles
+          mkdir -p "dist/MPSS.app/Contents/MacOS/utils/"
+          mkdir -p "dist/MPS for Simkl.app/Contents/MacOS/utils/"
+          cp simkl_mps/utils/updater.sh "dist/MPSS.app/Contents/MacOS/utils/"
+          cp simkl_mps/utils/updater.sh "dist/MPS for Simkl.app/Contents/MacOS/utils/"
+          chmod +x "dist/MPSS.app/Contents/MacOS/utils/updater.sh"
+          chmod +x "dist/MPS for Simkl.app/Contents/MacOS/utils/updater.sh"
+
+          # Create LaunchAgent for weekly update checks
+          mkdir -p dist/MPSS.app/Contents/Resources/
+          cat > dist/MPSS.app/Contents/Resources/com.simkl.mpss.updater.plist << EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>Label</key>
+              <string>com.simkl.mpss.updater</string>
+              <key>ProgramArguments</key>
+              <array>
+                  <string>bash</string>
+                  <string>/Applications/MPSS.app/Contents/MacOS/utils/updater.sh</string>
+                  <string>--silent</string>
+              </array>
+              <key>StartCalendarInterval</key>
+              <dict>
+                  <key>Weekday</key>
+                  <integer>1</integer>
+                  <key>Hour</key>
+                  <integer>12</integer>
+                  <key>Minute</key>
+                  <integer>0</integer>
+              </dict>
+              <key>RunAtLoad</key>
+              <true/>
+              <key>StandardErrorPath</key>
+              <string>/tmp/com.simkl.mpss.updater.err</string>
+              <key>StandardOutPath</key>
+              <string>/tmp/com.simkl.mpss.updater.out</string>
+          </dict>
+          </plist>
+          EOF
+          
+          # Add postinstall script to set up LaunchAgent
+          mkdir -p dist/MPSS.app/Contents/Resources/scripts/
+          cat > dist/MPSS.app/Contents/Resources/scripts/postinstall.sh << EOF
+          #!/bin/bash
+          
+          # Create LaunchAgent directory if needed
+          mkdir -p ~/Library/LaunchAgents/
+          
+          # Copy LaunchAgent plist
+          cp /Applications/MPSS.app/Contents/Resources/com.simkl.mpss.updater.plist ~/Library/LaunchAgents/
+          
+          # Load the LaunchAgent
+          launchctl load ~/Library/LaunchAgents/com.simkl.mpss.updater.plist
+          
+          # Set first run flag to show welcome message
+          mkdir -p ~/.config/simkl-mps/
+          touch ~/.config/simkl-mps/first_run
+          
+          exit 0
+          EOF
+          chmod +x dist/MPSS.app/Contents/Resources/scripts/postinstall.sh
+
+      - name: Test PyInstaller build
+        run: |
+          python test_build.py macos
+
+      - name: Create DMG
+        run: |
+          VERSION="${{ needs.prepare-release.outputs.version }}"
+          mkdir -p dist/dmg
+          cp -r "dist/simkl-mps" "dist/dmg/MPSS.app"
+          hdiutil create -volname "MPSS_$VERSION" -srcfolder dist/dmg -ov -format UDZO "dist/MPSS_$VERSION.dmg"
+          
+          # Set up DMG creation
+          brew install create-dmg || true
+          
+          # Create a staging area for the DMG
+          mkdir -p staging
+          cp -r "dist/MPSS.app" staging/
+          
+          # Ensure the updater script is included and executable
+          mkdir -p "staging/MPSS.app/Contents/MacOS/utils/"
+          cp simkl_mps/utils/updater.sh "staging/MPSS.app/Contents/MacOS/utils/"
+          chmod +x "staging/MPSS.app/Contents/MacOS/utils/updater.sh"
+
+          # Ensure the updater script and LaunchAgent are included
+          mkdir -p "staging/MPSS.app/Contents/Resources/"
+          cp dist/MPSS.app/Contents/Resources/com.simkl.mpss.updater.plist "staging/MPSS.app/Contents/Resources/"
+          mkdir -p "staging/MPSS.app/Contents/Resources/scripts/"
+          cp dist/MPSS.app/Contents/Resources/scripts/postinstall.sh "staging/MPSS.app/Contents/Resources/scripts/"
+          
+          # Create the DMG
+          create-dmg \
+            --volname "MPSS Installer" \
+            --volicon "simkl_mps/assets/simkl-mps.icns" \
+            --window-pos 200 120 \
+            --window-size 800 400 \
+            --icon-size 100 \
+            --icon "MPSS.app" 200 190 \
+            --hide-extension "MPSS.app" \
+            --app-drop-link 600 185 \
+            "dist/MPSS_macOS.dmg" \
+            "staging/" || true
+          
+          # If create-dmg fails, create a simpler DMG
+          if [ ! -f "dist/MPSS_macOS.dmg" ]; then
+            hdiutil create -volname "MPSS Installer" -srcfolder staging -ov -format UDZO "dist/MPSS_macOS.dmg"
+          fi
+
+      - name: Create macOS PKG Installer
+        run: |
+          VERSION="${{ needs.prepare-release.outputs.version }}"
+          
+          # Create directory structure for PKG
+          mkdir -p dist/pkg_build/payload/Applications
+          cp -r "dist/simkl-mps" "dist/pkg_build/payload/Applications/MPSS.app"
+          
+          # Create a scripts directory for pre/post install scripts
+          mkdir -p dist/pkg_build/scripts
+          
+          # Create a postinstall script that ensures proper permissions and starts the app
+          cat > dist/pkg_build/scripts/postinstall << EOF
+          #!/bin/bash
+          # Ensure proper permissions for the app
+          chmod -R 755 /Applications/MPSS.app
+          
+          # Set up LaunchAgent for weekly updates
+          mkdir -p /Users/\$USER/Library/LaunchAgents/
+          cp /Applications/MPSS.app/Contents/Resources/com.simkl.mpss.updater.plist /Users/\$USER/Library/LaunchAgents/
+          chown \$USER:staff /Users/\$USER/Library/LaunchAgents/com.simkl.mpss.updater.plist
+          sudo -u \$USER launchctl load /Users/\$USER/Library/LaunchAgents/com.simkl.mpss.updater.plist
+          
+          # Start the application automatically
+          sudo -u \$USER open /Applications/MPSS.app --args start
+          
+          # Add to login items for the current user
+          osascript -e 'tell application "System Events" to make login item at end with properties {path:"/Applications/MPSS.app", hidden:false}'
+          
+          # Set first run flag to show welcome message
+          mkdir -p /Users/\$USER/.config/simkl-mps/
+          touch /Users/\$USER/.config/simkl-mps/first_run
+          chown -R \$USER:staff /Users/\$USER/.config/simkl-mps/
+          
+          exit 0
+          EOF
+          chmod +x dist/pkg_build/scripts/postinstall
+          
+          # Create the component package
+          pkgbuild --root dist/pkg_build/payload \
+                  --identifier "com.simkl.mpss" \
+                  --version "$VERSION" \
+                  --scripts dist/pkg_build/scripts \
+                  "dist/pkg_build/MPSS-component.pkg"
+          
+          # Create a distribution file
+          cat > dist/pkg_build/distribution.xml << EOF
+          <?xml version="1.0" encoding="utf-8"?>
+          <installer-gui-script minSpecVersion="1">
+              <title>Media Player Scrobbler for SIMKL</title>
+              <organization>com.simkl</organization>
+              <domains enable_localSystem="true"/>
+              <options customize="never" require-scripts="true" rootVolumeOnly="true" />
+              <pkg-ref id="com.simkl.mpss"/>
+              <choices-outline>
+                  <line choice="default">
+                      <line choice="com.simkl.mpss"/>
+                  </line>
+              </choices-outline>
+              <choice id="default"/>
+              <choice id="com.simkl.mpss" visible="false">
+                  <pkg-ref id="com.simkl.mpss"/>
+              </choice>
+              <pkg-ref id="com.simkl.mpss" version="$VERSION" onConclusion="none">MPSS-component.pkg</pkg-ref>
+          </installer-gui-script>
+          EOF
+          
+          # Build the final installer package
+          productbuild --distribution dist/pkg_build/distribution.xml \
+                      --package-path dist/pkg_build \
+                      --version "$VERSION" \
+                      "dist/MPSS_${VERSION}.pkg"
+
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-installers
+          path: |
+            dist/MPSS_*.dmg
+            dist/MPSS_*.pkg
+          retention-days: 3
+
+  build-linux:
+    needs: prepare-release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install poetry
+          poetry config virtualenvs.create false
+          poetry install
+
+      - name: Set version in pyproject.toml
+        run: poetry version ${{ needs.prepare-release.outputs.version }}
+
+      - name: Inject Simkl Credentials into Code
+        env:
+          SIMKL_CLIENT_ID: ${{ secrets.SIMKL_CLIENT_ID }}
+          SIMKL_CLIENT_SECRET: ${{ secrets.SIMKL_CLIENT_SECRET }}
+        run: |
+          # Check if secrets are available
+          if [ -z "$SIMKL_CLIENT_ID" ]; then
+            echo "::error::SIMKL_CLIENT_ID secret is not set."
+            exit 1
+          fi
+          if [ -z "$SIMKL_CLIENT_SECRET" ]; then
+            echo "::error::SIMKL_CLIENT_SECRET secret is not set."
+            exit 1
+          fi
+
+          # Inject credentials
+          sed -i "s|SIMKL_CLIENT_ID_PLACEHOLDER|${SIMKL_CLIENT_ID}|g" simkl_mps/credentials.py
+          sed -i "s|SIMKL_CLIENT_SECRET_PLACEHOLDER|${SIMKL_CLIENT_SECRET}|g" simkl_mps/credentials.py
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-dev libgtk-3-dev libnotify-dev
+
+      - name: Build with PyInstaller
+        run: |
+          pip install pyinstaller
+          python -m PyInstaller --clean simkl-mps.spec
+          
+          # Make sure the updater script is executable
+          chmod +x simkl_mps/utils/updater.sh
+          
+          # Copy and set permissions for updater script in distribution directories
+          mkdir -p dist/simkl-mps/utils/
+          mkdir -p dist/simkl-mps-tray/utils/
+          cp simkl_mps/utils/updater.sh dist/simkl-mps/utils/
+          cp simkl_mps/utils/updater.sh dist/simkl-mps-tray/utils/
+          chmod +x dist/simkl-mps/utils/updater.sh
+          chmod +x dist/simkl-mps-tray/utils/updater.sh
+          
+          # Create the tarball including the updater script
+          cd dist
+          tar -czvf MPSS_Linux.tar.gz simkl-mps simkl-mps-tray
+          cd ..
+
+          # Create systemd user timer for weekly updates
+          mkdir -p dist/simkl-mps/utils/systemd
+          cat > dist/simkl-mps/utils/systemd/simkl-mps-updater.service << EOF
+          [Unit]
+          Description=SIMKL Media Player Scrobbler Update Check
+          After=network-online.target
+          Wants=network-online.target
+          
+          [Service]
+          Type=oneshot
+          ExecStart=/bin/bash /usr/share/simkl-mps/utils/updater.sh --silent
+          
+          [Install]
+          WantedBy=default.target
+          EOF
+          
+          cat > dist/simkl-mps/utils/systemd/simkl-mps-updater.timer << EOF
+          [Unit]
+          Description=Weekly update check for SIMKL Media Player Scrobbler
+          
+          [Timer]
+          OnCalendar=Mon *-*-* 12:00:00
+          Persistent=true
+          
+          [Install]
+          WantedBy=timers.target
+          EOF
+          
+          # Create installation script for Linux
+          cat > dist/simkl-mps/utils/setup-auto-update.sh << EOF
+          #!/bin/bash
+          
+          # Create systemd user directory if it doesn't exist
+          mkdir -p ~/.config/systemd/user/
+          
+          # Copy service and timer files
+          cp /usr/share/simkl-mps/utils/systemd/simkl-mps-updater.service ~/.config/systemd/user/
+          cp /usr/share/simkl-mps/utils/systemd/simkl-mps-updater.timer ~/.config/systemd/user/
+          
+          # Enable and start the timer
+          systemctl --user daemon-reload
+          systemctl --user enable simkl-mps-updater.timer
+          systemctl --user start simkl-mps-updater.timer
+          
+          # Set first run flag
+          mkdir -p ~/.config/simkl-mps/
+          touch ~/.config/simkl-mps/first_run
+          
+          echo "Auto-updates have been configured to run weekly."
+          EOF
+          chmod +x dist/simkl-mps/utils/setup-auto-update.sh
+          
+          # Copy these files to the tray app directory too
+          mkdir -p dist/simkl-mps-tray/utils/systemd
+          cp dist/simkl-mps/utils/systemd/simkl-mps-updater.service dist/simkl-mps-tray/utils/systemd/
+          cp dist/simkl-mps/utils/systemd/simkl-mps-updater.timer dist/simkl-mps-tray/utils/systemd/
+          cp dist/simkl-mps/utils/setup-auto-update.sh dist/simkl-mps-tray/utils/
+
+      - name: Test PyInstaller build
+        run: |
+          python test_build.py linux
+
+      - name: Package AppImage
+        run: |
+          VERSION="${{ needs.prepare-release.outputs.version }}"
+          mkdir -p dist/AppDir
+          cp -r dist/simkl-mps/* dist/AppDir/
+          pip install appimagetool
+          # Create basic desktop file
+          mkdir -p dist/AppDir/usr/share/applications
+          cat > dist/AppDir/usr/share/applications/simkl-mps.desktop << EOF
+          [Desktop Entry]
+          Name=MPSS
+          Exec=simkl-mps
+          Icon=simkl-mps
+          Type=Application
+          Categories=Utility;
+          EOF
+          # Copy icon
+          mkdir -p dist/AppDir/usr/share/icons
+          cp simkl_mps/assets/simkl-mps.png dist/AppDir/usr/share/icons/
+          # Create AppImage
+          appimagetool dist/AppDir dist/MPSS_${VERSION}.AppImage
+
+      - name: Package Debian (.deb)
+        run: |
+          VERSION="${{ needs.prepare-release.outputs.version }}"
+          # Install deb packaging tools
+          sudo apt-get install -y debhelper fakeroot
+          
+          # Create Debian package directory structure
+          mkdir -p dist/deb/MPSS_${VERSION}/usr/bin
+          mkdir -p dist/deb/MPSS_${VERSION}/usr/share/applications
+          mkdir -p dist/deb/MPSS_${VERSION}/usr/share/pixmaps
+          mkdir -p dist/deb/MPSS_${VERSION}/etc/xdg/autostart
+          mkdir -p dist/deb/MPSS_${VERSION}/DEBIAN
+          
+          # Copy application files
+          cp -r dist/simkl-mps/* dist/deb/MPSS_${VERSION}/usr/bin/
+          
+          # Create symlink for main executable
+          chmod +x dist/deb/MPSS_${VERSION}/usr/bin/simkl-mps
+          
+          # Copy desktop file
+          cat > dist/deb/MPSS_${VERSION}/usr/share/applications/simkl-mps.desktop << EOF
+          [Desktop Entry]
+          Name=Media Player Scrobbler for SIMKL
+          Exec=/usr/bin/simkl-mps start
+          Icon=simkl-mps
+          Type=Application
+          Categories=Utility;
+          Comment=Automatically scrobble movies and TV shows to SIMKL
+          EOF
+          
+          # Create autostart desktop file
+          cat > dist/deb/MPSS_${VERSION}/etc/xdg/autostart/simkl-mps.desktop << EOF
+          [Desktop Entry]
+          Name=Media Player Scrobbler for SIMKL
+          Exec=/usr/bin/simkl-mps start
+          Icon=simkl-mps
+          Type=Application
+          X-GNOME-Autostart-enabled=true
+          NoDisplay=false
+          Comment=Automatically scrobble movies and TV shows to SIMKL
+          EOF
+          
+          # Copy icon
+          cp simkl_mps/assets/simkl-mps.png dist/deb/MPSS_${VERSION}/usr/share/pixmaps/simkl-mps.png
+          
+          # Create control file
+          cat > dist/deb/MPSS_${VERSION}/DEBIAN/control << EOF
+          Package: simkl-mps
+          Version: ${VERSION}
+          Section: utils
+          Priority: optional
+          Architecture: amd64
+          Depends: python3 (>= 3.9), libgtk-3-0, libnotify4
+          Maintainer: kavinthangavel <kavinthangavel.dev@gmail.com>
+          Description: Media Player Scrobbler for SIMKL
+           Automatically scrobble your media activity to SIMKL from various media players.
+           Supports VLC, MPV, MPC-HC, and PotPlayer.
+          EOF
+          
+          # Create postinst script
+          cat > dist/deb/MPSS_${VERSION}/DEBIAN/postinst << EOF
+          #!/bin/sh
+          set -e
+          
+          # Make sure the executable has proper permissions
+          chmod +x /usr/bin/simkl-mps
+          
+          # Update desktop database
+          if [ -x /usr/bin/update-desktop-database ]; then
+            /usr/bin/update-desktop-database -q
+          fi
+          
+          # Start the application for the current user
+          user=\$(who | awk '{print \$1}' | head -1)
+          if [ -n "\$user" ]; then
+            uid=\$(id -u \$user)
+            DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/\$uid/bus su -c "/usr/bin/simkl-mps start" \$user &
+          fi
+          
+          # Set up auto-updates for the current user
+          user=\$(who | awk '{print \$1}' | head -1)
+          if [ -n "\$user" ]; then
+            uid=\$(id -u \$user)
+            home=\$(getent passwd \$user | cut -d: -f6)
+            
+            # Create systemd user directory
+            mkdir -p \$home/.config/systemd/user/
+            cp /usr/share/simkl-mps/utils/systemd/simkl-mps-updater.service \$home/.config/systemd/user/
+            cp /usr/share/simkl-mps/utils/systemd/simkl-mps-updater.timer \$home/.config/systemd/user/
+            chown -R \$user:\$user \$home/.config/systemd/
+            
+            # Prompt user about auto-updates (uses zenity if available)
+            if command -v zenity >/dev/null 2>&1; then
+              DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/\$uid/bus su -c "zenity --question --title='SIMKL Media Player Scrobbler' --text='Would you like to enable weekly automatic update checks?' --ok-label='Yes' --cancel-label='No'" \$user
+              if [ \$? -eq 0 ]; then
+                DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/\$uid/bus su -c "systemctl --user daemon-reload && systemctl --user enable simkl-mps-updater.timer && systemctl --user start simkl-mps-updater.timer" \$user
+              fi
+            else
+              # Without zenity, just set it up and inform in terminal
+              DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/\$uid/bus su -c "systemctl --user daemon-reload && systemctl --user enable simkl-mps-updater.timer && systemctl --user start simkl-mps-updater.timer" \$user
+              echo "Weekly update checks have been enabled. You can disable them with: systemctl --user disable simkl-mps-updater.timer"
+            fi
+            
+            # Set first run flag
+            mkdir -p \$home/.config/simkl-mps/
+            touch \$home/.config/simkl-mps/first_run
+            chown -R \$user:\$user \$home/.config/simkl-mps/
+          fi
+          
+          exit 0
+          EOF
+          chmod 755 dist/deb/MPSS_${VERSION}/DEBIAN/postinst
+          
+          # Build the deb package
+          cd dist/deb
+          fakeroot dpkg-deb --build MPSS_${VERSION}
+          mv MPSS_${VERSION}.deb ../MPSS_${VERSION}_amd64.deb
+          cd ../..
+
+      - name: Create Linux Debian package
+        run: |
+          # Create directories for Debian package
+          mkdir -p deb/DEBIAN
+          mkdir -p deb/usr/bin
+          mkdir -p deb/usr/lib/simkl-mps
+          mkdir -p deb/usr/share/applications
+          mkdir -p deb/usr/share/icons/hicolor/256x256/apps
+          mkdir -p deb/usr/share/simkl-mps/utils
+          
+          # Copy executables
+          cp dist/simkl-mps/MPSS deb/usr/bin/
+          cp dist/simkl-mps-tray/"MPS for Simkl" deb/usr/bin/
+          
+          # Copy updater script and make it executable
+          cp simkl_mps/utils/updater.sh deb/usr/share/simkl-mps/utils/
+          chmod +x deb/usr/share/simkl-mps/utils/updater.sh
+          
+          # Create symlinks to the updater script
+          mkdir -p deb/usr/bin
+          ln -sf /usr/share/simkl-mps/utils/updater.sh deb/usr/bin/simkl-mps-updater
+
+          # Copy systemd files for auto-updates
+          mkdir -p deb/usr/share/simkl-mps/utils/systemd
+          cp dist/simkl-mps/utils/systemd/simkl-mps-updater.service deb/usr/share/simkl-mps/utils/systemd/
+          cp dist/simkl-mps/utils/systemd/simkl-mps-updater.timer deb/usr/share/simkl-mps/utils/systemd/
+          cp dist/simkl-mps/utils/setup-auto-update.sh deb/usr/share/simkl-mps/utils/
+          chmod +x deb/usr/share/simkl-mps/utils/setup-auto-update.sh
+
+      - name: Upload Linux artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-installers
+          path: |
+            dist/MPSS_*.AppImage
+            dist/MPSS_*_amd64.deb
+          retention-days: 3
+
+  create-github-release:
+    needs: [prepare-release, publish-pypi, build-windows, build-macos, build-linux]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+          
+      - name: List downloaded artifacts
+        run: find release-artifacts -type f | sort
+          
+      - name: Create Release
         id: create_release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ env.VERSION }}
-          name: Release ${{ env.VERSION }}
+          tag_name: v${{ needs.prepare-release.outputs.version }}
+          name: Release ${{ needs.prepare-release.outputs.version }}
           body: |
-            ![GitHub Downloads (specific asset, specific tag)](https://img.shields.io/github/downloads/${{ github.repository }}/${{ env.VERSION }}/dist)
-          append_body: true
+            # MPSS Release ${{ needs.prepare-release.outputs.version }}
+            
+            ## Downloads
+            
+            ### Windows
+            - [MPSS_Setup_${{ needs.prepare-release.outputs.version }}.exe](https://github.com/${{ github.repository }}/releases/download/v${{ needs.prepare-release.outputs.version }}/MPSS_Setup_${{ needs.prepare-release.outputs.version }}.exe)
+            
+            ### macOS
+            - [MPSS_${{ needs.prepare-release.outputs.version }}.dmg](https://github.com/${{ github.repository }}/releases/download/v${{ needs.prepare-release.outputs.version }}/MPSS_${{ needs.prepare-release.outputs.version }}.dmg) (Drag-and-drop installer)
+            - [MPSS_${{ needs.prepare-release.outputs.version }}.pkg](https://github.com/${{ github.repository }}/releases/download/v${{ needs.prepare-release.outputs.version }}/MPSS_${{ needs.prepare-release.outputs.version }}.pkg) (Package installer)
+            
+            ### Linux
+            - [MPSS_${{ needs.prepare-release.outputs.version }}.AppImage](https://github.com/${{ github.repository }}/releases/download/v${{ needs.prepare-release.outputs.version }}/MPSS_${{ needs.prepare-release.outputs.version }}.AppImage) (Universal AppImage - runs on most distros)
+            - [MPSS_${{ needs.prepare-release.outputs.version }}_amd64.deb](https://github.com/${{ github.repository }}/releases/download/v${{ needs.prepare-release.outputs.version }}/MPSS_${{ needs.prepare-release.outputs.version }}_amd64.deb) (Debian/Ubuntu package)
+            
+            ### PyPI
+            - [pip install simkl-mps==${{ needs.prepare-release.outputs.version }}](https://pypi.org/project/simkl-mps/${{ needs.prepare-release.outputs.version }}/)
+            
+            ![GitHub Downloads](https://img.shields.io/github/downloads/${{ github.repository }}/v${{ needs.prepare-release.outputs.version }}/total)
           generate_release_notes: true
           files: |
-            dist/*.whl
-          make_latest: true
+            release-artifacts/windows-installer/*.exe
+            release-artifacts/macos-installers/*.dmg
+            release-artifacts/macos-installers/*.pkg
+            release-artifacts/linux-installers/*.AppImage
+            release-artifacts/linux-installers/*.deb
+            release-artifacts/python-package/*.whl
+            release-artifacts/python-package/*.tar.gz
+          draft: false
+          prerelease: false
         env:
-          VERSION: ${{ env.VERSION }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

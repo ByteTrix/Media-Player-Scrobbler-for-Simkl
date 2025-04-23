@@ -14,7 +14,7 @@ from .window_detection import (
     get_all_windows_info,
     is_video_player
 )
-from .movie_scrobbler import MovieScrobbler
+from simkl_mps.movie_scrobbler import MovieScrobbler
 
 logger = logging.getLogger(__name__)
 

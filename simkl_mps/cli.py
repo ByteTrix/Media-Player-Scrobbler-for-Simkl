@@ -198,35 +198,47 @@ def start_command(args):
         from simkl_mps.tray_app import run_tray_app
         sys.exit(run_tray_app())
 
-
     print("[*] Launching application with tray icon in background...")
     logger.info("Launching tray application in detached process.")
+    
     try:
-
+        # Determine the command to launch the tray application
         if getattr(sys, 'frozen', False):
-
+            # We're running in a PyInstaller bundle
             exe_dir = Path(sys.executable).parent
-
-            tray_exe = exe_dir / "simkl-mps-tray.exe"
-            if tray_exe.exists():
-                cmd = [str(tray_exe)]
-                logger.debug(f"Launching dedicated tray executable: {tray_exe}")
+            
+            # Look for the dedicated tray executable - now named "MPS for Simkl.exe"
+            tray_exe_paths = [
+                exe_dir / "MPS for Simkl.exe",  # Windows - new name
+                exe_dir / "MPS for Simkl",      # Linux/macOS - new name
+            ]
+            
+            # Use the first tray executable that exists
+            for tray_path in tray_exe_paths:
+                if tray_path.exists():
+                    cmd = [str(tray_path)]
+                    logger.info(f"Using dedicated tray executable: {tray_path}")
+                    break
             else:
-
+                # No dedicated tray executable found - use the main executable with the tray parameter
                 cmd = [sys.executable, "tray"]
-                logger.debug("Launching frozen executable for tray (fallback method).")
+                logger.info("Using main executable with 'tray' parameter as fallback")
         else:
+            # Not frozen - launch as a Python module
             cmd = [sys.executable, "-m", "simkl_mps.tray_app"]
-            logger.debug("Launching tray via python module.")
+            logger.info("Launching tray via Python module (development mode)")
 
+        # Set up environment for subprocess
+        env = os.environ.copy()
+        env["SIMKL_TRAY_SUBPROCESS"] = "1"  # Mark as subprocess
+        
         if sys.platform == "win32":
+            # Windows-specific process creation
             CREATE_NO_WINDOW = 0x08000000
             DETACHED_PROCESS = 0x00000008
+            
             startupinfo = subprocess.STARTUPINFO()
             startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-
-            env = os.environ.copy()
-            env["SIMKL_TRAY_SUBPROCESS"] = "1"  # Mark this as a subprocess
             
             subprocess.Popen(
                 cmd, 
@@ -234,14 +246,11 @@ def start_command(args):
                 close_fds=True, 
                 shell=False,
                 startupinfo=startupinfo,
-                env=env  # Pass the environment with our marker
+                env=env
             )
-            logger.info("Launched detached process on Windows.")
-        else: # Assume Unix-like
-
-            env = os.environ.copy()
-            env["SIMKL_TRAY_SUBPROCESS"] = "1"  # Mark this as a subprocess
-            
+            logger.info("Launched detached process on Windows")
+        else:
+            # Unix-like systems (Linux, macOS)
             subprocess.Popen(
                 cmd, 
                 start_new_session=True, 
@@ -249,12 +258,12 @@ def start_command(args):
                 stderr=subprocess.DEVNULL, 
                 close_fds=True, 
                 shell=False,
-                env=env  # Pass the environment with our marker
+                env=env
             )
-            logger.info("Launched detached process on Unix-like system.")
+            logger.info("Launched detached process on Unix-like system")
 
         print(f"{Fore.GREEN}[✓] Scrobbler launched successfully in background.{Style.RESET_ALL}")
-        print(f"[*] Look for the simkl-mps icon in your system tray.")
+        print(f"[*] Look for the SIMKL-MPS icon in your system tray.")
         print(f"{Fore.GREEN}[✓] You can safely close this terminal window. All processes will continue running.{Style.RESET_ALL}")
         return 0
     except Exception as e:
@@ -312,6 +321,56 @@ def version_command(args):
     
     print(f"\nData directory: {APP_DATA_DIR}")
     return 0
+
+def check_for_updates(silent=False):
+    """
+    Check for updates to the application.
+    
+    Args:
+        silent (bool): If True, run silently with no user interaction
+        
+    Returns:
+        bool: True if update check was successful, False otherwise
+    """
+    logger.info("Checking for updates...")
+    
+    try:
+        import subprocess
+        import os
+        from pathlib import Path
+        
+        # Get the path to the updater script
+        if getattr(sys, 'frozen', False):
+            # Running as frozen executable
+            updater_path = Path(sys.executable).parent / "updater.ps1"
+        else:
+            # Running in development mode
+            updater_path = Path(__file__).parent / "utils" / "updater.ps1"
+        
+        if not updater_path.exists():
+            logger.error(f"Updater script not found at {updater_path}")
+            return False
+            
+        # Build the PowerShell command
+        args = [
+            "powershell.exe",
+            "-ExecutionPolicy", "Bypass",
+            "-File", str(updater_path)
+        ]
+        
+        if silent:
+            args.append("-Silent")
+            
+        args.append("-CheckOnly")  # Just check, don't install automatically
+        
+        # Run the updater
+        logger.debug(f"Running updater: {' '.join(args)}")
+        subprocess.Popen(args)
+        return True
+        
+    except Exception as e:
+        logger.error(f"Error checking for updates: {e}")
+        return False
 
 def create_parser():
     """
@@ -375,6 +434,21 @@ def main():
     if not hasattr(args, 'command') or not args.command:
         parser.print_help()
         return 0
+        
+    # Check for updates when starting the app (except for the tray subprocess)
+    if os.environ.get("SIMKL_TRAY_SUBPROCESS") != "1" and args.command in ["start", "tray"]:
+        # Check if user has enabled update checks
+        import winreg
+        try:
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\kavinthangavel\Media Player Scrobbler for SIMKL") as key:
+                check_updates = winreg.QueryValueEx(key, "CheckUpdates")[0]
+                if check_updates == 1:
+                    logger.info("Auto-update check enabled, checking for updates...")
+                    check_for_updates(silent=True)
+        except (OSError, ImportError, Exception) as e:
+            # If registry key doesn't exist or other error, default to checking for updates
+            logger.debug(f"Error checking update preferences, defaulting to check: {e}")
+            check_for_updates(silent=True)
 
     command_map = {
         "init": init_command,
