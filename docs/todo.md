@@ -6,18 +6,18 @@ This document tracks both completed features and planned improvements for Media 
 
 - [x] 🌍 Cross-platform support (Windows, macOS, Linux)
 - [x] 🎮 Integration with multiple media players
-- [x] 🔄 Background service implementation
+- [x] 🔄 ~~Background service implementation~~
 - [x] 📊 Position tracking for media players with web interfaces
 - [x] 🖥️ System tray application
 - [x] 🔌 Offline mode with backlog handling
 - [x] 🧠 Smart movie detection using guessit library
 - [x] 📦 Package distribution via PyPI
+- [x] 😙 New Icon/Logo and Name
 
 ## 🚧 In Progress
 
+- [ ] 🏦 Create installers for cross platform
 - [ ] 🚹 Option to User Set Completion Percentage and Edit it Later
-- [ ] 😙 New Icon and Logo
-- [ ] 🪜 Testing Cross-Platform
 - [ ] 📱 Improve notification system
 
 
@@ -25,6 +25,7 @@ This document tracks both completed features and planned improvements for Media 
 
 ### Short Term
 
+- [ ] 🪜 Testing Cross-Platform
 - [ ] 🔐 Enhanced authentication flow
 - [ ] 🧪 Create comprehensive automated test suite
 - [ ] 🔎 Add option to manually correct misidentified movies

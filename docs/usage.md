@@ -1,6 +1,6 @@
 # 🎮 Usage Guide
 
-This guide covers the various ways to use Media Player Scrobbler for SIMKL.
+This guide covers the various ways to use MPS for SIMKL (Media Player Scrobbler for SIMKL).
 
 ## 📋 Basic Commands
 
@@ -21,6 +21,8 @@ simkl-mps V        # or: simkl-mps version
 # Show all available commands
 simkl-mps --help
 ```
+
+> **Note:** The application is displayed as "MPS for SIMKL" in the system tray and other user interfaces, while the command-line tool name remains `simkl-mps`.
 
 ## 🚀 Run Modes
 
@@ -102,7 +104,7 @@ The following diagram illustrates how the different run modes operate:
 
 ```mermaid
 graph TD
-    A[Media Player Scrobbler for SIMKL] --> B[Background Mode]
+    A[MPS for SIMKL] --> B[Background Mode]
     A --> C[System Tray Mode]
     
     B -->|Detached| F[Background Tracking]

@@ -1,10 +1,10 @@
-# SIMKL Movie Tracker
+# MPS for SIMKL
 
 [![GitHub License](https://img.shields.io/github/license/kavinthangavel/media-player-scrobbler-for-simkl)](https://github.com/kavinthangavel/media-player-scrobbler-for-simkl/blob/main/LICENSE)
 [![PyPI Version](https://img.shields.io/pypi/v/simkl-mps)](https://pypi.org/project/simkl-mps/)
 [![Python Versions](https://img.shields.io/pypi/pyversions/simkl-mps)](https://pypi.org/project/simkl-mps/)
 
-SIMKL Movie Tracker is an automatic scrobbler for [SIMKL](https://simkl.com) that tracks your media playback activity across various media players and updates your SIMKL account accordingly.
+MPS for SIMKL (Media Player Scrobbler for SIMKL) is an automatic scrobbler for [SIMKL](https://simkl.com) that tracks your media playback activity across various media players and updates your SIMKL account accordingly.
 
 ## Features
 
@@ -16,7 +16,7 @@ SIMKL Movie Tracker is an automatic scrobbler for [SIMKL](https://simkl.com) tha
 
 ## Quick Start
 
-1. Install SIMKL Movie Tracker: `pip install simkl-mps`
+1. Install MPS for SIMKL: `pip install simkl-mps`
 2. Run the application: `simkl-mps`
 3. Authenticate with your SIMKL account
 4. Play media in your favorite player
@@ -34,4 +34,4 @@ For detailed information, check out the following sections:
 
 ## License
 
-SIMKL Movie Tracker is licensed under the GNU GPL v3 License. See the [LICENSE](https://github.com/kavinthangavel/media-player-scrobbler-for-simkl/blob/main/LICENSE) file for details.
+MPS for SIMKL is licensed under the GNU GPL v3 License. See the [LICENSE](https://github.com/kavinthangavel/media-player-scrobbler-for-simkl/blob/main/LICENSE) file for details.
