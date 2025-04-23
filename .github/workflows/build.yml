@@ -14,11 +14,10 @@ on:
       - 'v*'
 
 jobs:
-  build-and-publish:
+  prepare-release:
     runs-on: ubuntu-latest
-    permissions:
-      id-token: write  # Required for PyPI trusted publishing
-      contents: write  # Required for creating releases
+    outputs:
+      version: ${{ steps.get_version.outputs.version }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -28,85 +27,58 @@ jobs:
       - name: Determine version
         id: get_version
         run: |
-          if [[ "${{ github.event_name }}" == "release" ]]; then
+          if [[ "${{ github.event_name }}" == "push" && "${{ github.ref_type }}" == "tag" ]]; then
+            VERSION=${GITHUB_REF#refs/tags/v}
+          elif [[ "${{ github.event_name }}" == "release" ]]; then
             VERSION=${GITHUB_REF#refs/tags/v}
           else
             VERSION=${{ github.event.inputs.version }}
           fi
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Using version: $VERSION"
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-          cache: 'pip'
+  publish-pypi:
+    needs: prepare-release
+    uses: ./.github/workflows/publish-pypi.yml
+    with:
+      version: ${{ needs.prepare-release.outputs.version }}
+    secrets:
+      SIMKL_CLIENT_ID: ${{ secrets.SIMKL_CLIENT_ID }}
+      SIMKL_CLIENT_SECRET: ${{ secrets.SIMKL_CLIENT_SECRET }}
+      PYPI_API_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
 
-      - name: Install Poetry and dependencies
-        run: |
-          pip install poetry
-          poetry config virtualenvs.create false
-          poetry lock
-          poetry install -q #--quiet (-q) : Do not output any message.
+  build-windows:
+    needs: prepare-release
+    uses: ./.github/workflows/windows-build.yml
+    with:
+      version: ${{ needs.prepare-release.outputs.version }}
+    secrets:
+      SIMKL_CLIENT_ID: ${{ secrets.SIMKL_CLIENT_ID }}
+      SIMKL_CLIENT_SECRET: ${{ secrets.SIMKL_CLIENT_SECRET }}
 
-      - name: Set version in pyproject.toml
-        run: poetry version ${{ env.VERSION }}
+  build-macos:
+    needs: prepare-release
+    uses: ./.github/workflows/macos-build.yml
+    with:
+      version: ${{ needs.prepare-release.outputs.version }}
+    secrets:
+      SIMKL_CLIENT_ID: ${{ secrets.SIMKL_CLIENT_ID }}
+      SIMKL_CLIENT_SECRET: ${{ secrets.SIMKL_CLIENT_SECRET }}
 
-      # This step now injects the secrets directly into the credentials.py file
-      - name: Inject Simkl Credentials into Code
-        env:
-          SIMKL_CLIENT_ID: ${{ secrets.SIMKL_CLIENT_ID }}
-          SIMKL_CLIENT_SECRET: ${{ secrets.SIMKL_CLIENT_SECRET }}
-        run: |
-          # Check if secrets are available
-          if [ -z "$SIMKL_CLIENT_ID" ]; then
-            echo "::error::SIMKL_CLIENT_ID secret is not set."
-            exit 1
-          fi
-          if [ -z "$SIMKL_CLIENT_SECRET" ]; then
-            echo "::error::SIMKL_CLIENT_SECRET secret is not set."
-            exit 1
-          fi
+  build-linux:
+    needs: prepare-release
+    uses: ./.github/workflows/linux-build.yml
+    with:
+      version: ${{ needs.prepare-release.outputs.version }}
+    secrets:
+      SIMKL_CLIENT_ID: ${{ secrets.SIMKL_CLIENT_ID }}
+      SIMKL_CLIENT_SECRET: ${{ secrets.SIMKL_CLIENT_SECRET }}
 
-          # Inject Client ID
-          echo "Injecting SIMKL_CLIENT_ID into credentials.py"
-          # Use a different delimiter for sed in case the secret contains slashes
-          sed -i "s|SIMKL_CLIENT_ID_PLACEHOLDER|${SIMKL_CLIENT_ID}|g" simkl_mps/credentials.py
-
-          # Inject Client Secret
-          echo "Injecting SIMKL_CLIENT_SECRET into credentials.py"
-          sed -i "s|SIMKL_CLIENT_SECRET_PLACEHOLDER|${SIMKL_CLIENT_SECRET}|g" simkl_mps/credentials.py
-
-          echo "✅ Credentials successfully injected into simkl_mps/credentials.py"
-
-      - name: Build and publish
-        run: |
-          poetry build
-          poetry publish
-        env:
-          POETRY_PYPI_TOKEN_PYPI: ${{ secrets.PYPI_API_TOKEN }}
-          VERSION: ${{ env.VERSION }}
-      
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: dist
-          path: dist/
-          retention-days: 3
-
-      - name: Create and Upload Release
-        id: create_release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ env.VERSION }}
-          name: Release ${{ env.VERSION }}
-          body: |
-            ![GitHub Downloads (specific asset, specific tag)](https://img.shields.io/github/downloads/${{ github.repository }}/${{ env.VERSION }}/dist)
-          append_body: true
-          generate_release_notes: true
-          files: |
-            dist/*.whl
-          make_latest: true
-        env:
-          VERSION: ${{ env.VERSION }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  create-github-release:
+    needs: [prepare-release, publish-pypi, build-windows, build-macos, build-linux]
+    uses: ./.github/workflows/create-release.yml
+    with:
+      version: ${{ needs.prepare-release.outputs.version }}
+    secrets:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

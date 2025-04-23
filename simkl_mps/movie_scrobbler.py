@@ -110,6 +110,12 @@ class MovieScrobbler:
         except Exception as e:
             logger.error(f"Failed to log playback event: {e} - Data: {log_entry}")
 
+        if event_type == "scrobble_update" and self.notification_callback:
+            self.notification_callback(
+                "Scrobble Update",
+                f"Movie: '{self.movie_name or self.currently_tracking}' (Duration: {self.estimated_duration // 60 if self.estimated_duration else 'Unknown'})\nID: {self.simkl_id or 'N/A'}"
+            )
+
     def get_player_position_duration(self, process_name):
         """
         Get current position and total duration from supported media players via web interfaces.
@@ -372,9 +378,7 @@ class MovieScrobbler:
         final_pos = self.current_position_seconds
         final_watch_time = self.watch_time
         if self.is_complete():
-            logger.info(f"Marking '{self.movie_name or self.currently_tracking}' as watched due to completion threshold.")
-            if self.simkl_id:
-                self.mark_as_watched(self.simkl_id, self.movie_name or self.currently_tracking)
+             logger.info(f"Tracking stopped for '{self.movie_name or self.currently_tracking}' after completion threshold was met.")
 
         final_scrobble_info = {
             "title": self.currently_tracking,

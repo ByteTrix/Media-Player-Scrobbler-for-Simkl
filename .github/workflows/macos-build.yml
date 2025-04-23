@@ -1,0 +1,346 @@
+name: Build macOS
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
+    secrets:
+      SIMKL_CLIENT_ID:
+        required: true
+      SIMKL_CLIENT_SECRET:
+        required: true
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install poetry pillow
+          poetry config virtualenvs.create false
+          poetry install
+
+      - name: Set version in pyproject.toml
+        run: poetry version ${{ inputs.version }}
+
+      - name: Generate macOS icon (.icns file)
+        run: |
+          # Create a basic .iconset structure
+          mkdir -p simkl-mps.iconset
+          
+          # Create necessary icons if not exist
+          for size in 16 32 64 128 256 512 1024; do
+            if [ ! -f "simkl_mps/assets/simkl-mps-$size.png" ] && [ -f "simkl_mps/assets/simkl-mps.png" ]; then
+              # If size-specific icon doesn't exist but base icon does, resize it
+              sips -z $size $size simkl_mps/assets/simkl-mps.png --out simkl_mps/assets/simkl-mps-$size.png
+            fi
+          done
+          
+          # Convert existing PNG icons to iconset format
+          if [ -f "simkl_mps/assets/simkl-mps-16.png" ]; then
+            cp simkl_mps/assets/simkl-mps-16.png simkl-mps.iconset/icon_16x16.png
+          fi
+          
+          if [ -f "simkl_mps/assets/simkl-mps-32.png" ]; then
+            cp simkl_mps/assets/simkl-mps-32.png simkl-mps.iconset/icon_16x16@2x.png
+            cp simkl_mps/assets/simkl-mps-32.png simkl-mps.iconset/icon_32x32.png
+          fi
+          
+          if [ -f "simkl_mps/assets/simkl-mps-64.png" ]; then
+            cp simkl_mps/assets/simkl-mps-64.png simkl-mps.iconset/icon_32x32@2x.png
+          fi
+          
+          if [ -f "simkl_mps/assets/simkl-mps-128.png" ]; then
+            cp simkl_mps/assets/simkl-mps-128.png simkl-mps.iconset/icon_128x128.png
+          fi
+          
+          if [ -f "simkl_mps/assets/simkl-mps-256.png" ]; then
+            cp simkl_mps/assets/simkl-mps-256.png simkl-mps.iconset/icon_128x128@2x.png
+            cp simkl_mps/assets/simkl-mps-256.png simkl-mps.iconset/icon_256x256.png
+          fi
+          
+          if [ -f "simkl_mps/assets/simkl-mps-512.png" ]; then
+            cp simkl_mps/assets/simkl-mps-512.png simkl-mps.iconset/icon_256x256@2x.png
+            cp simkl_mps/assets/simkl-mps-512.png simkl-mps.iconset/icon_512x512.png
+          fi
+          
+          if [ -f "simkl_mps/assets/simkl-mps-1024.png" ]; then
+            cp simkl_mps/assets/simkl-mps-1024.png simkl-mps.iconset/icon_512x512@2x.png
+          fi
+          
+          # Fill in any missing icons with resized versions
+          for size in 16 32 64 128 256 512; do
+            if [ ! -f "simkl-mps.iconset/icon_${size}x${size}.png" ]; then
+              # Find the nearest larger icon
+              found=false
+              for src_size in 1024 512 256 128 64 32 16; do
+                if [ $src_size -ge $size ] && [ -f "simkl_mps/assets/simkl-mps-${src_size}.png" ]; then
+                  sips -z $size $size "simkl_mps/assets/simkl-mps-${src_size}.png" --out "simkl-mps.iconset/icon_${size}x${size}.png"
+                  found=true
+                  break
+                fi
+              done
+              
+              # If still not found, use the base icon
+              if [ "$found" = false ] && [ -f "simkl_mps/assets/simkl-mps.png" ]; then
+                sips -z $size $size "simkl_mps/assets/simkl-mps.png" --out "simkl-mps.iconset/icon_${size}x${size}.png"
+              fi
+            fi
+            
+            # Create @2x version if missing
+            if [ ! -f "simkl-mps.iconset/icon_${size}x${size}@2x.png" ] && [ $((size*2)) -le 1024 ]; then
+              doubled_size=$((size*2))
+              # Find the nearest larger icon
+              found=false
+              for src_size in 1024 512 256 128 64 32; do
+                if [ $src_size -ge $doubled_size ] && [ -f "simkl_mps/assets/simkl-mps-${src_size}.png" ]; then
+                  sips -z $doubled_size $doubled_size "simkl_mps/assets/simkl-mps-${src_size}.png" --out "simkl-mps.iconset/icon_${size}x${size}@2x.png"
+                  found=true
+                  break
+                fi
+              done
+              
+              # If still not found, use the base icon
+              if [ "$found" = false ] && [ -f "simkl_mps/assets/simkl-mps.png" ]; then
+                sips -z $doubled_size $doubled_size "simkl_mps/assets/simkl-mps.png" --out "simkl-mps.iconset/icon_${size}x${size}@2x.png"
+              fi
+            fi
+          done
+          
+          # Generate .icns file using iconutil
+          iconutil -c icns simkl-mps.iconset -o simkl_mps/assets/simkl-mps.icns
+          
+          # Clean up
+          rm -rf simkl-mps.iconset
+          
+          echo "✅ macOS icon (.icns) created successfully"
+          ls -la simkl_mps/assets/simkl-mps.icns
+
+      - name: Inject Simkl Credentials into Code
+        env:
+          SIMKL_CLIENT_ID: ${{ secrets.SIMKL_CLIENT_ID }}
+          SIMKL_CLIENT_SECRET: ${{ secrets.SIMKL_CLIENT_SECRET }}
+        run: |
+          # Check if secrets are available
+          if [ -z "$SIMKL_CLIENT_ID" ]; then
+            echo "::error::SIMKL_CLIENT_ID secret is not set."
+            exit 1
+          fi
+          if [ -z "$SIMKL_CLIENT_SECRET" ]; then
+            echo "::error::SIMKL_CLIENT_SECRET secret is not set."
+            exit 1
+          fi
+
+          # Inject credentials
+          sed -i '' "s|SIMKL_CLIENT_ID_PLACEHOLDER|${SIMKL_CLIENT_ID}|g" simkl_mps/credentials.py
+          sed -i '' "s|SIMKL_CLIENT_SECRET_PLACEHOLDER|${SIMKL_CLIENT_SECRET}|g" simkl_mps/credentials.py
+
+      - name: Build with PyInstaller
+        run: |
+          pip install pyinstaller
+          python -m PyInstaller --clean simkl-mps.spec
+          
+          # Make sure the updater script is executable
+          chmod +x simkl_mps/utils/updater.sh
+          
+          # Copy and set permissions for updater script in app bundles
+          mkdir -p "dist/MPSS.app/Contents/MacOS/utils/"
+          mkdir -p "dist/MPS for Simkl.app/Contents/MacOS/utils/"
+          cp simkl_mps/utils/updater.sh "dist/MPSS.app/Contents/MacOS/utils/"
+          cp simkl_mps/utils/updater.sh "dist/MPS for Simkl.app/Contents/MacOS/utils/"
+          chmod +x "dist/MPSS.app/Contents/MacOS/utils/updater.sh"
+          chmod +x "dist/MPS for Simkl.app/Contents/MacOS/utils/updater.sh"
+          
+          # Create LaunchAgent for weekly update checks
+          mkdir -p dist/MPSS.app/Contents/Resources/
+          cat > dist/MPSS.app/Contents/Resources/com.simkl.mpss.updater.plist << EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>Label</key>
+              <string>com.simkl.mpss.updater</string>
+              <key>ProgramArguments</key>
+              <array>
+                  <string>bash</string>
+                  <string>/Applications/MPSS.app/Contents/MacOS/utils/updater.sh</string>
+                  <string>--silent</string>
+              </array>
+              <key>StartCalendarInterval</key>
+              <dict>
+                  <key>Weekday</key>
+                  <integer>1</integer>
+                  <key>Hour</key>
+                  <integer>12</integer>
+                  <key>Minute</key>
+                  <integer>0</integer>
+              </dict>
+              <key>RunAtLoad</key>
+              <true/>
+              <key>StandardErrorPath</key>
+              <string>/tmp/com.simkl.mpss.updater.err</string>
+              <key>StandardOutPath</key>
+              <string>/tmp/com.simkl.mpss.updater.out</string>
+          </dict>
+          </plist>
+          EOF
+          
+          # Add postinstall script to set up LaunchAgent
+          mkdir -p dist/MPSS.app/Contents/Resources/scripts/
+          cat > dist/MPSS.app/Contents/Resources/scripts/postinstall.sh << EOF
+          #!/bin/bash
+          
+          # Create LaunchAgent directory if needed
+          mkdir -p ~/Library/LaunchAgents/
+          
+          # Copy LaunchAgent plist
+          cp /Applications/MPSS.app/Contents/Resources/com.simkl.mpss.updater.plist ~/Library/LaunchAgents/
+          
+          # Load the LaunchAgent
+          launchctl load ~/Library/LaunchAgents/com.simkl.mpss.updater.plist
+          
+          # Set first run flag to show welcome message
+          mkdir -p ~/.config/simkl-mps/
+          touch ~/.config/simkl-mps/first_run
+          
+          exit 0
+          EOF
+          chmod +x dist/MPSS.app/Contents/Resources/scripts/postinstall.sh
+
+      - name: Test PyInstaller build
+        run: |
+          python test_build.py macos
+
+      - name: Create DMG
+        run: |
+          VERSION="${{ inputs.version }}"
+          
+          # Set up DMG creation
+          brew install create-dmg || true
+          
+          # Create a staging area for the DMG
+          mkdir -p staging
+          cp -r "dist/MPSS.app" staging/
+          
+          # Ensure the updater script is included and executable
+          mkdir -p "staging/MPSS.app/Contents/MacOS/utils/"
+          cp simkl_mps/utils/updater.sh "staging/MPSS.app/Contents/MacOS/utils/"
+          chmod +x "staging/MPSS.app/Contents/MacOS/utils/updater.sh"
+          
+          # Ensure the LaunchAgent files are included
+          mkdir -p "staging/MPSS.app/Contents/Resources/"
+          cp dist/MPSS.app/Contents/Resources/com.simkl.mpss.updater.plist "staging/MPSS.app/Contents/Resources/"
+          mkdir -p "staging/MPSS.app/Contents/Resources/scripts/"
+          cp dist/MPSS.app/Contents/Resources/scripts/postinstall.sh "staging/MPSS.app/Contents/Resources/scripts/"
+          
+          # Create the DMG
+          create-dmg \
+            --volname "MPSS Installer" \
+            --volicon "simkl_mps/assets/simkl-mps.icns" \
+            --window-pos 200 120 \
+            --window-size 800 400 \
+            --icon-size 100 \
+            --icon "MPSS.app" 200 190 \
+            --hide-extension "MPSS.app" \
+            --app-drop-link 600 185 \
+            "dist/MPSS_macOS.dmg" \
+            "staging/" || true
+          
+          # If create-dmg fails, create a simpler DMG
+          if [ ! -f "dist/MPSS_macOS.dmg" ]; then
+            hdiutil create -volname "MPSS Installer" -srcfolder staging -ov -format UDZO "dist/MPSS_macOS.dmg"
+          fi
+
+      - name: Create macOS PKG Installer
+        run: |
+          VERSION="${{ inputs.version }}"
+          
+          # Create directory structure for PKG
+          mkdir -p dist/pkg_build/payload/Applications
+          cp -r "dist/MPSS.app" "dist/pkg_build/payload/Applications/"
+          
+          # Create a scripts directory for pre/post install scripts
+          mkdir -p dist/pkg_build/scripts
+          
+          # Create a postinstall script that ensures proper permissions and starts the app
+          cat > dist/pkg_build/scripts/postinstall << EOF
+          #!/bin/bash
+          # Ensure proper permissions for the app
+          chmod -R 755 /Applications/MPSS.app
+          
+          # Set up LaunchAgent for weekly updates
+          mkdir -p /Users/\$USER/Library/LaunchAgents/
+          cp /Applications/MPSS.app/Contents/Resources/com.simkl.mpss.updater.plist /Users/\$USER/Library/LaunchAgents/
+          chown \$USER:staff /Users/\$USER/Library/LaunchAgents/com.simkl.mpss.updater.plist
+          sudo -u \$USER launchctl load /Users/\$USER/Library/LaunchAgents/com.simkl.mpss.updater.plist
+          
+          # Start the application automatically
+          sudo -u \$USER open /Applications/MPSS.app --args start
+          
+          # Add to login items for the current user
+          osascript -e 'tell application "System Events" to make login item at end with properties {path:"/Applications/MPSS.app", hidden:false}'
+          
+          # Set first run flag to show welcome message
+          mkdir -p /Users/\$USER/.config/simkl-mps/
+          touch /Users/\$USER/.config/simkl-mps/first_run
+          chown -R \$USER:staff /Users/\$USER/.config/simkl-mps/
+          
+          exit 0
+          EOF
+          chmod +x dist/pkg_build/scripts/postinstall
+          
+          # Create the component package
+          pkgbuild --root dist/pkg_build/payload \
+                  --identifier "com.simkl.mpss" \
+                  --version "$VERSION" \
+                  --scripts dist/pkg_build/scripts \
+                  "dist/pkg_build/MPSS-component.pkg"
+          
+          # Create a distribution file
+          cat > dist/pkg_build/distribution.xml << EOF
+          <?xml version="1.0" encoding="utf-8"?>
+          <installer-gui-script minSpecVersion="1">
+              <title>Media Player Scrobbler for SIMKL</title>
+              <organization>com.simkl</organization>
+              <domains enable_localSystem="true"/>
+              <options customize="never" require-scripts="true" rootVolumeOnly="true" />
+              <pkg-ref id="com.simkl.mpss"/>
+              <choices-outline>
+                  <line choice="default">
+                      <line choice="com.simkl.mpss"/>
+                  </line>
+              </choices-outline>
+              <choice id="default"/>
+              <choice id="com.simkl.mpss" visible="false">
+                  <pkg-ref id="com.simkl.mpss"/>
+              </choice>
+              <pkg-ref id="com.simkl.mpss" version="$VERSION" onConclusion="none">MPSS-component.pkg</pkg-ref>
+          </installer-gui-script>
+          EOF
+          
+          # Build the final installer package
+          productbuild --distribution dist/pkg_build/distribution.xml \
+                      --package-path dist/pkg_build \
+                      --version "$VERSION" \
+                      "dist/MPSS_${VERSION}.pkg"
+
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-installers
+          path: |
+            dist/MPSS_*.dmg
+            dist/MPSS_*.pkg
+          retention-days: 3

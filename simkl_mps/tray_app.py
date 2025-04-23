@@ -37,15 +37,34 @@ class TrayApp:
         self.config_path = APP_DATA_DIR / ".simkl_mps.env"
         self.log_path = APP_DATA_DIR / "simkl_mps.log"
 
+        # Improved asset path resolution for frozen applications
         if getattr(sys, 'frozen', False):
-
-            base_path = Path(sys._MEIPASS)
-        else:
-
-            base_path = Path(__file__).parent
+            # When frozen, look for assets in multiple locations
+            base_dir = Path(sys._MEIPASS)
+            possible_asset_paths = [
+                base_dir / "simkl_mps" / "assets",  # Standard location in the frozen app
+                base_dir / "assets",                # Alternative location
+                Path(sys.executable).parent / "simkl_mps" / "assets",  # Beside the executable
+                Path(sys.executable).parent / "assets"   # Beside the executable (alternative)
+            ]
             
-        self.assets_dir = base_path / "assets"
-        logger.info(f"Assets directory set to: {self.assets_dir}")
+            # Find the first valid assets directory
+            for path in possible_asset_paths:
+                if path.exists() and path.is_dir():
+                    self.assets_dir = path
+                    logger.info(f"Using assets directory from frozen app: {self.assets_dir}")
+                    break
+            else:
+                # If no directory was found, use a fallback
+                self.assets_dir = base_dir
+                logger.warning(f"No assets directory found in frozen app. Using fallback: {self.assets_dir}")
+        else:
+            # When running normally, assets are relative to this script's dir
+            self.assets_dir = Path(__file__).parent / "assets"
+            logger.info(f"Using assets directory from source: {self.assets_dir}")
+        
+        # Check for first run auto-update setup
+        self._setup_auto_update_if_needed()
         
         self.setup_icon()
     
@@ -78,29 +97,32 @@ class TrayApp:
     def load_icon_for_status(self):
         """Load the appropriate icon for the current status"""
         try:
+            # Try multiple icon formats and fallbacks
             icon_format = "ico" if sys.platform == "win32" else "png"
-            icon_name = f"simkl-mps-{self.status}.{icon_format}"
-            icon_path = self.assets_dir / icon_name
             
-            if not icon_path.exists():
-                icon_name = f"simkl-mps.{icon_format}"
-                icon_path = self.assets_dir / icon_name
+            # List of possible icon files to check in order of preference
+            icon_paths = [
+                # Status-specific icons
+                self.assets_dir / f"simkl-mps-{self.status}.{icon_format}",
+                self.assets_dir / f"simkl-mps-{self.status}.png",  # PNG fallback
+                self.assets_dir / f"simkl-mps-{self.status}.ico",  # ICO fallback
+                
+                # Generic icons
+                self.assets_dir / f"simkl-mps.{icon_format}",
+                self.assets_dir / f"simkl-mps.png",  # PNG fallback
+                self.assets_dir / f"simkl-mps.ico"   # ICO fallback
+            ]
             
-            if not icon_path.exists():
-                alt_format = "png" if sys.platform == "win32" else "ico"
-                icon_name = f"simkl-mps-{self.status}.{alt_format}"
-                icon_path = self.assets_dir / icon_name
+            # Use the first icon that exists
+            for icon_path in icon_paths:
+                if icon_path.exists():
+                    logger.debug(f"Loading tray icon: {icon_path}")
+                    return Image.open(icon_path)
             
-            if not icon_path.exists():
-                icon_name = f"simkl-mps.{alt_format}"
-                icon_path = self.assets_dir / icon_name
+            logger.error(f"No suitable icon found in assets directory: {self.assets_dir}")
+            logger.error(f"Expected one of: {[p.name for p in icon_paths]}")
+            return self._create_fallback_image()
             
-            if icon_path.exists():
-                logger.debug(f"Loading tray icon: {icon_path}")
-                return Image.open(icon_path)
-            else:
-                logger.error(f"No suitable icon found in assets directory: {self.assets_dir}")
-                return self._create_fallback_image()
         except FileNotFoundError as e:
             logger.error(f"Icon file not found: {e}", exc_info=True)
             return self._create_fallback_image()
@@ -169,16 +191,18 @@ class TrayApp:
     def create_menu(self):
         """Create the system tray menu with a professional layout"""
         menu_items = [
-            pystray.MenuItem("📌 MPS for SIMKL", None),
+            pystray.MenuItem("^_^ MPS for SIMKL", None),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem(f"Status: {self.get_status_text()}", None, enabled=False),
             pystray.Menu.SEPARATOR,
         ]
-        if self.status == "running":
+        
+        if self.status == "running" or self.status == "active":
             menu_items.append(pystray.MenuItem("Pause", self.pause_monitoring))
         else:
             menu_items.append(pystray.MenuItem("Start", self.start_monitoring))
-        menu_items += [
+        
+        menu_items.extend([
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("Tools", pystray.Menu(
                 pystray.MenuItem("Open Logs", self.open_logs),
@@ -188,13 +212,14 @@ class TrayApp:
             pystray.MenuItem("Online Services", pystray.Menu(
                 pystray.MenuItem("SIMKL Website", self.open_simkl),
                 pystray.MenuItem("View Watch History", self.open_simkl_history),
-                pystray.MenuItem("Check for Updates", self.check_updates)
             )),
             pystray.Menu.SEPARATOR,
+            pystray.MenuItem("Check for Updates", self.check_updates),
             pystray.MenuItem("About", self.show_about),
             pystray.MenuItem("Help", self.show_help),
             pystray.MenuItem("Exit", self.exit_app)
-        ]
+        ])
+        
         return pystray.Menu(*menu_items)
 
     def update_icon(self):
@@ -235,6 +260,148 @@ class TrayApp:
         except Exception as e:
             logger.error(f"Error opening config directory: {e}")
 
+    def show_about(self, _=None):
+        """Show application information"""
+        try:
+            # Try multiple ways to get the version information
+            version = "Unknown"
+            
+            # 1. Try to get from pkg_resources
+            try:
+                import pkg_resources
+                version = pkg_resources.get_distribution("simkl-mps").version
+            except (pkg_resources.DistributionNotFound, ImportError):
+                # 2. Check for version.txt file
+                version_file = Path(self._get_app_path()) / "version.txt"
+                if version_file.exists():
+                    try:
+                        version = version_file.read_text().strip()
+                    except:
+                        pass
+                        
+                # 3. Try to get from registry (Windows)
+                if version == "Unknown" and sys.platform == 'win32':
+                    try:
+                        import winreg
+                        key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\kavinthangavel\Media Player Scrobbler for SIMKL")
+                        version = winreg.QueryValueEx(key, "Version")[0]
+                        winreg.CloseKey(key)
+                    except:
+                        pass
+            
+            # Get license information
+            license_name = "GNU GPL v3"
+            try:
+                if sys.platform == 'win32':
+                    import winreg
+                    key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\kavinthangavel\Media Player Scrobbler for SIMKL")
+                    license_name = winreg.QueryValueEx(key, "License")[0]
+                    winreg.CloseKey(key)
+            except:
+                pass
+            
+            # Build the about text with the version and license
+            about_text = f"""Media Player Scrobbler for SIMKL
+Version: {version}
+Author: kavinthangavel
+License: {license_name}
+
+Automatically track and scrobble your media to SIMKL."""
+
+            # Display about dialog using appropriate method for platform
+            if sys.platform == 'win32':
+                # Use tkinter on Windows with proper event handling
+                import tkinter as tk
+                from tkinter import messagebox
+                
+                def show_dialog():
+                    dialog_root = tk.Tk()
+                    dialog_root.withdraw()
+                    dialog_root.attributes("-topmost", True)  # Keep dialog on top
+                    
+                    # Add protocol handler for window close button
+                    dialog_root.protocol("WM_DELETE_WINDOW", dialog_root.destroy)
+                    
+                    # Show the dialog and wait for it to complete
+                    messagebox.showinfo("About", about_text, parent=dialog_root)
+                    
+                    # Clean up
+                    dialog_root.destroy()
+                
+                # Run in a separate thread to avoid blocking the main thread
+                threading.Thread(target=show_dialog, daemon=True).start()
+                
+            elif sys.platform == 'darwin':
+                # Use AppleScript dialog on macOS
+                os.system(f'osascript -e \'display dialog "{about_text}" buttons {{"OK"}} default button "OK" with title "About MPS for SIMKL"\'')
+            else:
+                # On Linux, try using zenity or fall back to notification
+                import subprocess
+                try:
+                    subprocess.run(['zenity', '--info', '--title=About MPS for SIMKL', f'--text={about_text}'])
+                except (FileNotFoundError, subprocess.SubprocessError):
+                    self.show_notification("About MPS for SIMKL", about_text)
+        except Exception as e:
+            logger.error(f"Error showing about dialog: {e}")
+            self.show_notification("About", "Media Player Scrobbler for SIMKL")
+
+    def _get_app_path(self):
+        """Get the application installation path"""
+        if getattr(sys, 'frozen', False):
+            return Path(sys.executable).parent
+        else:
+            import simkl_mps
+            return Path(simkl_mps.__file__).parent.parent
+
+    def show_help(self, _=None):
+        """Show help information"""
+        try:
+            # Open documentation or show help dialog
+            help_url = "https://github.com/kavinthangavel/simkl-movie-tracker#readme"
+            webbrowser.open(help_url)
+        except Exception as e:
+            logger.error(f"Error showing help: {e}")
+            
+            # Fallback help text if browser doesn't open
+            help_text = """Media Player Scrobbler for SIMKL
+
+This application automatically tracks what you watch in supported media players and updates your SIMKL account.
+
+Supported players:
+- VLC
+- MPV
+- MPC-HC
+- PotPlayer
+
+Tips:
+- Make sure you've authorized with SIMKL
+- The app runs in your system tray
+- Check logs if you encounter problems"""
+            
+            # Show help text in a dialog
+            if sys.platform == 'win32':
+                import tkinter as tk
+                from tkinter import messagebox
+                
+                def show_dialog():
+                    dialog_root = tk.Tk()
+                    dialog_root.withdraw()
+                    dialog_root.attributes("-topmost", True)
+                    
+                    # Add protocol handler for window close button
+                    dialog_root.protocol("WM_DELETE_WINDOW", dialog_root.destroy)
+                    
+                    # Show the dialog and wait for it to complete
+                    messagebox.showinfo("Help", help_text, parent=dialog_root)
+                    
+                    # Clean up
+                    dialog_root.destroy()
+                
+                # Run in a separate thread to avoid blocking the main thread
+                threading.Thread(target=show_dialog, daemon=True).start()
+            else:
+                self.show_notification("Help", "Opening help documentation in browser")
+
     def open_simkl(self, _=None):
         """Open the SIMKL website"""
         webbrowser.open("https://simkl.com")
@@ -245,23 +412,218 @@ class TrayApp:
 
     def check_updates(self, _=None):
         """Check for updates to the application"""
-        webbrowser.open("https://github.com/kavinthangavel/simkl-movie-tracker/releases")
+        logger.info("Checking for updates...")
+        
+        import platform
+        import subprocess
+        import sys
+        from pathlib import Path
+        
+        system = platform.system().lower()
+        
+        try:
+            if system == 'windows':
+                # Windows update using PowerShell
+                from simkl_mps.cli import check_for_updates
+                check_for_updates(silent=False)
+            elif system == 'darwin':  # macOS
+                # Use macOS update script
+                updater_path = self._get_updater_path('updater.sh')
+                if updater_path.exists():
+                    subprocess.Popen(['bash', str(updater_path)])
+                else:
+                    self.show_notification("Update Error", "Updater script not found for macOS")
+            elif system == 'linux':
+                # Use Linux update script
+                updater_path = self._get_updater_path('updater.sh')
+                if updater_path.exists():
+                    subprocess.Popen(['bash', str(updater_path)])
+                else:
+                    self.show_notification("Update Error", "Updater script not found for Linux")
+            else:
+                self.show_notification("Update Error", f"Updates not supported on {system}")
+        except Exception as e:
+            logger.error(f"Error checking for updates: {e}")
+            self.show_notification("Update Error", f"Failed to check for updates: {e}")
 
-    def show_help(self, _=None):
-        """Show help information"""
-        webbrowser.open("https://github.com/kavinthangavel/media-player-scrobbler-for-simkl/wiki")
+    def _get_updater_path(self, filename):
+        """Get the path to the updater script"""
+        import sys
+        from pathlib import Path
+        
+        # Check if we're running from an executable or source
+        if getattr(sys, 'frozen', False):
+            # Running from executable
+            app_path = Path(sys.executable).parent
+            return app_path / filename
+        else:
+            # Running from source
+            import simkl_mps
+            module_path = Path(simkl_mps.__file__).parent
+            return module_path / "utils" / filename
 
-    def show_about(self, _=None):
-        """Show information about the application"""
-        about_text = (
-            "MPS for SIMKL\n"
-            "Version: 1.0.0\n"
-            "Author: kavinthangavel\n"
-            "\nMedia Player Scrobbler for SIMKL.\n"
-            "Tracks movies you watch and syncs with your Simkl account."
-        )
-        self.show_notification("About", about_text)
-        logger.info("Displayed About notification from tray.")
+    def _get_icon_path(self, status="active"):
+        """Get the path to an icon file based on status, prioritizing high-resolution icons"""
+        try:
+            # Platform-specific considerations
+            if sys.platform == "win32":
+                # Windows prefers ICO files, but can use high-res PNGs too
+                preferred_formats = ["ico", "png"]
+                preferred_sizes = [256, 128, 64, 32]  # Ordered by preference (highest first)
+            elif sys.platform == "darwin":
+                # macOS works best with high-res PNG files
+                preferred_formats = ["png", "ico"]
+                preferred_sizes = [512, 256, 128, 64]  # macOS prefers higher res
+            else:
+                # Linux typically uses PNG files
+                preferred_formats = ["png", "ico"]
+                preferred_sizes = [256, 128, 64, 32]
+            
+            # First, try to find size-specific icons with the status
+            for size in preferred_sizes:
+                for fmt in preferred_formats:
+                    # Check for size-specific status icon
+                    paths = [
+                        self.assets_dir / f"simkl-mps-{status}-{size}.{fmt}",
+                        self.assets_dir / f"simkl-mps-{size}.{fmt}"  # Generic size-specific
+                    ]
+                    for path in paths:
+                        if path.exists():
+                            logger.debug(f"Using high-resolution icon for notification: {path}")
+                            return str(path)
+            
+            # If we don't find size-specific icons, try the standard ones
+            icon_paths = []
+            
+            # Add status-specific icons first
+            for fmt in preferred_formats:
+                icon_paths.append(self.assets_dir / f"simkl-mps-{status}.{fmt}")
+            
+            # Add general icons as fallback
+            for fmt in preferred_formats:
+                icon_paths.append(self.assets_dir / f"simkl-mps.{fmt}")
+            
+            # Try to find any usable icon
+            for path in icon_paths:
+                if path.exists():
+                    logger.debug(f"Using standard icon for notification: {path}")
+                    return str(path)
+            
+            # Last resort - look in the system path for the executable's directory
+            if getattr(sys, 'frozen', False):
+                exe_dir = Path(sys.executable).parent
+                for fmt in preferred_formats:
+                    icon_path = exe_dir / f"simkl-mps.{fmt}"
+                    if icon_path.exists():
+                        logger.debug(f"Using executable directory icon: {icon_path}")
+                        return str(icon_path)
+            
+            # If no icon found, return None
+            logger.warning(f"No suitable icon found for notifications in: {self.assets_dir}")
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error finding icon path: {e}")
+            return None
+
+    def show_notification(self, title, message):
+        """Show a desktop notification with improved error handling and fallbacks"""
+        logger.debug(f"Attempting to show notification: {title} - {message}")
+        
+        # Skip directly to iconless notification since we're having icon loading issues
+        try:
+            # Try with plyer but explicitly without an icon
+            notification.notify(
+                title=title,
+                message=message,
+                app_name="MPS for SIMKL",
+                # No app_icon parameter to avoid the icon loading error
+                timeout=10
+            )
+            logger.debug("Icon-less notification sent successfully")
+            return
+        except Exception as plyer_err:
+            logger.warning(f"Basic notification failed: {plyer_err}")
+            
+        # Second try: Platform-specific native methods with no icons
+        try:
+            if sys.platform == 'win32':
+                # Windows: Try PowerShell with no icon references
+                try:
+                    import subprocess
+                    script = f'''
+                    Add-Type -AssemblyName System.Windows.Forms
+                    $notification = New-Object System.Windows.Forms.NotifyIcon
+                    $notification.Text = "MPS for SIMKL"
+                    $notification.Visible = $true
+                    $notification.BalloonTipTitle = "{title}"
+                    $notification.BalloonTipText = "{message}"
+                    $notification.ShowBalloonTip(10000)
+                    Start-Sleep -Seconds 5
+                    $notification.Dispose()
+                    '''
+                    
+                    with open("temp_notify.ps1", "w") as f:
+                        f.write(script)
+                    
+                    subprocess.Popen(
+                        ["powershell", "-ExecutionPolicy", "Bypass", "-File", "temp_notify.ps1"],
+                        shell=True,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        creationflags=subprocess.CREATE_NO_WINDOW
+                    )
+                    logger.debug("Windows System.Windows.Forms notification sent")
+                    return
+                except Exception as win_err:
+                    logger.warning(f"Alternative Windows notification failed: {win_err}")
+                    
+                # Windows MessageBox fallback
+                try:
+                    import ctypes
+                    MessageBox = ctypes.windll.user32.MessageBoxW
+                    MB_ICONINFORMATION = 0x40
+                    MessageBox(None, message, title, MB_ICONINFORMATION)
+                    logger.debug("Windows MessageBox notification shown")
+                    return
+                except Exception as mb_err:
+                    logger.warning(f"Windows MessageBox notification failed: {mb_err}")
+                    
+            elif sys.platform == 'darwin':  # macOS
+                try:
+                    # For macOS, use a simpler AppleScript command with no icon reference
+                    os_cmd = f'''osascript -e 'display notification "{message}" with title "{title}"' '''
+                    os.system(os_cmd)
+                    logger.debug("Simple macOS notification sent")
+                    return
+                except Exception as mac_err:
+                    logger.warning(f"Simple macOS notification failed: {mac_err}")
+                    
+            elif sys.platform.startswith('linux'):  # Linux
+                try:
+                    # Try notify-send without an icon
+                    import subprocess
+                    subprocess.run(['notify-send', title, message], check=False)
+                    logger.debug("Linux notification sent via notify-send without icon")
+                    return
+                except Exception as linux_err:
+                    logger.warning(f"Basic Linux notification failed: {linux_err}")
+                    
+                try:
+                    # Try zenity without icon
+                    import subprocess
+                    subprocess.Popen(['zenity', '--notification', '--text', f"{title}: {message}"])
+                    logger.debug("Linux notification sent via zenity")
+                    return
+                except Exception as zenity_err:
+                    logger.warning(f"Zenity notification failed: {zenity_err}")
+                    
+        except Exception as native_err:
+            logger.error(f"All native notification methods failed: {native_err}")
+        
+        # Final fallback: Print to console
+        print(f"\n🔔 NOTIFICATION: {title}\n{message}\n")
+        logger.info(f"Notification displayed in console: {title} - {message}")
 
     def run(self):
         """Run the tray application"""
@@ -436,17 +798,80 @@ class TrayApp:
         if self.tray_icon:
             self.tray_icon.stop()
 
-    def show_notification(self, title, message):
-        """Show a desktop notification"""
+    def _setup_auto_update_if_needed(self):
+        """Set up auto-updates if this is the first run"""
         try:
-            notification.notify(
-                title=title,
-                message=message,
-                app_name="MPS for SIMKL",
-                timeout=5
-            )
+            import platform
+            import subprocess
+            import os
+            from pathlib import Path
+            
+            config_dir = Path.home() / ".config" / "simkl-mps"
+            first_run_file = config_dir / "first_run"
+            
+            # Only run if the first_run file exists
+            if first_run_file.exists():
+                system = platform.system().lower()
+                
+                if system == 'darwin':  # macOS
+                    # The LaunchAgent should already be set up by the installer
+                    # Just run the updater with the first-run check flag
+                    updater_path = self._get_updater_path('updater.sh')
+                    if updater_path.exists():
+                        subprocess.Popen(['bash', str(updater_path), '--check-first-run'])
+                
+                elif system.startswith('linux'):
+                    # For Linux, check if systemd is available and if the timer is set up
+                    updater_path = self._get_updater_path('updater.sh')
+                    setup_script_path = self._get_updater_path('setup-auto-update.sh')
+                    
+                    if updater_path.exists():
+                        # Run the updater with the first-run check flag
+                        subprocess.Popen(['bash', str(updater_path), '--check-first-run'])
+                    
+                    # If setup script exists and systemd is available but timer not set up,
+                    # ask the user if they want to enable auto-updates
+                    if setup_script_path.exists():
+                        import tkinter as tk
+                        from tkinter import messagebox
+                        
+                        systemd_user_dir = Path.home() / ".config" / "systemd" / "user"
+                        timer_file = systemd_user_dir / "simkl-mps-updater.timer"
+                        
+                        if not timer_file.exists():
+                            def show_auto_update_dialog():
+                                dialog_root = tk.Tk()
+                                dialog_root.withdraw()
+                                dialog_root.attributes("-topmost", True)
+                                
+                                # Add protocol handler for window close button
+                                dialog_root.protocol("WM_DELETE_WINDOW", lambda: dialog_root.destroy())
+                                
+                                # Ask user about enabling auto-updates
+                                result = messagebox.askyesno(
+                                    "MPSS Auto-Update", 
+                                    "Would you like to enable weekly automatic update checks?",
+                                    parent=dialog_root
+                                )
+                                
+                                # Process the result before destroying the root
+                                if result:
+                                    # Run the setup script
+                                    subprocess.run(['bash', str(setup_script_path)])
+                                
+                                # Ensure dialog is destroyed
+                                dialog_root.destroy()
+                            
+                            # Run dialog in a separate thread to avoid blocking
+                            dialog_thread = threading.Thread(target=show_auto_update_dialog, daemon=True)
+                            dialog_thread.start()
+                            dialog_thread.join(timeout=10)  # Wait for dialog with timeout
+                
+                # Remove the first_run file regardless of outcome
+                first_run_file.unlink(missing_ok=True)
+        
         except Exception as e:
-            logger.error(f"Failed to show notification: {e}")
+            logger.error(f"Error setting up auto-updates: {e}")
 
 def run_tray_app():
     """Run the application in tray mode"""

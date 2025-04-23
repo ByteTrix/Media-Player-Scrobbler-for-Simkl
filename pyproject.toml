@@ -9,7 +9,7 @@ keywords = ["simkl", "scrobbler"]
 homepage = "https://github.com/kavinthangavel/media-player-scrobbler-for-simkl"
 repository = "https://github.com/kavinthangavel/media-player-scrobbler-for-simkl"
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 5 - Stable",
     "Intended Audience :: End Users/Desktop",
     "Operating System :: OS Independent",
     "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
