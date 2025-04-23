@@ -371,16 +371,21 @@ class MovieScrobbler:
         final_state = self.state
         final_pos = self.current_position_seconds
         final_watch_time = self.watch_time
+        if self.is_complete():
+            logger.info(f"Marking '{self.movie_name or self.currently_tracking}' as watched due to completion threshold.")
+            if self.simkl_id:
+                self.mark_as_watched(self.simkl_id, self.movie_name or self.currently_tracking)
+
         final_scrobble_info = {
-                "title": self.currently_tracking,
-                "movie_name": self.movie_name,
-                "simkl_id": self.simkl_id,
-                "state": STOPPED,
-                "progress": self._calculate_percentage(use_position=True) or self._calculate_percentage(use_accumulated=True),
-                "watched_seconds": round(final_watch_time, 2),
-                "current_position_seconds": final_pos,
-                "total_duration_seconds": self.total_duration_seconds,
-                "estimated_duration_seconds": self.estimated_duration
+            "title": self.currently_tracking,
+            "movie_name": self.movie_name,
+            "simkl_id": self.simkl_id,
+            "state": STOPPED,
+            "progress": self._calculate_percentage(use_position=True) or self._calculate_percentage(use_accumulated=True),
+            "watched_seconds": round(final_watch_time, 2),
+            "current_position_seconds": final_pos,
+            "total_duration_seconds": self.total_duration_seconds,
+            "estimated_duration_seconds": self.estimated_duration
             }
 
         self._log_playback_event("stop_tracking", extra_data={"final_state": final_state, "final_position": final_pos, "final_watch_time": final_watch_time})
