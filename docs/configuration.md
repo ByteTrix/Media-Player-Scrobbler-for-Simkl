@@ -1,6 +1,6 @@
 # ⚙️ Advanced Configuration
 
-This document describes advanced configuration options for Simkl Scrobbler.
+This document describes advanced configuration options for Media Player Scrobbler for SIMKL.
 
 ## 📁 Configuration Files
 

@@ -1,23 +1,23 @@
 # 📋 Todo List
 
-This document tracks both completed features and planned improvements for Simkl Scrobbler.
+This document tracks both completed features and planned improvements for Media Player Scrobbler for SIMKL.
 
 ## ✅ Completed
 
 - [x] 🌍 Cross-platform support (Windows, macOS, Linux)
 - [x] 🎮 Integration with multiple media players
-- [x] 🔄 Background service implementation
+- [x] 🔄 ~~Background service implementation~~
 - [x] 📊 Position tracking for media players with web interfaces
 - [x] 🖥️ System tray application
 - [x] 🔌 Offline mode with backlog handling
 - [x] 🧠 Smart movie detection using guessit library
 - [x] 📦 Package distribution via PyPI
+- [x] 😙 New Icon/Logo and Name
 
 ## 🚧 In Progress
 
+- [ ] 🏦 Create installers for cross platform
 - [ ] 🚹 Option to User Set Completion Percentage and Edit it Later
-- [ ] 😙 New Icon and Logo
-- [ ] 🪜 Testing Cross-Platform
 - [ ] 📱 Improve notification system
 
 
@@ -25,6 +25,7 @@ This document tracks both completed features and planned improvements for Simkl 
 
 ### Short Term
 
+- [ ] 🪜 Testing Cross-Platform
 - [ ] 🔐 Enhanced authentication flow
 - [ ] 🧪 Create comprehensive automated test suite
 - [ ] 🔎 Add option to manually correct misidentified movies
@@ -37,7 +38,7 @@ This document tracks both completed features and planned improvements for Simkl 
 
 ### Long Term / Ideas
 
-- [ ] 📺 Add support for TV shows tracking
+- [ ] 📺 Add support for TV shows/Anime tracking
 - [ ] 🎬 Integration with more streaming platforms (browser extensions)
 - [ ] 👥 Multi-user support for shared computers
 - [ ] 🔍 Advanced search and filtering of watched content

@@ -1,14 +1,14 @@
-# 🎬 Media Player Scrobbler for Simkl
+# 🎬 MPS for Simkl
 
 [![Python Version](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: GPL-3.0](https://img.shields.io/badge/License-GPL%20v3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-blue.svg)]()
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
-A cross-platform automatic movie tracker that seamlessly integrates with [Simkl](https://simkl.com). It monitors your media players and automatically updates your watched history - no manual scrobbling required! ✨
+MPS(Media Player Scrobbler) for Simkl, A cross-platform automatic movie tracker that seamlessly integrates with [Simkl](https://simkl.com). It monitors your media players and automatically updates your watched history - no manual scrobbling required! ✨
 
 <div align="center">
-  <img src="https://eu.simkl.in/img_blog_2012/logo.png" alt="Simkl Logo" width="150"/>
+  <img src="simkl_mps/assets/simkl-mps.png" alt="SIMKL MPS Logo" width="150"/>
   <br/>
   <em>Your movies, automatically tracked whenever you watch them</em>
 </div>
@@ -18,7 +18,7 @@ A cross-platform automatic movie tracker that seamlessly integrates with [Simkl]
 - 🎮 **Universal Media Player Support** - Works with VLC, MPV, MPC-HC, PotPlayer, and many others
 - 🚀 **Zero Configuration** - Smart detection works out of the box
 - 🌍 **Cross-Platform** - Full support for Windows, macOS, and Linux
-- 🔄 **Multiple Run Modes** - Foreground, system tray, or background service
+- 🔄 **Multiple Run Modes** - Foreground system tray, or background system tray
 - 📊 **Position Tracking** - Monitors actual playback position for supported players
 - 🔌 **Offline Support** - Queues updates when you're not connected
 - 🧠 **Smart Detection** - Intelligent movie recognition from filenames
@@ -28,9 +28,6 @@ A cross-platform automatic movie tracker that seamlessly integrates with [Simkl]
 ```bash
 # 📥 Install
 pip install simkl-mps
-
-# 🔑 Set up with your Simkl account
-simkl-mps init
 
 # 🚀 Start tracking your movies
 simkl-mps start
@@ -54,7 +51,7 @@ The application monitors your active windows to detect media players, extracts t
 
 ```mermaid
 graph LR
-    A[Media Player] -->|Window Title| B[Simkl Scrobbler]
+    A[Media Player] -->|Window Title| B[simkl-mps]
     B -->|Parse Title| C[Movie Identification]
     C -->|Track Progress| D[Simkl API]
     D -->|Mark as Watched| E[Simkl Profile]
@@ -86,9 +83,23 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## 🙏 Acknowledgments
 
-- [Simkl](https://simkl.com) for their excellent API
-- [guessit](https://github.com/guessit-io/guessit) for powerful video filename parsing
-- [iamkroot's Trakt Scrobbler](https://github.com/iamkroot/trakt-scrobbler/) for inspiration
+This project wouldn't be possible without the contributions and support from these amazing projects and people:
+
+### Organizations
+- [**Simkl**](https://simkl.com) - For providing an excellent API platform that powers the core functionality of this application
+
+### Libraries & Projects
+- [**guessit**](https://github.com/guessit-io/guessit) - For its powerful and intelligent video filename parsing capabilities
+- [**iamkroot's Trakt Scrobbler**](https://github.com/iamkroot/trakt-scrobbler/) - For inspiration and architectural ideas
+
+### Key Contributors
+- [**masyk**](https://github.com/masyk) - Member of the Simkl dev team who designed our beautiful logo and provided valuable technical guidance
+<!-- - All the community members who have reported bugs, suggested features, and helped improve the application
+
+### Special Thanks
+Special appreciation to all the open-source maintainers whose work forms the foundation of this project. -->
+
+
 
 ---
 

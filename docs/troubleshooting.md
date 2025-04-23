@@ -1,6 +1,6 @@
 # 🔧 Troubleshooting Guide
 
-This document provides solutions for common issues with Simkl Scrobbler.
+This document provides solutions for common issues with Media Player Scrobbler for SIMKL.
 
 ## 🚨 Common Issues and Solutions
 
@@ -18,7 +18,7 @@ This document provides solutions for common issues with Simkl Scrobbler.
 |-------|----------|
 | Authentication fails | Check internet connection; verify correct PIN entry |
 | "Invalid client ID" error | Your custom client ID might be incorrect; remove it from config |
-| Token expired or invalid | Run `simkl-mps init` again to re-authenticate |
+| Token expired or invalid | Run `simkl-mps i` (or `init`) again to re-authenticate |
 
 ### 🔍 Movie Detection Problems
 
@@ -44,9 +44,8 @@ This document provides solutions for common issues with Simkl Scrobbler.
 
 | Issue | Solution |
 |-------|----------|
-| Service won't install | Run command prompt as Administrator |
-| Registry access denied | Ensure you have sufficient permissions |
 | Media player not recognized | Verify player is in the supported list |
+| Application doesn't start | Run `simkl-mps t` (or `tray`) to see error messages |
 
 #### macOS
 
@@ -54,7 +53,6 @@ This document provides solutions for common issues with Simkl Scrobbler.
 |-------|----------|
 | AppleScript permission errors | Grant accessibility permissions in System Preferences > Security & Privacy > Privacy > Accessibility |
 | Window detection failures | Install optional dependencies: `pip install "simkl-mps[macos]"` |
-| Service doesn't start | Check Console.app for LaunchAgent errors |
 
 #### Linux
 
@@ -62,7 +60,6 @@ This document provides solutions for common issues with Simkl Scrobbler.
 |-------|----------|
 | Window detection not working | Install required utilities: `sudo apt install xdotool wmctrl` |
 | D-Bus connection errors | Ensure you're running in a standard desktop environment |
-| Systemd service issues | Check service status: `systemctl --user status simkl-mps` |
 
 ## 🔬 Diagnostic Commands
 
@@ -72,20 +69,21 @@ Use these commands to help diagnose problems:
 # Check installation
 pip show simkl-mps
 
-# Run with debug logging (still in background)
-simkl-mps start --debug
+# Check version information
+simkl-mps -v       # or: --version
+simkl-mps V        # or: version
+
+# Run with debug logging in background
+simkl-mps s --debug    # or: start --debug
+
+# Run with debug logging in terminal
+simkl-mps t --debug    # or: tray --debug
 
 # Check logs (Windows)
-type %APPDATA%\kavinthangavel\simkl-mps\simkl-mps.log
+type %APPDATA%\kavinthangavel\simkl-mps\simkl_mps.log
 
 # Check logs (macOS/Linux)
-cat ~/.local/share/kavinthangavel/simkl-mps/simkl-mps.log
-
-# Check service status
-simkl-mps service-status
-
-# Run with debug logging
-simkl-mps start --debug
+cat ~/.local/share/kavinthangavel/simkl-mps/simkl_mps.log
 
 # Test API connectivity (Windows PowerShell)
 Invoke-WebRequest -Uri https://api.simkl.com/ -Method Head
@@ -117,15 +115,18 @@ If you need a fresh start:
    - macOS: `~/Library/Application Support/kavinthangavel/simkl-mps`
    - Linux: `~/.local/share/kavinthangavel/simkl-mps`
 3. Reinstall: `pip install --force-reinstall simkl-mps`
-4. Reinitialize: `simkl-mps init`
+4. Reinitialize: `simkl-mps i` (or `init`)
 
 ## 🆘 Getting Help
 
 If you've tried the solutions above and still have issues:
 
-1. Run in debug mode to get detailed logs: `simkl-mps start --debug`
+1. Run in debug mode to get detailed logs:
+   ```bash
+   simkl-mps t --debug    # or: tray --debug
+   ```
 2. Open a GitHub issue with:
    - Your operating system and version
-   - The application version (`simkl-mps --version`)
+   - The application version (`simkl-mps -v` or `--version`)
    - Relevant log excerpts
    - Steps to reproduce the problem

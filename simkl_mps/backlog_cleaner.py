@@ -1,5 +1,5 @@
 """
-Backlog cleaner module for SIMKL Scrobbler.
+Backlog cleaner module for Media Player Scrobbler for SIMKL.
 Handles tracking of watched movies to sync when connection is restored.
 """
 

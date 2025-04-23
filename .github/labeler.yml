@@ -54,6 +54,9 @@ enhancement:
 refactor:
 - head-branch-regex: '(refactor|chore)\/.*'
 
+remove:
+- head-branch-regex: '(rm|del)\/.*'
+
 # Label: 'breaking'
 # Apply to PRs that explicitly mention a breaking change in the description.
 breaking:

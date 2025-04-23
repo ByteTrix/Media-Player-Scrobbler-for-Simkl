@@ -1,17 +1,12 @@
 """
-Media Tracker module for SIMKL Scrobbler.
+Media Tracker module for Media Player Scrobbler for SIMKL.
 This is the main coordinator module that brings together all components.
 """
 
-import os
-import sys
-import time
 import logging
-import pathlib
 import platform
 from datetime import datetime
 
-# Import our modular components
 from simkl_mps.window_detection import get_active_window_info, get_all_windows_info
 from simkl_mps.movie_scrobbler import MovieScrobbler
 from simkl_mps.monitor import Monitor
@@ -19,10 +14,8 @@ from simkl_mps.media_cache import MediaCache
 from simkl_mps.backlog_cleaner import BacklogCleaner
 from simkl_mps.simkl_api import search_movie, get_movie_details, mark_as_watched, is_internet_connected
 
-# Configure module logging
 logger = logging.getLogger(__name__)
 
-# Platform detection
 PLATFORM = platform.system().lower()
 
 class MediaTracker:
@@ -37,14 +30,12 @@ class MediaTracker:
         self.access_token = access_token
         self.testing_mode = testing_mode
         
-        # Create monitor with auto-search callback
         self.monitor = Monitor(
             app_data_dir=self.app_data_dir,
             client_id=self.client_id,
             access_token=self.access_token,
             testing_mode=self.testing_mode
         )
-        # Set up the search callback
         self.monitor.set_search_callback(self.search_and_cache_movie)
 
     def start(self):
@@ -73,24 +64,22 @@ class MediaTracker:
 
         logger.info(f"Searching for movie: {title}")
 
-        # Check if we're online first
         if not is_internet_connected():
             logger.warning("Cannot search for movie - no internet connection")
             return None
 
         try:
-            # Search for the movie
             movie = search_movie(title, self.client_id, self.access_token)
             
             if not movie:
                 logger.warning(f"No match found for '{title}'")
                 return None
 
-            # Extract movie details
-            simkl_id = None
-            movie_name = title  # Default to the original title if extraction fails
             
-            # Try to extract from different response formats
+            simkl_id = None
+            movie_name = title  
+            
+            
             if 'movie' in movie and 'ids' in movie['movie']:
                 ids = movie['movie']['ids']
                 simkl_id = ids.get('simkl') or ids.get('simkl_id')
@@ -106,7 +95,6 @@ class MediaTracker:
                 
             logger.info(f"Found match: '{movie_name}' (ID: {simkl_id})")
             
-            # Get more details including runtime if available
             runtime = None
             try:
                 details = get_movie_details(simkl_id, self.client_id, self.access_token)
@@ -115,9 +103,8 @@ class MediaTracker:
                     logger.info(f"Movie runtime: {runtime} minutes")
             except Exception as e:
                 logger.error(f"Error getting movie details: {e}")
-                # Continue without runtime
+                
             
-            # Cache the movie info
             self.monitor.cache_movie_info(title, simkl_id, movie_name, runtime)
             
             return {
@@ -132,5 +119,4 @@ class MediaTracker:
 
     def process_backlog(self):
         """Process the backlog - delegates to scrobbler"""
-        # Access the scrobbler's backlog processing via the monitor
         return self.monitor.scrobbler.process_backlog()

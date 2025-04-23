@@ -1,5 +1,5 @@
 """
-Media cache module for SIMKL Scrobbler.
+Media cache module for Media Player Scrobbler for SIMKL.
 Handles caching of identified media to avoid repeated searches.
 """
 
@@ -8,7 +8,6 @@ import json
 import logging
 import pathlib
 
-# Configure module logging
 logger = logging.getLogger(__name__)
 
 class MediaCache:

@@ -1,6 +1,6 @@
 # 🎬 Supported Media Players
 
-This document details the media players supported by Simkl Scrobbler and how to configure them for optimal tracking.
+This document details the media players supported by Media Player Scrobbler for SIMKL and how to configure them for optimal tracking.
 
 ## 📋 Player Compatibility Table
 
@@ -43,7 +43,7 @@ This document details the media players supported by Simkl Scrobbler and how to 
 
 ## 🔍 Position Detection Methods
 
-Simkl Scrobbler can detect playback position in two ways:
+Media Player Scrobbler for SIMKL can detect playback position in two ways:
 
 1. **🎯 Advanced Position Tracking**: Gets precise position and duration from the player
 2. **📊 Basic Title Tracking**: Estimates progress based on window focus time

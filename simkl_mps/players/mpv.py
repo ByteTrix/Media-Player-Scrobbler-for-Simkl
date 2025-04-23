@@ -1,5 +1,5 @@
 """
-MPV player integration for SIMKL Scrobbler.
+MPV player integration for Media Player Scrobbler for SIMKL.
 Allows getting position and duration data from MPV via IPC.
 """
 

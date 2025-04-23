@@ -1,5 +1,5 @@
 """
-Media player integrations for SIMKL Scrobbler.
+Media player integrations for Media Player Scrobbler for SIMKL.
 """
 
 from .vlc import VLCIntegration
