@@ -38,7 +38,7 @@ This document tracks both completed features and planned improvements for Media 
 
 ### Long Term / Ideas
 
-- [ ] 📺 Add support for TV shows tracking
+- [ ] 📺 Add support for TV shows/Anime tracking
 - [ ] 🎬 Integration with more streaming platforms (browser extensions)
 - [ ] 👥 Multi-user support for shared computers
 - [ ] 🔍 Advanced search and filtering of watched content
