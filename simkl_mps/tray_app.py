@@ -13,9 +13,16 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 import pystray
 from plyer import notification
-from .main import SimklScrobbler, APP_DATA_DIR
+
+# Import constants only, not the whole module
+from simkl_mps.main import APP_DATA_DIR, APP_NAME
 
 logger = logging.getLogger(__name__)
+
+def get_simkl_scrobbler():
+    """Lazy import for SimklScrobbler to avoid circular imports"""
+    from simkl_mps.main import SimklScrobbler
+    return SimklScrobbler
 
 class TrayApp:
     """System tray application for simkl-mps"""
@@ -50,7 +57,7 @@ class TrayApp:
             self.tray_icon = pystray.Icon(
                 "simkl-mps",
                 image,
-                "Scrobbler for SIMKL",
+                "MPS for SIMKL",
                 menu=self.create_menu()
             )
             logger.info("Tray icon setup successfully")
@@ -162,7 +169,7 @@ class TrayApp:
     def create_menu(self):
         """Create the system tray menu with a professional layout"""
         menu_items = [
-            pystray.MenuItem("📌 Scrobbler for SIMKL", None),
+            pystray.MenuItem("📌 MPS for SIMKL", None),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem(f"Status: {self.get_status_text()}", None, enabled=False),
             pystray.Menu.SEPARATOR,
@@ -207,7 +214,7 @@ class TrayApp:
                 if self.status_details:
                     status_text += f" - {self.status_details}"
                 
-                self.tray_icon.title = f"simkl-mps - {status_text}"
+                self.tray_icon.title = f"MPS for SIMKL - {status_text}"
                 
                 logger.debug(f"Updated tray icon to status: {self.status}")
             except Exception as e:
@@ -247,7 +254,7 @@ class TrayApp:
     def show_about(self, _=None):
         """Show information about the application"""
         about_text = (
-            "simkl-mps\n"
+            "MPS for SIMKL\n"
             "Version: 1.0.0\n"
             "Author: kavinthangavel\n"
             "\nMedia Player Scrobbler for SIMKL.\n"
@@ -259,7 +266,7 @@ class TrayApp:
     def run(self):
         """Run the tray application"""
         logger.info("Starting Media Player Scrobbler for SIMKL in tray mode")
-        self.scrobbler = SimklScrobbler()
+        self.scrobbler = get_simkl_scrobbler()()
         initialized = self.scrobbler.initialize()
         if initialized:
             started = self.start_monitoring()
@@ -289,7 +296,7 @@ class TrayApp:
                 
         if not self.monitoring_active:
             if not self.scrobbler:
-                self.scrobbler = SimklScrobbler()
+                self.scrobbler = get_simkl_scrobbler()()
                 if not self.scrobbler.initialize():
                     self.update_status("error", "Failed to initialize")
                     self.show_notification(
@@ -435,7 +442,7 @@ class TrayApp:
             notification.notify(
                 title=title,
                 message=message,
-                app_name="simkl-mps",
+                app_name="MPS for SIMKL",
                 timeout=5
             )
         except Exception as e:
@@ -450,6 +457,10 @@ def run_tray_app():
         logger.error(f"Critical error in tray app: {e}")
         print(f"Failed to start in tray mode: {e}")
         print("Falling back to console mode.")
+        
+        # Only import SimklScrobbler here to avoid circular imports
+        from simkl_mps.main import SimklScrobbler
+        
         scrobbler = SimklScrobbler()
         if scrobbler.initialize():
             print("Scrobbler initialized. Press Ctrl+C to exit.")

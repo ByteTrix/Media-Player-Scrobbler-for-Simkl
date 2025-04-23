@@ -1,11 +1,11 @@
-# 🎬 Media Player Scrobbler for Simkl
+# 🎬 MPS for Simkl
 
 [![Python Version](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: GPL-3.0](https://img.shields.io/badge/License-GPL%20v3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-blue.svg)]()
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
-A cross-platform automatic movie tracker that seamlessly integrates with [Simkl](https://simkl.com). It monitors your media players and automatically updates your watched history - no manual scrobbling required! ✨
+MPS(Media Player Scrobbler) for Simkl, A cross-platform automatic movie tracker that seamlessly integrates with [Simkl](https://simkl.com). It monitors your media players and automatically updates your watched history - no manual scrobbling required! ✨
 
 <div align="center">
   <img src="simkl_mps/assets/simkl-mps.png" alt="SIMKL MPS Logo" width="150"/>
