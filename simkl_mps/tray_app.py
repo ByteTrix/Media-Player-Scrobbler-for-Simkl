@@ -4,20 +4,17 @@ Provides a system tray icon and notifications for background operation.
 """
 
 import os
-import io
 import sys
 import time
 import threading
 import logging
-import pathlib
+import webbrowser
+from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 import pystray
 from plyer import notification
 from .main import SimklScrobbler, APP_DATA_DIR
-import webbrowser
-from pathlib import Path
 
-# Configure module logging
 logger = logging.getLogger(__name__)
 
 class TrayApp:
@@ -27,51 +24,99 @@ class TrayApp:
         self.scrobbler = None
         self.tray_icon = None
         self.monitoring_active = False
-        self.status = "stopped"  # running, paused, error, stopped
+        self.status = "stopped"
         self.status_details = ""
         self.last_scrobbled = None
         self.config_path = APP_DATA_DIR / ".simkl_mps.env"
         self.log_path = APP_DATA_DIR / "simkl_mps.log"
+        self.assets_dir = Path(__file__).parent / "assets"
         self.setup_icon()
     
     def setup_icon(self):
         """Setup the system tray icon"""
         try:
-            image = self.create_image()
+            image = self.load_icon_for_status()
+            
             self.tray_icon = pystray.Icon(
                 "simkl-mps",
                 image,
-                "SIMKL Scrobbler",
+                "Scrobbler for SIMKL",
                 menu=self.create_menu()
             )
             logger.info("Tray icon setup successfully")
         except Exception as e:
             logger.error(f"Error setting up tray icon: {e}")
             raise
-
-    def create_image(self, size=128):
-        """Create the tray icon image with status indicator"""
+    
+    def update_status(self, new_status, details="", last_scrobbled=None):
+        """Update the status and refresh the icon"""
+        if new_status != self.status or details != self.status_details or last_scrobbled != self.last_scrobbled:
+            self.status = new_status
+            self.status_details = details
+            if last_scrobbled:
+                self.last_scrobbled = last_scrobbled
+            self.update_icon()
+            logger.debug(f"Status updated to {new_status} - {details}")
+    
+    def load_icon_for_status(self):
+        """Load the appropriate icon for the current status"""
+        try:
+            icon_format = "ico" if sys.platform == "win32" else "png"
+            icon_name = f"simkl-mps-{self.status}.{icon_format}"
+            icon_path = self.assets_dir / icon_name
+            
+            if not icon_path.exists():
+                icon_name = f"simkl-mps.{icon_format}"
+                icon_path = self.assets_dir / icon_name
+            
+            if not icon_path.exists():
+                alt_format = "png" if sys.platform == "win32" else "ico"
+                icon_name = f"simkl-mps-{self.status}.{alt_format}"
+                icon_path = self.assets_dir / icon_name
+            
+            if not icon_path.exists():
+                icon_name = f"simkl-mps.{alt_format}"
+                icon_path = self.assets_dir / icon_name
+            
+            if icon_path.exists():
+                logger.debug(f"Loading tray icon: {icon_path}")
+                return Image.open(icon_path)
+            else:
+                logger.error(f"No suitable icon found in assets directory: {self.assets_dir}")
+                return self._create_fallback_image()
+        except FileNotFoundError as e:
+            logger.error(f"Icon file not found: {e}", exc_info=True)
+            return self._create_fallback_image()
+        except Exception as e:
+            logger.error(f"Error loading status icon: {e}", exc_info=True)
+            return self._create_fallback_image()
+    
+    def _create_fallback_image(self, size=128):
+        """Create a fallback image when the icon files can't be loaded"""
         width = size
         height = size
         image = Image.new('RGBA', (width, height), (0, 0, 0, 0))
+        
         dc = ImageDraw.Draw(image)
-        # Status colors
+        
         if self.status == "running":
-            color = (34, 177, 76)
+            color = (34, 177, 76)  # Green
             ring_color = (22, 117, 50)
         elif self.status == "paused":
-            color = (255, 127, 39)
+            color = (255, 127, 39)  # Orange
             ring_color = (204, 102, 31)
         elif self.status == "error":
-            color = (237, 28, 36)
+            color = (237, 28, 36)  # Red
             ring_color = (189, 22, 29)
-        else:
-            color = (112, 146, 190)
+        else:  
+            color = (112, 146, 190)  # Blue
             ring_color = (71, 93, 121)
+            
         ring_thickness = max(1, size // 20)
         padding = ring_thickness * 2
         dc.ellipse([(padding, padding), (width - padding, height - padding)],
                    outline=ring_color, width=ring_thickness)
+        
         try:
             font_size = int(height * 0.6)
             font = ImageFont.truetype("arialbd.ttf", font_size)
@@ -86,6 +131,7 @@ class TrayApp:
             inner_padding = size // 4
             dc.ellipse([(inner_padding, inner_padding),
                         (width - inner_padding, height - inner_padding)], fill=color)
+            
         return image
 
     def get_status_text(self):
@@ -135,12 +181,27 @@ class TrayApp:
         return pystray.Menu(*menu_items)
 
     def update_icon(self):
-        """Update the tray icon and menu"""
+        """Update the tray icon and menu to reflect the current status"""
         if self.tray_icon:
-            self.tray_icon.icon = self.create_image()
-            self.tray_icon.menu = self.create_menu()
-            status_map = {"running": "Active", "paused": "Paused", "stopped": "Stopped", "error": "Error"}
-            self.tray_icon.title = f"SIMKL Scrobbler - {status_map.get(self.status, 'Unknown')}"
+            try:
+                new_icon = self.load_icon_for_status()
+                self.tray_icon.icon = new_icon
+                self.tray_icon.menu = self.create_menu()
+                status_map = {
+                    "running": "Active", 
+                    "paused": "Paused", 
+                    "stopped": "Stopped", 
+                    "error": "Error"
+                }
+                status_text = status_map.get(self.status, "Unknown")
+                if self.status_details:
+                    status_text += f" - {self.status_details}"
+                
+                self.tray_icon.title = f"SIMKL Scrobbler - {status_text}"
+                
+                logger.debug(f"Updated tray icon to status: {self.status}")
+            except Exception as e:
+                logger.error(f"Failed to update tray icon: {e}", exc_info=True)
 
     def open_config_dir(self, _=None):
         """Open the configuration directory"""
@@ -174,7 +235,7 @@ class TrayApp:
         webbrowser.open("https://github.com/kavinthangavel/media-player-scrobbler-for-simkl/wiki")
 
     def show_about(self, _=None):
-        """Show information about the application and ensure tray remains responsive after closing dialog"""
+        """Show information about the application"""
         about_text = (
             "SIMKL Scrobbler\n"
             "Version: 1.0.0\n"
@@ -193,20 +254,16 @@ class TrayApp:
         if initialized:
             started = self.start_monitoring()
             if not started:
-                self.status = "error"
-                self.status_details = "Failed to start monitoring"
-                self.update_icon()
+                self.update_status("error", "Failed to start monitoring")
         else:
-            self.status = "error"
-            self.status_details = "Failed to initialize"
-            self.update_icon()
-        # Always show the tray icon, even if monitoring did not start
+            self.update_status("error", "Failed to initialize")
+            
         try:
             self.tray_icon.run()
         except Exception as e:
             logger.error(f"Error running tray icon: {e}")
             self.show_notification("Tray Error", f"Error with system tray: {e}")
-            # Fallback to console mode if tray fails
+            
             try:
                 while self.scrobbler and self.monitoring_active:
                     time.sleep(1)
@@ -216,18 +273,15 @@ class TrayApp:
 
     def start_monitoring(self, _=None):
         """Start the scrobbler monitoring"""
-        # Always check the actual running state
         if self.scrobbler and hasattr(self.scrobbler, 'monitor'):
             if not getattr(self.scrobbler.monitor, 'running', False):
                 self.monitoring_active = False
+                
         if not self.monitoring_active:
-            # Make sure scrobbler is initialized
             if not self.scrobbler:
                 self.scrobbler = SimklScrobbler()
                 if not self.scrobbler.initialize():
-                    self.status = "error"
-                    self.status_details = "Failed to initialize"
-                    self.update_icon()
+                    self.update_status("error", "Failed to initialize")
                     self.show_notification(
                         "SIMKL Scrobbler Error",
                         "Failed to initialize. Check your credentials."
@@ -236,19 +290,14 @@ class TrayApp:
                     self.monitoring_active = False
                     return False
                     
-            # Set notification callback on the MovieScrobbler instance
             if hasattr(self.scrobbler, 'monitor') and hasattr(self.scrobbler.monitor, 'scrobbler'):
                 self.scrobbler.monitor.scrobbler.set_notification_callback(self.show_notification)
-                logger.debug("Set notification callback on MovieScrobbler")
                 
-            # Try to start the scrobbler
             try:
                 started = self.scrobbler.start()
                 if started:
                     self.monitoring_active = True
-                    self.status = "running"
-                    self.status_details = ""
-                    self.update_icon()
+                    self.update_status("running")
                     self.show_notification(
                         "SIMKL Scrobbler",
                         "Media monitoring started"
@@ -257,9 +306,7 @@ class TrayApp:
                     return True
                 else:
                     self.monitoring_active = False
-                    self.status = "error"
-                    self.status_details = "Failed to start"
-                    self.update_icon()
+                    self.update_status("error", "Failed to start")
                     self.show_notification(
                         "SIMKL Scrobbler Error",
                         "Failed to start monitoring"
@@ -268,9 +315,7 @@ class TrayApp:
                     return False
             except Exception as e:
                 self.monitoring_active = False
-                self.status = "error"
-                self.status_details = str(e)
-                self.update_icon()
+                self.update_status("error", str(e))
                 logger.exception("Exception during start_monitoring in tray app")
                 self.show_notification(
                     "SIMKL Scrobbler Error",
@@ -282,13 +327,11 @@ class TrayApp:
     def pause_monitoring(self, _=None):
         """Pause monitoring (actually pause scrobbling, not just stop)"""
         if self.monitoring_active and self.status == "running":
-            # If SimklScrobbler has a pause method, use it. Otherwise, stop and keep state.
             if hasattr(self.scrobbler, "pause"):
                 self.scrobbler.pause()
             else:
                 self.scrobbler.stop()
-            self.status = "paused"
-            self.update_icon()
+            self.update_status("paused")
             self.show_notification(
                 "SIMKL Scrobbler",
                 "Monitoring paused"
@@ -298,13 +341,11 @@ class TrayApp:
     def resume_monitoring(self, _=None):
         """Resume monitoring from paused state"""
         if self.monitoring_active and self.status == "paused":
-            # If SimklScrobbler has a resume method, use it. Otherwise, start again.
             if hasattr(self.scrobbler, "resume"):
                 self.scrobbler.resume()
             else:
                 self.scrobbler.start()
-            self.status = "running"
-            self.update_icon()
+            self.update_status("running")
             self.show_notification(
                 "SIMKL Scrobbler",
                 "Monitoring resumed"
@@ -316,9 +357,7 @@ class TrayApp:
         if self.monitoring_active:
             self.scrobbler.stop()
             self.monitoring_active = False
-            self.status = "stopped"
-            self.status_details = ""
-            self.update_icon()
+            self.update_status("stopped")
             self.show_notification(
                 "SIMKL Scrobbler",
                 "Media monitoring stopped"
@@ -344,8 +383,7 @@ class TrayApp:
                     )
             except Exception as e:
                 logger.error(f"Error processing backlog: {e}")
-                self.status = "error"
-                self.update_icon()
+                self.update_status("error")
                 self.show_notification(
                     "SIMKL Scrobbler Error",
                     "Failed to process backlog"
@@ -354,7 +392,7 @@ class TrayApp:
 
     def open_logs(self, _=None):
         """Open the log file"""
-        log_path = APP_DATA_DIR
+        log_path = APP_DATA_DIR/"simkl_mps.log"
         try:
             if sys.platform == "win32":
                 os.startfile(str(log_path))
@@ -392,18 +430,15 @@ class TrayApp:
             )
         except Exception as e:
             logger.error(f"Failed to show notification: {e}")
-            # Fallback to logging only
 
 def run_tray_app():
     """Run the application in tray mode"""
     try:
-        # Remove any tray_app.log setup, use main logging config
         app = TrayApp()
         app.run()
     except Exception as e:
         logger.error(f"Critical error in tray app: {e}")
         print(f"Failed to start in tray mode: {e}")
-        # Fall back to console mode
         print("Falling back to console mode.")
         scrobbler = SimklScrobbler()
         if scrobbler.initialize():
@@ -417,7 +452,6 @@ def run_tray_app():
                     print("Stopped monitoring.")
 
 if __name__ == "__main__":
-    # When run directly, configure basic logging first
     logging.basicConfig(level=logging.INFO, 
                       format='%(asctime)s - %(levelname)s - %(name)s - %(message)s')
     sys.exit(run_tray_app())

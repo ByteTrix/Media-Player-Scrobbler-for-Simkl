@@ -8,7 +8,7 @@
 A cross-platform automatic movie tracker that seamlessly integrates with [Simkl](https://simkl.com). It monitors your media players and automatically updates your watched history - no manual scrobbling required! ✨
 
 <div align="center">
-  <img src="https://eu.simkl.in/img_blog_2012/logo.png" alt="Simkl Logo" width="150"/>
+  <img src="simkl_mps/assets/simkl-mps.png" alt="SIMKL MPS Logo" width="150"/>
   <br/>
   <em>Your movies, automatically tracked whenever you watch them</em>
 </div>
@@ -86,9 +86,23 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## 🙏 Acknowledgments
 
-- [Simkl](https://simkl.com) for their excellent API
-- [guessit](https://github.com/guessit-io/guessit) for powerful video filename parsing
-- [iamkroot's Trakt Scrobbler](https://github.com/iamkroot/trakt-scrobbler/) for inspiration
+This project wouldn't be possible without the contributions and support from these amazing projects and people:
+
+### Organizations
+- [**Simkl**](https://simkl.com) - For providing an excellent API platform that powers the core functionality of this application
+
+### Libraries & Projects
+- [**guessit**](https://github.com/guessit-io/guessit) - For its powerful and intelligent video filename parsing capabilities
+- [**iamkroot's Trakt Scrobbler**](https://github.com/iamkroot/trakt-scrobbler/) - For inspiration and architectural ideas
+
+### Key Contributors
+- [**masyk**](https://github.com/masyk) - Member of the Simkl dev team who designed our beautiful logo and provided valuable technical guidance
+<!-- - All the community members who have reported bugs, suggested features, and helped improve the application
+
+### Special Thanks
+Special appreciation to all the open-source maintainers whose work forms the foundation of this project. -->
+
+
 
 ---
 
