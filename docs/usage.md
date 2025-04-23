@@ -6,22 +6,17 @@ This guide covers the various ways to use Simkl Scrobbler.
 
 ```bash
 # Initial setup (only needed once)
-simkl-mps init
+simkl-mps i        # or: simkl-mps init
 
-# Start tracking in foreground mode
-simkl-mps start
+# Start tracking in background mode
+simkl-mps s        # or: simkl-mps start
 
-# Launch in system tray
-simkl-mps tray
+# Launch in system tray (shows logs)
+simkl-mps t        # or: simkl-mps tray
 
-# Run as a background service
-simkl-mps service
-
-# Check service status
-simkl-mps service-status
-
-# Process pending offline items
-simkl-mps process-backlog
+# Show version information
+simkl-mps -v       # or: simkl-mps --version
+simkl-mps V        # or: simkl-mps version
 
 # Show all available commands
 simkl-mps --help
@@ -32,48 +27,22 @@ simkl-mps --help
 ### 🔄 Background Mode
 
 ```bash
-simkl-mps start
+simkl-mps s        # or: simkl-mps start
 ```
 
-Runs silently in the background. This is the standard way to run the application for regular usage.
+Runs the tray application detached in the background. This is the standard way to run the application for regular usage. You can safely close the terminal after starting.
 
 ### 🖥️ System Tray Mode
 
 ```bash
-simkl-mps tray
+simkl-mps t        # or: simkl-mps tray
 ```
 
-Runs as a system tray application, allowing you to:
+Runs the tray application attached to the current terminal, showing logs. The application will stop when you close the terminal. This mode allows you to:
 - Start/stop monitoring
 - Process the backlog
 - View logs
 - Exit the application
-
-### 🔄 Service Mode
-
-```bash
-simkl-mps service
-```
-
-Runs as a background service with no UI. Useful for headless operation or when you want the application to run independently of user sessions.
-
-### ⚙️ System Service (Auto-start)
-
-```bash
-# Install as a system service
-simkl-mps install-service
-
-# Uninstall the service
-simkl-mps uninstall-service
-
-# Check service status
-simkl-mps service-status
-```
-
-This installs the application to run automatically when your system starts, with platform-specific implementations:
-- Windows: Registry startup entry
-- macOS: LaunchAgent
-- Linux: systemd user service
 
 ## 💻 Command-Line Arguments
 
@@ -81,14 +50,15 @@ This installs the application to run automatically when your system starts, with
 # Show detailed help
 simkl-mps --help
 
-# Show application version
-simkl-mps --version
+# Show version information
+simkl-mps -v       # or: simkl-mps --version
+simkl-mps V        # or: simkl-mps version
 
 # Run with debug logging
-simkl-mps start --debug
+simkl-mps s --debug    # or: simkl-mps start --debug
 
 # Use a specific config file
-simkl-mps start --config /path/to/config.env
+simkl-mps s --config /path/to/config.env    # or: simkl-mps start --config /path/to/config.env
 ```
 
 ## 📁 Log Files
@@ -122,11 +92,9 @@ You can set these environment variables to customize behavior:
 
 ## 🔍 Recommended Workflow
 
-1. Run `simkl-mps init` to set up your Simkl account
-2. Test with `simkl-mps start` to ensure detection works in background mode
-3. For daily use, either:
-   - Use `simkl-mps tray` for easy access to controls
-   - Install as a service with `simkl-mps install-service` for automatic startup
+1. Run `simkl-mps i` (or `init`) to set up your Simkl account
+2. Test with `simkl-mps t` (or `tray`) to ensure detection works and view logs
+3. For daily use, run `simkl-mps s` (or `start`) to launch in background mode
 
 ## 📊 Operation Flow
 
@@ -136,18 +104,12 @@ The following diagram illustrates how the different run modes operate:
 graph TD
     A[Simkl Scrobbler] --> B[Background Mode]
     A --> C[System Tray Mode]
-    A --> D[Service Mode]
-    A --> E[System Service]
     
-    B -->|No UI| F[Standard Tracking]
-    C -->|Tray Icon| G[Control Panel]
-    D -->|No UI| H[Independent Tracking]
-    E -->|Auto-start| I[Boot Tracking]
+    B -->|Detached| F[Background Tracking]
+    C -->|Terminal Attached| G[Interactive Control]
     
     F --> J[Simkl API]
     G --> J
-    H --> J
-    I --> J
     
     style A fill:#f9d5e5,stroke:#333,stroke-width:2px
     style J fill:#d5f5e3,stroke:#333,stroke-width:2px

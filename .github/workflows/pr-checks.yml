@@ -27,6 +27,8 @@ jobs:
             feat
             chore
             refactor
+            rm
+            del
           subjectPattern: ^(?![A-Z]).+$
           subjectPatternError: |
             The subject "{subject}" found in the pull request title "{title}"

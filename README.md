@@ -18,7 +18,7 @@ A cross-platform automatic movie tracker that seamlessly integrates with [Simkl]
 - 🎮 **Universal Media Player Support** - Works with VLC, MPV, MPC-HC, PotPlayer, and many others
 - 🚀 **Zero Configuration** - Smart detection works out of the box
 - 🌍 **Cross-Platform** - Full support for Windows, macOS, and Linux
-- 🔄 **Multiple Run Modes** - Foreground, system tray, or background service
+- 🔄 **Multiple Run Modes** - Foreground system tray, or background system tray
 - 📊 **Position Tracking** - Monitors actual playback position for supported players
 - 🔌 **Offline Support** - Queues updates when you're not connected
 - 🧠 **Smart Detection** - Intelligent movie recognition from filenames
