@@ -56,9 +56,11 @@ class TrayApp:
 
             if icon_path.exists():
                 logger.debug(f"Loading tray icon: {icon_path}")
+                logger.debug(f"Loading tray icon: {icon_path}")
                 return Image.open(icon_path)
             else:
-                raise FileNotFoundError(f"Icon not found: {icon_path}")
+                logger.error(f"Default icon not found: {icon_path}")
+                return self._create_fallback_image()
         except FileNotFoundError as e:
             logger.error(f"Error loading status icon: {e}")
             return self._create_fallback_image()
