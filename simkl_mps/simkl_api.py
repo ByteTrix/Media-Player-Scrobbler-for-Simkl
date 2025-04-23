@@ -42,12 +42,12 @@ def is_internet_connected():
     for url, timeout in check_urls:
         try:
             response = requests.get(url, timeout=timeout)
-            response.raise_for_status() # Check for HTTP errors too
+            response.raise_for_status()
             logger.debug(f"Internet connectivity check successful via {url}")
             return True
         except (requests.ConnectionError, requests.Timeout, requests.HTTPError, socket.error) as e:
             logger.debug(f"Internet connectivity check failed for {url}: {e}")
-            continue # Try the next URL
+            continue
     logger.warning("Internet connectivity check failed for all services.")
     return False
 
@@ -90,29 +90,26 @@ def search_movie(title, client_id, access_token):
 
         if response.status_code != 200:
             logger.error(f"Simkl API: Movie search failed for '{title}' with status {response.status_code}.")
-            try: logger.error(f"Simkl API Error details: {response.json()}")
-            except: logger.error(f"Simkl API Error response text: {response.text}")
+            try: 
+                logger.error(f"Simkl API Error details: {response.json()}")
+            except: 
+                logger.error(f"Simkl API Error response text: {response.text}")
             return None
 
         results = response.json()
         logger.info(f"Simkl API: Found {len(results) if results else 0} results for '{title}'.")
-        if results:
-            logger.debug(f"Simkl API: Raw search results for '{title}': {results}")
-
+        
         if not results:
             logger.info(f"Simkl API: No direct match for '{title}', attempting fallback search.")
             return _fallback_search_movie(title, client_id, access_token)
 
-        # Handle potential variations in response structure
         if results:
             first_result = results[0]
-            logger.debug(f"Simkl API: Processing first result: {first_result}")
-            # Reshape if necessary
             if 'movie' not in first_result and first_result.get('type') == 'movie':
                 reshaped_result = {'movie': first_result}
                 logger.info(f"Simkl API: Reshaped search result for '{title}'.")
                 return reshaped_result
-            # Ensure consistent 'simkl' ID key
+                
             if 'movie' in first_result and 'ids' in first_result['movie']:
                 ids = first_result['movie']['ids']
                 simkl_id_alt = ids.get('simkl_id')
@@ -157,7 +154,7 @@ def _fallback_search_movie(title, client_id, access_token):
         logger.info(f"Simkl API: Fallback search found {len(results) if results else 0} total results.")
         if not results:
             return None
-        # Filter for movie type results
+            
         movie_results = [r for r in results if r.get('type') == 'movie']
         if movie_results:
             found_title = movie_results[0].get('title', title)
@@ -199,24 +196,21 @@ def mark_as_watched(simkl_id, client_id, access_token):
     logger.info(f"Simkl API: Marking movie ID {simkl_id} as watched...")
     try:
         response = requests.post(f'{SIMKL_API_BASE_URL}/sync/history', headers=headers, json=data)
-        logger.debug(f"Simkl API: Mark as watched response status: {response.status_code}")
-        try: logger.debug(f"Simkl API: Mark as watched response JSON: {response.json()}")
-        except: logger.debug(f"Simkl API: Mark as watched response text: {response.text}")
-
-        if 200 <= response.status_code < 300: # Check for 2xx success codes
+        
+        if 200 <= response.status_code < 300:
             logger.info(f"Simkl API: Successfully marked movie ID {simkl_id} as watched.")
             return True
         else:
             logger.error(f"Simkl API: Failed to mark movie ID {simkl_id} as watched. Status: {response.status_code}")
-            response.raise_for_status() # Raise exception for non-2xx codes
-            return False # Should not be reached if raise_for_status works
+            response.raise_for_status()
+            return False
     except requests.exceptions.ConnectionError as e:
         logger.error(f"Simkl API: Connection error marking movie ID {simkl_id} as watched: {e}")
         logger.info(f"Simkl API: Movie ID {simkl_id} will be added to backlog for future syncing.")
-        return False # Indicate failure but allow backlog processing
+        return False
     except requests.exceptions.RequestException as e:
         logger.error(f"Simkl API: Error marking movie ID {simkl_id} as watched: {e}", exc_info=True)
-        return False # Indicate failure
+        return False
 
 def get_movie_details(simkl_id, client_id, access_token):
     """
@@ -245,10 +239,9 @@ def get_movie_details(simkl_id, client_id, access_token):
     try:
         logger.info(f"Simkl API: Fetching details for movie ID {simkl_id}...")
         response = requests.get(f'{SIMKL_API_BASE_URL}/movies/{simkl_id}', headers=headers, params=params)
-        response.raise_for_status() # Check for HTTP errors
+        response.raise_for_status()
         movie_details = response.json()
         if movie_details:
-            # Log key details for confirmation
             title = movie_details.get('title', 'N/A')
             year = movie_details.get('year', 'N/A')
             runtime = movie_details.get('runtime', 'N/A')
@@ -282,7 +275,6 @@ def get_device_code(client_id):
         response = requests.get(url, headers=headers)
         response.raise_for_status()
         data = response.json()
-        # Validate response structure
         if all(k in data for k in ("user_code", "verification_url", "device_code")):
             logger.info("Simkl API: Device code received successfully.")
             return data
@@ -293,8 +285,10 @@ def get_device_code(client_id):
         logger.error(f"Simkl API: Error requesting device code: {e}", exc_info=True)
         if e.response is not None:
             logger.error(f"Simkl API: Response status: {e.response.status_code}")
-            try: logger.error(f"Simkl API: Response body: {e.response.json()}")
-            except: logger.error(f"Simkl API: Response body: {e.response.text}")
+            try: 
+                logger.error(f"Simkl API: Response body: {e.response.json()}")
+            except: 
+                logger.error(f"Simkl API: Response body: {e.response.text}")
     return None
 
 def poll_for_token(client_id, user_code, interval, expires_in):
@@ -398,7 +392,6 @@ def authenticate(client_id=None):
         print("ERROR: Incomplete authentication information received from Simkl.")
         return None
 
-    # Display instructions clearly in terminal
     print("=" * 60)
     print("ACTION REQUIRED:")
     print(f"1. Go to: {verification_url}")
@@ -406,7 +399,6 @@ def authenticate(client_id=None):
     print(f"   (Code is valid for approximately {int(expires_in/60)} minute(s))")
     print("=" * 60)
 
-    # Start polling
     access_token_info = poll_for_token(client_id, user_code, interval, expires_in)
 
     if access_token_info and 'access_token' in access_token_info:

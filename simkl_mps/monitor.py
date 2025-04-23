@@ -9,7 +9,6 @@ import threading
 import platform
 from datetime import datetime
 
-# Import from our own modules
 from .window_detection import (
     get_active_window_info, 
     get_all_windows_info,
@@ -17,10 +16,8 @@ from .window_detection import (
 )
 from .movie_scrobbler import MovieScrobbler
 
-# Configure module logging
 logger = logging.getLogger(__name__)
 
-# Platform-specific settings
 PLATFORM = platform.system().lower()
 
 class Monitor:
@@ -35,7 +32,7 @@ class Monitor:
         self.testing_mode = testing_mode
         self.running = False
         self.monitor_thread = None
-        self._lock = threading.RLock()  # Add a lock for thread safety
+        self._lock = threading.RLock()
         self.scrobbler = MovieScrobbler(
             app_data_dir=self.app_data_dir,
             client_id=self.client_id,
@@ -43,8 +40,8 @@ class Monitor:
             testing_mode=self.testing_mode
         )
         self.last_backlog_check = 0
-        self.backlog_check_interval = backlog_check_interval  # Configurable parameter
-        self.search_callback = None  # Callback for movie search
+        self.backlog_check_interval = backlog_check_interval
+        self.search_callback = None
 
     def set_search_callback(self, callback):
         """Set the callback function for movie search"""
@@ -68,18 +65,14 @@ class Monitor:
             logger.warning("Monitor not running")
             return False
 
-        # Set the flag first
         self.running = False
         
-        # Then handle the thread
         if self.monitor_thread and self.monitor_thread.is_alive():
             try:
-                # Wait for thread to finish with timeout
                 self.monitor_thread.join(timeout=2)
             except RuntimeError:
                 logger.warning("Could not join monitor thread")
         
-        # Stop any active tracking with the lock to prevent race conditions
         with self._lock:
             if self.scrobbler.currently_tracking:
                 self.scrobbler.stop_tracking()
@@ -94,38 +87,30 @@ class Monitor:
 
         while self.running:
             try:
-                # First get all windows and find video player windows
                 found_player = False
                 all_windows = get_all_windows_info()
                 
-                # Find a video player window if any
                 for win in all_windows:
                     if is_video_player(win):
                         window_info = win
                         found_player = True
                         logger.debug(f"Active media player detected: {win.get('title', 'Unknown')}")
                         
-                        # Process this player window
-                        with self._lock:  # Use lock when accessing shared resources
+                        with self._lock:
                             scrobble_info = self.scrobbler.process_window(window_info)
                         
-                        # If we get scrobble info and need to search for the movie
                         if scrobble_info and self.search_callback and not scrobble_info.get("simkl_id"):
                             title = scrobble_info.get("title", "Unknown")
                             logger.info(f"Media identification required: '{title}'")
-                            # Call the search callback
                             self.search_callback(title)
                         
-                        # We found and processed a player, no need to check further
                         break
                 
-                # Only stop tracking if no player window found
                 if not found_player and self.scrobbler.currently_tracking:
                     logger.info("Media playback ended: No active players detected")
                     with self._lock:
                         self.scrobbler.stop_tracking()
 
-                # Process backlog periodically
                 check_count += 1
                 current_time = time.time()
                 if current_time - self.last_backlog_check > self.backlog_check_interval:
@@ -137,12 +122,10 @@ class Monitor:
                         logger.info(f"Backlog sync completed: {synced_count} items successfully synchronized")
                     self.last_backlog_check = current_time
 
-                # Sleep until next poll
                 time.sleep(self.poll_interval)
                 
             except Exception as e:
                 logger.error(f"Monitoring service encountered an error: {e}", exc_info=True)
-                # Sleep a bit longer on error to avoid spamming logs
                 time.sleep(max(5, self.poll_interval))
 
         logger.info("Media monitoring service stopped")
