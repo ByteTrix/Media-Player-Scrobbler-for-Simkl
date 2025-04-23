@@ -1,0 +1,82 @@
+name: Publish to PyPI
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
+    secrets:
+      SIMKL_CLIENT_ID:
+        required: true
+      SIMKL_CLIENT_SECRET:
+        required: true
+      PYPI_API_TOKEN:
+        required: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write  # Required for PyPI trusted publishing
+      contents: write  # Required for creating releases
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Poetry and dependencies
+        run: |
+          pip install poetry
+          poetry config virtualenvs.create false
+          poetry install
+
+      - name: Set version in pyproject.toml
+        run: poetry version ${{ inputs.version }}
+
+      # This step injects the secrets directly into the credentials.py file
+      - name: Inject Simkl Credentials into Code
+        env:
+          SIMKL_CLIENT_ID: ${{ secrets.SIMKL_CLIENT_ID }}
+          SIMKL_CLIENT_SECRET: ${{ secrets.SIMKL_CLIENT_SECRET }}
+        run: |
+          # Check if secrets are available
+          if [ -z "$SIMKL_CLIENT_ID" ]; then
+            echo "::error::SIMKL_CLIENT_ID secret is not set."
+            exit 1
+          fi
+          if [ -z "$SIMKL_CLIENT_SECRET" ]; then
+            echo "::error::SIMKL_CLIENT_SECRET secret is not set."
+            exit 1
+          fi
+
+          # Inject Client ID
+          echo "Injecting SIMKL_CLIENT_ID into credentials.py"
+          # Use a different delimiter for sed in case the secret contains slashes
+          sed -i "s|SIMKL_CLIENT_ID_PLACEHOLDER|${SIMKL_CLIENT_ID}|g" simkl_mps/credentials.py
+
+          # Inject Client Secret
+          echo "Injecting SIMKL_CLIENT_SECRET into credentials.py"
+          sed -i "s|SIMKL_CLIENT_SECRET_PLACEHOLDER|${SIMKL_CLIENT_SECRET}|g" simkl_mps/credentials.py
+
+          echo "✅ Credentials successfully injected into simkl_mps/credentials.py"
+
+      - name: Build and publish
+        run: |
+          poetry build
+          poetry publish
+        env:
+          POETRY_PYPI_TOKEN_PYPI: ${{ secrets.PYPI_API_TOKEN }}
+          VERSION: ${{ inputs.version }}
+      
+      - name: Upload Python package artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-package
+          path: dist/
+          retention-days: 3
