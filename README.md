@@ -29,9 +29,6 @@ MPS(Media Player Scrobbler) for Simkl, A cross-platform automatic movie tracker 
 # 📥 Install
 pip install simkl-mps
 
-# 🔑 Set up with your Simkl account
-simkl-mps init
-
 # 🚀 Start tracking your movies
 simkl-mps start
 ```
