@@ -8,7 +8,6 @@ import json
 import logging
 import pathlib
 
-# Configure module logging
 logger = logging.getLogger(__name__)
 
 class MediaCache:
