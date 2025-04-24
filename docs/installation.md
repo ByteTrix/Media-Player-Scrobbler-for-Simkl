@@ -2,64 +2,212 @@
 
 This guide covers detailed installation instructions for Media Player Scrobbler for SIMKL across different platforms.
 
+## 📋 Quick Start Summary
 
-## 🚀 Standard Installation
+| Platform | Recommended Installation Method |
+|----------|--------------------------------|
+| Windows | [Installer](#windows-installer) or [pip](#pip-installation) |
+| macOS | [pip](#pip-installation) with macOS extras |
+| Linux | [pip](#pip-installation) with Linux extras |
 
+## 🚀 Installation Methods
 
-### Windows
+### Windows Installer
 
-1. Download this And Install
-[Latest Release](https://github.com/kavinthangavel/Media-Player-Scrobbler-for-Simkl/releases/latest) 
-2. Follow the Terminal Instructions and Authenticate SIMKL
-3. Look at the Tray For MSP for Simkl.exe
-4. Setup Media Player for Best Accurate Scrobbling [Media Players Setup](https://github.com/kavinthangavel/Media-Player-Scrobbler-for-Simkl/blob/main/docs/media-players.md#%EF%B8%8F-player-configuration-for-advanced-tracking)
+The simplest way to get started on Windows:
 
-**or**
+1. Download and run the [latest installer](https://github.com/kavinthangavel/media-player-scrobbler-for-simkl/releases/latest)
+2. Follow the installation wizard
+3. Launch the application from the Start menu
+4. Follow the authentication prompt to connect to your SIMKL account
+5. The application will run in your system tray
 
-## ✅ Prerequisites
+## 🪟 Windows Installer Guide
 
-- Python 3.9 or higher
-- pip (Python package manager)
+MPS for SIMKL provides a dedicated Windows installer that simplifies installation and configuration.
+
+### Installation Process
+
+```mermaid
+flowchart TD
+    A[Download Installer] --> B[Run Setup]
+    B --> C[Accept License]
+    C --> D[Choose Install Location]
+    D --> E[Select Components]
+    E --> F[Installation]
+    F --> G[Launch Application]
+    
+    style A fill:#4285f4,stroke:#333,stroke-width:2px,color:#fff
+    style F fill:#34a853,stroke:#333,stroke-width:2px,color:#fff
+    style G fill:#fbbc05,stroke:#333,stroke-width:2px,color:#fff
+```
+
+### Installer Options
+
+The Windows installer offers several configuration options during setup:
+
+#### Shortcut Options
+- **Create desktop shortcut** - Adds a shortcut icon to your desktop
+- **Start automatically when Windows starts** - Runs the application on system startup
+- **Schedule weekly update checks** - Enables automatic update checking
+
+```mermaid
+flowchart LR
+    A[Options] --> B[Desktop Shortcut]
+    A --> C[Auto-start with Windows]
+    A --> D[Auto-update Checks]
+    
+    B --> B1[Easy access from desktop]
+    C --> C1[No need to manually start]
+    D --> D1[Stay updated automatically]
+    
+    style A fill:#4285f4,stroke:#333,stroke-width:2px,color:#fff
+```
+
+### Installation Locations
+
+The installer places files in these standard locations:
+
+| Item | Location | Purpose |
+|------|----------|---------|
+| Program Files | `C:\Program Files\Media Player Scrobbler for SIMKL` | Application executables and assets |
+| User Data | `%APPDATA%\kavinthangavel\simkl-mps` | Configuration, logs, and cache |
+| Start Menu | Start Menu → MPS for SIMKL | Application shortcuts |
+| Registry | `HKCU\Software\kavinthangavel\Media Player Scrobbler for SIMKL` | Settings and metadata |
+
+### Auto-Update System
+
+The Windows installer includes an automatic update system that:
+
+1. Checks for updates weekly (when selected during installation)
+2. Notifies you when updates are available
+3. Allows one-click updates through the tray menu
+
+```mermaid
+flowchart TD
+    A[Auto-Update System] --> B{Check for Updates}
+    B -->|New Version Available| C[Notification]
+    B -->|No Updates| D[Continue Running]
+    C --> E[Update via Tray Menu]
+    E --> F[Install New Version]
+    F --> G[Restart Application]
+    
+    style A fill:#4285f4,stroke:#333,stroke-width:2px,color:#fff
+    style F fill:#34a853,stroke:#333,stroke-width:2px,color:#fff
+```
+
+### Post-Installation
+
+After installation completes:
+
+1. MPS for SIMKL starts automatically (if selected)
+2. The system tray icon appears
+3. Authentication with SIMKL is requested (first run only)
+4. The application begins monitoring media players
+
+### Uninstallation
+
+To uninstall MPS for SIMKL:
+
+1. Open **Settings** → **Apps** → **Apps & features**
+2. Find "Media Player Scrobbler for SIMKL" in the list
+3. Click **Uninstall**
+4. Choose whether to remove user data and settings
+
+```mermaid
+flowchart TD
+    A[Uninstall Process] --> B[Apps & Features]
+    B --> C[Select MPS for SIMKL]
+    C --> D[Click Uninstall]
+    D --> E{Remove User Data?}
+    E -->|Yes| F[Complete Removal]
+    E -->|No| G[Keep User Data]
+    
+    style A fill:#4285f4,stroke:#333,stroke-width:2px,color:#fff
+    style F fill:#ea4335,stroke:#333,stroke-width:2px,color:#fff
+    style G fill:#fbbc05,stroke:#333,stroke-width:2px,color:#fff
+```
+
+### Silent Installation
+
+For advanced users and IT administrators, the installer supports silent installation:
+
+```batch
+MPSS_Setup_2.0.0.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /TASKS="desktopicon,startupicon,scheduledupdate"
+```
+
+Options:
+- `/VERYSILENT` - Install without UI
+- `/SUPPRESSMSGBOXES` - No message boxes
+- `/NORESTART` - Don't restart after installation
+- `/TASKS` - Select which components to install:
+  - `desktopicon` - Create desktop shortcut
+  - `startupicon` - Auto-start with Windows
+  - `scheduledupdate` - Enable update checks
+
+### Pip Installation
+
+For cross-platform installation with Python:
 
 ```bash
 # Install using pip
 pip install simkl-mps
 
 # Initialize with your Simkl account
-simkl-mps i    # or: simkl-mps init
+simkl-mps init
+
+# Start the application
+simkl-mps start
 ```
 
-**After Installation Setup the Web Interface in Supported Players**
+## ✅ Prerequisites
 
-The initialization process will guide you through authentication with Simkl using a device code. Simply visit the provided URL and enter the code to link the application to your Simkl account.
+- Python 3.9 or higher
+- pip (Python package manager)
 
-## 💻 Platform-Specific Requirements
+### Platform-Specific Requirements
 
+<details>
+<summary><b>Windows</b></summary>
 
-### macOS
-For full functionality:
+Windows has full support out of the box with no additional prerequisites.
+</details>
+
+<details>
+<summary><b>macOS</b></summary>
+
+For full functionality on macOS:
 ```bash
-# Install optional dependencies (recommended)
-pip install "simkl-mps"
+# Install with macOS extras
+pip install "simkl-mps[macos]"
 ```
+</details>
 
-### Linux
-For window detection and full functionality:
+<details>
+<summary><b>Linux</b></summary>
+
+For window detection on Linux:
+
+Ubuntu/Debian:
 ```bash
-# Ubuntu/Debian
-sudo apt install wmctrl xdotool plyer
-
-# Fedora
-sudo dnf install wmctrl xdotool plyer
-
-# Arch Linux
-sudo pacman -S wmctrl xdotool plyer
-
-# Install optional dependencies
-pip install "simkl-mps"
+sudo apt install python3-pip wmctrl xdotool python3-gi gir1.2-gtk-3.0 libnotify-bin
+pip install "simkl-mps[linux]"
 ```
 
-## 🔄 Alternative Installation Methods
+Fedora:
+```bash
+sudo dnf install python3-pip wmctrl xdotool gtk3 libnotify
+pip install "simkl-mps[linux]"
+```
+
+Arch Linux:
+```bash
+sudo pacman -S python-pip wmctrl xdotool gtk3 libnotify
+pip install "simkl-mps[linux]"
+```
+</details>
+
+## 🛠️ Advanced Installation Options
 
 ### Using pipx (Isolated Environment)
 
@@ -84,40 +232,52 @@ pipx install simkl-mps --extras linux
 
 ```bash
 # Clone repository
-git clone https://github.com/kavinthangavel/simkl-mps.git
-cd simkl-mps
+git clone https://github.com/kavinthangavel/media-player-scrobbler-for-simkl.git
+cd media-player-scrobbler-for-simkl
 
 # Install with Poetry
 poetry install
 
 # Run commands
-poetry run simkl-mps i    # or: init
-poetry run simkl-mps s    # or: start
+poetry run simkl-mps init
+poetry run simkl-mps start
 ```
 
-## ✔️ Verifying Installation
+## 🚀 Post-Installation Setup
+
+### Authentication
+
+When you first run the application, you'll be guided through authentication with Simkl:
+
+1. The application will display a URL and device code
+2. Visit the URL on any device and enter the code
+3. Authorize the application to access your Simkl account
+4. The application will automatically complete the setup once authorized
+
+### Media Player Setup
+
+For optimal tracking accuracy, configure your media players according to the [Media Players guide](media-players.md#⚙️-player-configuration-for-advanced-tracking).
+
+## ✨ Verifying Installation
 
 After installation, verify that the application is properly installed:
 
 ```bash
-simkl-mps -v    # or: --version
-simkl-mps V     # or: version
+simkl-mps --version
 ```
 
 This will display version information about the installed application.
 
-## 🚀 Starting the Application
+## 🚦 Running the Application
 
-There are two ways to run the application:
+There are multiple ways to run the application:
 
-1. Background Mode (recommended for daily use):
-```bash
-simkl-mps s    # or: simkl-mps start
-```
-This runs the application detached in the background. You can safely close the terminal.
+| Command | Description |
+|---------|-------------|
+| `simkl-mps start` | Run in background (recommended for daily use) |
+| `simkl-mps tray` | Run in foreground with system tray icon |
+| `simkl-mps daemon` | Run as a daemon service (Linux/macOS only) |
+| `simkl-mps stop` | Stop the running application |
+| `simkl-mps status` | Check if the application is running |
 
-2. Interactive Mode (useful for debugging):
-```bash
-simkl-mps t    # or: simkl-mps tray
-```
-This runs the application attached to the terminal, showing logs. The application will stop when you close the terminal.
+For more details, see the [Usage Guide](usage.md).

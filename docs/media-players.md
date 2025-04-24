@@ -1,147 +1,250 @@
 # 🎬 Supported Media Players
 
-This document details the media players supported by Media Player Scrobbler for SIMKL and how to configure them for optimal tracking.
+This document details the media players compatible with MPS for SIMKL and how to configure them for optimal tracking.
 
-## 📋 Player Compatibility Table
-
-### Windows
-
-| Media Player | Support Status | Position Detection |
-|-------------|----------------|-------------------|
-| VLC Media Player | ✅ Fully Supported | ✅ (with web interface) |
-| MPC-HC/BE | ✅ Fully Supported | ✅ (with web interface) |
-| MPV Player | ✅ Fully Supported | ✅ (with IPC) |
-| PotPlayer | ✅ Fully Supported | ✅ (with WebRemote) |
-| Windows Media Player | ✅ Fully Supported | ⚠️ Title only |
-| SMPlayer | ✅ Fully Supported | ⚠️ Title only |
-| KMPlayer | ✅ Fully Supported | ⚠️ Title only |
-| GOM Player | ✅ Fully Supported | ⚠️ Title only |
-
-### macOS
-
-| Media Player | Support Status | Position Detection |
-|-------------|----------------|-------------------|
-| VLC Media Player | ✅ Fully Supported | ✅ (with web interface) |
-| MPV Player | ✅ Fully Supported | ✅ (with IPC) |
-| IINA | ✅ Fully Supported | ⚠️ Title only |
-| QuickTime Player | ✅ Basic Support | ⚠️ Title only |
-| Elmedia Player | ✅ Basic Support | ⚠️ Title only |
-| Movist/Movist Pro | ✅ Basic Support | ⚠️ Title only |
-
-### Linux
-
-| Media Player | Support Status | Position Detection |
-|-------------|----------------|-------------------|
-| VLC Media Player | ✅ Fully Supported | ✅ (with web interface) |
-| MPV Player | ✅ Fully Supported | ✅ (with IPC) |
-| SMPlayer | ✅ Fully Supported | ⚠️ Title only |
-| Totem | ✅ Basic Support | ⚠️ Title only |
-| Celluloid | ✅ Basic Support | ⚠️ Title only |
-| Kaffeine | ✅ Basic Support | ⚠️ Title only |
-| Dragon Player | ✅ Basic Support | ⚠️ Title only |
-| Parole | ✅ Basic Support | ⚠️ Title only |
-
-## 🔍 Position Detection Methods
-
-Media Player Scrobbler for SIMKL can detect playback position in two ways:
-
-1. **🎯 Advanced Position Tracking**: Gets precise position and duration from the player
-2. **📊 Basic Title Tracking**: Estimates progress based on window focus time
-
-For the best experience, we recommend setting up advanced position tracking.
-
-### Position Tracking Flow
+## 📋 Player Compatibility Matrix
 
 ```mermaid
 graph TD
-    A[Media Player] --> B{Has Web Interface?}
-    B -->|Yes| C[Direct API Connection]
-    B -->|No| D[Window Title Monitoring]
+    A[Media Players] --> B[Basic Support]
+    A --> C[Advanced Tracking]
     
-    C -->|Get Position/Duration| E[Precise Progress]
-    D -->|Track Focus Time| F[Estimated Progress]
+    B -->|Window Title Detection| D[Any Player with Visible Filename]
     
-    E --> G{>80% Complete?}
-    F --> G
+    C --> E[VLC]
+    C --> F[MPV]
+    C --> G[MPC-HC/BE]
     
-    G -->|Yes| H[Mark as Watched]
-    G -->|No| I[Continue Tracking]
+    E -->|Web Interface| I[Position Tracking]
+    F -->|IPC Socket| I
+    G -->|Web Interface| I
     
-    style A fill:#f9d5e5,stroke:#333,stroke-width:2px
-    style H fill:#d5f5e3,stroke:#333,stroke-width:2px
+    I --> J[Accurate Scrobbling]
+    
+    style A fill:#4285f4,stroke:#333,stroke-width:2px,color:#fff
+    style C fill:#34a853,stroke:#333,stroke-width:2px,color:#fff
+    style J fill:#fbbc05,stroke:#333,stroke-width:2px
 ```
 
-## ⚙️ Player Configuration for Advanced Tracking
+### Windows Support
 
-### 🎵 VLC Media Player
+| Media Player | Basic Support | Advanced Position Tracking | Configuration Method |
+|--------------|:-------------:|:---------------------------:|---------------------|
+| VLC | ✅ | ✅ | Web interface (port 8080) |
+| MPC-HC/BE | ✅ | ✅ | Web interface (port 13579) |
+| MPV | ✅ | ✅ | IPC socket (named pipe) |
+| PotPlayer | ✅ | ✅ | Web interface (port 8080) [Still in Testing] |
+| Windows Media Player | ✅ | ❌ | Window title only |
+| SMPlayer | ✅ | ❌ | Window title only |
+| KMPlayer | ✅ | ❌ | Window title only |
+| GOM Player | ✅ | ❌ | Window title only |
 
-1. Go to Tools > Preferences
-2. Select "All" settings (bottom left)
-3. Navigate to Interface > Main interfaces
-4. Check "Web" option
-5. **Must**: Set a password in the "Lua HTTP" section (use password : simkl)
-6. Click "Save"
-7. Restart VLC
+### macOS Support
 
-See this Guide for best Understanding : [VLC Web Interface](https://github.com/azrafe7/vlc4youtube/blob/55946aaea09375cfa4dc0dbae0428ad13eb9e046/instructions/how-to-enable-vlc-web-interface.md)
+| Media Player | Basic Support | Advanced Position Tracking | Configuration Method |
+|--------------|:-------------:|:---------------------------:|---------------------|
+| VLC | ✅ | ✅ | Web interface (port 8080) |
+| MPV | ✅ | ✅ | IPC socket (UNIX socket) |
+| QuickTime | ✅ | ❌ | Window title only |
+| Elmedia Player | ✅ | ❌ | Window title only |
+| Movist Pro | ✅ | ❌ | Window title only |
 
-**Default Address**: http://127.0.0.1:8080/ 👈 Open this and Enter the Password You've Set (Make Sure VLC is Opened in Background)
+### Linux Support
 
-### 🎬 MPC-HC/BE (Windows only)
+| Media Player | Basic Support | Advanced Position Tracking | Configuration Method |
+|--------------|:-------------:|:---------------------------:|---------------------|
+| VLC | ✅ | ✅ | Web interface (port 8080) |
+| MPV | ✅ | ✅ | IPC socket (UNIX socket) |
+| SMPlayer | ✅ | ❌ | Window title only |
+| Totem | ✅ | ❌ | Window title only |
+| Kaffeine | ✅ | ❌ | Window title only |
 
-1. Go to View > Options > Player > Web Interface
-2. Check "Listen on port:" (default 13579)
-3. Click "OK"
-4. Restart MPC
+## 🎯 Understanding Tracking Methods
 
-**Default Address**: http://127.0.0.1:13579/
+### Basic Support vs. Advanced Tracking
 
-### 📼 MPV Player
+```mermaid
+graph LR
+    A[Tracking Methods] --> B[Basic Support]
+    A --> C[Advanced Tracking]
+    
+    B -->|Window Title| D[Generic Detection]
+    D --> E[Estimated Progress]
+    
+    C -->|Player API| F[Direct Connection]
+    F --> G[Precise Position Data]
+    
+    E --> H[Less Accurate]
+    G --> I[More Accurate]
+    
+    style A fill:#4285f4,stroke:#333,stroke-width:2px,color:#fff
+    style B fill:#fbbc05,stroke:#333,stroke-width:2px
+    style C fill:#34a853,stroke:#333,stroke-width:2px,color:#fff
+```
 
-1. Create or edit `mpv.conf` in the mpv config directory:
-   - Windows: `%APPDATA%\mpv\mpv.conf`
-   - macOS: `~/.config/mpv/mpv.conf`
-   - Linux: `~/.config/mpv/mpv.conf`
-2. Add the following lines:
+#### Basic Support (All Players)
+- Works by monitoring the player's window title
+- Extracts media information from the filename shown in the title
+- Estimates when you've watched enough to mark as completed
+- No player configuration required
+
+#### Advanced Tracking (Selected Players)
+- Connects directly to the media player's API
+- Retrieves exact playback position and total duration
+- Accurately calculates completion percentage
+- Requires specific player configuration (see below)
+
+## ⚙️ Player Configuration Guide
+
+### VLC Media Player
+
+<details>
+<summary><b>Enabling the VLC Web Interface</b></summary>
+
+1. Open VLC and go to **Tools** > **Preferences** (or **VLC** > **Preferences** on macOS)
+2. Click **Show settings: All** at the bottom left
+3. Navigate to **Interface** > **Main interfaces**
+4. Check the box for **Web**
+5. Go to **Interface** > **Main interfaces** > **Lua**
+6. Set a password in **Lua HTTP Password** (recommended: `simkl`)
+7. Keep the default port (8080) or change it if needed
+8. Click **Save** and restart VLC
+
+**Testing:** Open `http://localhost:8080` in your browser. You should see the VLC web interface.
+
+**Configuration Options:**
+```ini
+# In .simkl_mps.env:
+SIMKL_VLC_PORT=8080
+SIMKL_VLC_PASSWORD=simkl
+```
+</details>
+
+### MPV Player
+
+<details>
+<summary><b>Setting Up MPV IPC Socket</b></summary>
+
+1. Create or locate the MPV configuration directory:
+   - Windows: `%APPDATA%\mpv\`
+   - macOS/Linux: `~/.config/mpv/`
+2. Create or edit `mpv.conf` in this directory
+3. Add the following line:
    ```
-   # For Unix-based systems (macOS/Linux)
-   input-ipc-server=/tmp/mpvsocket
-   
-   # For Windows
+   # For Windows:
    input-ipc-server=\\.\pipe\mpvsocket
+   
+   # For macOS/Linux:
+   input-ipc-server=/tmp/mpvsocket
    ```
-3. Restart MPV.
+4. Save the file and restart MPV
 
-This enables advanced position tracking for accurate scrobbling.
+**IINA (macOS):** Open IINA Preferences > Advanced and add the socket configuration.
 
-### 🎮 PotPlayer (Windows only)
+**Configuration Options:**
+```ini
+# In .simkl_mps.env:
+# For Windows:
+SIMKL_MPV_SOCKET_PATH=\\.\pipe\mpvsocket
 
-1. Open PotPlayer.
-2. Go to Preferences (F5) > Others > Web Control Interface.
-3. Check "Listen to HTTP request on port:" (default is 8080).
-4. Click "Apply" and "OK".
-5. Restart PotPlayer.
+# For macOS/Linux:
+SIMKL_MPV_SOCKET_PATH=/tmp/mpvsocket
+```
+</details>
 
-**Default Address:** http://127.0.0.1:8080/
+### MPC-HC / MPC-BE (Windows Only)
 
-This enables advanced position tracking for accurate scrobbling.
+<details>
+<summary><b>Configuring MPC Web Interface</b></summary>
+
+1. Open MPC-HC/BE and go to **View** > **Options**
+2. Navigate to **Player** > **Web Interface** (or just **Web Interface** in MPC-BE)
+3. Check **Listen on port:** (default is 13579)
+4. Click **OK** and restart MPC
+
+**Testing:** Open `http://localhost:13579` in your browser. You should see the MPC web interface.
+
+**Configuration Options:**
+```ini
+# In .simkl_mps.env:
+SIMKL_MPC_PORT=13579
+```
+</details>
+
+### PotPlayer (Windows Only) [Testing]
+
+<details>
+<summary><b>Enabling PotPlayer Web Interface</b></summary>
+
+1. Open PotPlayer and press **F5** to open Preferences
+2. Navigate to **Others** > **Web Control Interface**
+3. Check **Listen to HTTP request on port:** (default is 8080)
+4. Click **Apply** and **OK**, then restart PotPlayer
+
+**Testing:** Open `http://localhost:8080` in your browser. You should see the PotPlayer web interface.
+
+**Configuration Options:**
+```ini
+# In .simkl_mps.env:
+SIMKL_POTPLAYER_PORT=8080
+```
+</details>
+
+## 💡 Optimizing Media Detection
+
+### Filename Best Practices
+
+```mermaid
+graph LR
+    A[Optimal Filename Format] --> B[Movies]
+    A --> C[TV Shows]
+    
+    B --> D["MovieTitle (Year).ext"]
+    C --> E["ShowTitle SXXEXX.ext"]
+    
+    D --> F["Inception (2010).mkv"]
+    E --> G["Breaking Bad S01E01.mp4"]
+    
+    style A fill:#4285f4,stroke:#333,stroke-width:2px,color:#fff
+```
+
+#### Movie Filename Format
+- Include the full movie title
+- Add the release year in parentheses
+- Example: `Inception (2010).mkv`
+
+#### TV Show Filename Format
+- Include the full show title
+- Use standard season/episode notation (S01E01)
+- Example: `Breaking Bad S01E01.mp4`
 
 ## 🔧 Troubleshooting Player Integration
 
-### VLC
+### Common Issues and Solutions
 
-- If tracking doesn't work, verify web interface is enabled in VLC preferences
-- Try different port if 8080 is already in use (change in VLC settings)
-- On Linux, ensure firewall allows connections to the port
+| Problem | Possible Causes | Solutions |
+|---------|----------------|-----------|
+| Cannot connect to VLC | Web interface not enabled<br>Wrong password | Check VLC settings<br>Verify password in config |
+| MPV socket not found | Wrong socket path<br>Config not saved | Verify configuration<br>Check file permissions |
+| MPC web interface not responding | Interface not enabled<br>Port conflict | Check MPC settings<br>Try different port |
+| Position tracking not working | Player not supported<br>Connection issue | Use supported player<br>Verify settings |
 
-### MPV
+### Testing Your Configuration
 
-- Verify the IPC socket/pipe path matches what's in your configuration
-- For Windows, make sure the pipe name is correct: `\\.\pipe\mpvsocket`
-- For Unix, check permissions on `/tmp/mpvsocket`
+To verify your player is properly configured:
 
-### General Tips
+1. Start your media player with advanced tracking enabled
+2. Run MPS for SIMKL with debug logging:
+   ```bash
+   simkl-mps tray --debug
+   ```
+3. Play a media file
+4. Check the logs for `Connected to [player]` and position data
 
-- Ensure media filenames include the movie title in a recognizable format
-- For better matching, include the release year: `Movie Name (2023).mp4`
-- Check the application logs if a specific player isn't being detected
+### Alternative Approaches
+
+If advanced tracking isn't working:
+
+1. **Use window title detection:** Works with any player showing filenames
+2. **Try a different supported player:** VLC works well on all platforms
+3. **Name files clearly:** Good filenames help with basic detection

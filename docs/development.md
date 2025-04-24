@@ -136,34 +136,220 @@ For development, you can use the default client ID or register your own:
 
 ## 🏗️ Architecture Overview
 
-Media Player Scrobbler for SIMKL uses a modular architecture:
-
-1. **🪟 Window Detection Layer**: Platform-specific code to detect media player windows
-2. **🎮 Media Player Integration Layer**: Interfaces with specific players to get playback information
-3. **🎬 Movie Identification Layer**: Parses titles and identifies movies via Simkl API
-4. **📊 Progress Tracking Layer**: Monitors playback and determines completion
-5. **🔌 Simkl API Layer**: Handles authentication and scrobbling to Simkl
-
-This separation allows for easy maintenance and extension of individual components.
-
-### Architecture Diagram
+MPS for SIMKL uses a modular architecture that clearly separates responsibilities between components:
 
 ```mermaid
 graph TD
-    A[Window Detection] -->|Active Windows| B[Player Recognition]
-    B -->|Window Info| C[Title Extraction]
-    C -->|Movie Title| D[guessit Parser]
-    D -->|Parsed Info| E[Simkl Search]
-    E -->|Movie ID| F[Progress Tracker]
+    A[Window Detection Module] -->|Active Windows| B[Media Monitor]
+    B -->|Window Info| C[Movie Scrobbler]
+    C -->|Movie Title| D[Title Parser]
+    D -->|Parsed Info| E[SIMKL API Client]
+    E -->|Movie ID & Metadata| F[Progress Tracker]
     F -->|Position Updates| G{Completion Check}
-    G -->|>80%| H[Mark as Watched]
-    G -->|<80%| F
+    G -->|>80% Complete| H[Mark as Watched]
+    G -->|<80% Complete| F
     
-    I[Player Integration] -->|Position Data| F
-    J[OS-specific APIs] --> A
+    I[Player Integrations] -->|Position & Duration| F
+    J[Backlog Cleaner] <-->|Offline Queue| C
+    K[Media Cache] <-->|Movie Info| C
+    L[Tray Application] <-->|Status & Controls| B
+    
+    I -.->|Connectivity| M{Internet Available?}
+    M -->|Yes| E
+    M -->|No| J
     
     style A fill:#d5f5e3,stroke:#333,stroke-width:2px
+    style E fill:#f9d5e5,stroke:#333,stroke-width:2px
     style H fill:#f9d5e5,stroke:#333,stroke-width:2px
     style I fill:#d5eef7,stroke:#333,stroke-width:2px
-    style J fill:#f7dc6f,stroke:#333,stroke-width:2px
 ```
+
+### Component Roles
+
+| Component | File | Description |
+|-----------|------|-------------|
+| Window Detection | `window_detection.py` | OS-specific code to identify and monitor media player windows |
+| Media Monitor | `monitor.py` | Coordinates detection and status tracking |
+| Movie Scrobbler | `movie_scrobbler.py` | Core business logic for tracking and scrobbling |
+| Player Integrations | `players/*.py` | Individual media player APIs for precise position tracking |
+| SIMKL API Client | `simkl_api.py` | Authentication and communication with SIMKL |
+| Backlog Cleaner | `backlog_cleaner.py` | Manages the offline queue system |
+| Media Cache | `media_cache.py` | Local storage of movie metadata |
+| Tray Application | `tray_app.py` | User interface via system tray |
+
+## 📊 Data Flow
+
+The following diagram illustrates how data flows through the system:
+
+```mermaid
+sequenceDiagram
+    participant MP as Media Player
+    participant WD as Window Detection
+    participant SC as Movie Scrobbler
+    participant PI as Player Integration
+    participant API as SIMKL API
+    participant UI as Tray UI
+    
+    MP->>WD: Active Window (title)
+    WD->>SC: Window Info
+    SC->>SC: Parse Movie Title
+    
+    SC->>API: Search Movie
+    API->>SC: Movie Metadata
+    
+    loop Every Poll Interval
+        SC->>PI: Request Position
+        PI->>MP: Connect to Player API
+        MP->>PI: Position & Duration
+        PI->>SC: Position Data
+        SC->>SC: Update Progress
+    end
+    
+    alt Progress >= Threshold
+        SC->>API: Mark as Watched
+        API->>SC: Success/Failure
+        SC->>UI: Show Notification
+    else No Internet
+        SC->>SC: Add to Backlog
+    end
+```
+
+## 🧩 Class Relationships
+
+This diagram shows the relationships between the major classes:
+
+```mermaid
+classDiagram
+    class SimklScrobbler {
+        +initialize()
+        +start()
+        +stop()
+        +pause()
+        +resume()
+    }
+    
+    class MediaTracker {
+        -monitor: Monitor
+        +start()
+        +stop()
+        +set_credentials()
+    }
+    
+    class Monitor {
+        -scrobbler: MovieScrobbler
+        -running: bool
+        +start()
+        +stop()
+        +set_credentials()
+    }
+    
+    class MovieScrobbler {
+        -currently_tracking: str
+        -track_start_time: datetime
+        -state: int
+        +set_credentials()
+        +process_window()
+        +process_backlog()
+    }
+    
+    class PlayerIntegration {
+        +get_position_duration()
+    }
+    
+    class SimklAPI {
+        +authenticate()
+        +search_movie()
+        +mark_as_watched()
+    }
+    
+    class TrayApp {
+        -scrobbler: SimklScrobbler
+        -tray_icon
+        +run()
+        +start_monitoring()
+        +pause_monitoring()
+        +process_backlog()
+    }
+    
+    SimklScrobbler *-- MediaTracker
+    MediaTracker *-- Monitor
+    Monitor *-- MovieScrobbler
+    MovieScrobbler -- PlayerIntegration
+    MovieScrobbler -- SimklAPI
+    TrayApp -- SimklScrobbler
+```
+
+## 🚀 Execution Flow
+
+When the application starts, this is the sequence of operations:
+
+```mermaid
+graph TD
+    A[User Starts Application] --> B{Start Method}
+    B -->|CLI 'start'| C[Background Mode]
+    B -->|CLI 'tray'| D[Tray Mode]
+    
+    C --> E[Create SimklScrobbler]
+    D --> F[Create TrayApp]
+    
+    E --> G[Initialize]
+    F --> H[Create SimklScrobbler]
+    H --> G
+    
+    G --> I{First Run?}
+    I -->|Yes| J[Auth Flow]
+    I -->|No| K[Load Credentials]
+    
+    J --> L[Start Monitoring]
+    K --> L
+    
+    L --> M[Monitor Loop]
+    M --> N[Detect Windows]
+    N --> O[Process Windows]
+    O --> P[Update Progress]
+    P --> M
+    
+    style A fill:#4285f4,stroke:#333,stroke-width:2px,color:#fff
+    style J fill:#fbbc05,stroke:#333,stroke-width:2px
+    style L fill:#34a853,stroke:#333,stroke-width:2px,color:#fff
+```
+
+## ⚙️ Platform Abstraction
+
+The application uses abstraction layers to provide cross-platform support:
+
+```mermaid
+graph TB
+    A[Platform-Specific Modules] --> B{Operating System}
+    
+    B -->|Windows| C[Windows Implementation]
+    B -->|macOS| D[macOS Implementation]
+    B -->|Linux| E[Linux Implementation]
+    
+    C --> F[Common Interface]
+    D --> F
+    E --> F
+    
+    F --> G[Platform-Independent Logic]
+    
+    subgraph "Platform-Specific Code"
+    C
+    D
+    E
+    end
+    
+    subgraph "Cross-Platform Code"
+    F
+    G
+    end
+    
+    style A fill:#f9d5e5,stroke:#333,stroke-width:2px
+    style G fill:#d5eef7,stroke:#333,stroke-width:2px
+```
+
+Key abstraction points:
+- Window detection
+- System tray integration
+- File system access
+- Process management
+- Notifications
