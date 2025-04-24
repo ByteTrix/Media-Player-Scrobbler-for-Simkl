@@ -13,6 +13,11 @@ on:
     tags:
       - 'v*'
 
+# Add permissions at the workflow level
+permissions:
+  contents: write
+  id-token: write
+
 jobs:
   prepare-release:
     runs-on: ubuntu-latest
