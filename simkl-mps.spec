@@ -1,3 +1,11 @@
+# --- Compatibility patch for collections module (Python 3.10+) ---
+# This needs to run before imports like guessit/babelfish
+import collections.abc, collections
+for abc_class in ['MutableMapping', 'Mapping', 'Sequence', 'MutableSequence', 'Set', 'MutableSet']:
+    if not hasattr(collections, abc_class):
+        setattr(collections, abc_class, getattr(collections.abc, abc_class))
+print('Applied compatibility patches for collections module directly in spec')
+# --- End compatibility patch ---
 import sys
 from pathlib import Path
 import guessit
@@ -123,7 +131,6 @@ hidden_imports = [
     'babelfish.script',
     'babelfish.converters.opensubtitles',
     'babelfish.converters.scope',
-    'babelfish.converters.terminator',
 ]
 
 # Add platform-specific imports

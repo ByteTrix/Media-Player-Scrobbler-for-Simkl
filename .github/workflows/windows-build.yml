@@ -62,6 +62,8 @@ jobs:
       - name: Build with PyInstaller
         run: |
           pip install pyinstaller
+          
+          # Patch is now included directly in simkl-mps.spec
           python -m PyInstaller --clean simkl-mps.spec
 
       - name: Test PyInstaller build
@@ -79,7 +81,7 @@ jobs:
         run: |
           $version = "${{ inputs.version }}"
           mkdir -p artifacts
-          Move-Item dist\installer\MPSS_Setup.exe artifacts\MPSS_Setup_$version.exe
+          Move-Item dist\installer\MPSS_Setup_$version.exe artifacts\MPSS_Setup_$version.exe
 
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4

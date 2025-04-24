@@ -66,17 +66,19 @@ jobs:
 
           echo "✅ Credentials successfully injected into simkl_mps/credentials.py"
 
-      - name: Build and publish
-        run: |
-          poetry build
-          poetry publish
+      - name: Build package
+        run: poetry build
         env:
-          POETRY_PYPI_TOKEN_PYPI: ${{ secrets.PYPI_API_TOKEN }}
           VERSION: ${{ inputs.version }}
-      
+
       - name: Upload Python package artifacts
         uses: actions/upload-artifact@v4
         with:
           name: python-package
           path: dist/
           retention-days: 3
+
+      - name: Publish to PyPI (skip existing)
+        run: poetry publish --skip-existing
+        env:
+          POETRY_PYPI_TOKEN_PYPI: ${{ secrets.PYPI_API_TOKEN }}
