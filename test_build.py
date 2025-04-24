@@ -21,10 +21,10 @@ def test_windows_build():
         exe_path = dist_dir / exe
         if exe_path.exists():
             size_mb = exe_path.stat().st_size / (1024 * 1024)
-            print(f"✅ Found {exe} ({size_mb:.2f} MB)")
+            print(f"OK: Found {exe} ({size_mb:.2f} MB)")
         else:
             missing.append(exe)
-            print(f"❌ Missing {exe}")
+            print(f"ERROR: Missing {exe}")
     
     if missing:
         print(f"Error: {len(missing)} executables are missing from the build")
@@ -47,13 +47,13 @@ def test_macos_build():
             # Check for executable inside app bundle
             exe_path = bundle_path / "Contents" / "MacOS" / bundle.split('.')[0]
             if exe_path.exists():
-                print(f"✅ Found {bundle} with executable")
+                print(f"OK: Found {bundle} with executable")
             else:
                 missing.append(f"{bundle} (missing executable)")
-                print(f"❌ {bundle} exists but missing executable")
+                print(f"ERROR: {bundle} exists but missing executable")
         else:
             missing.append(bundle)
-            print(f"❌ Missing {bundle}")
+            print(f"ERROR: Missing {bundle}")
     
     if missing:
         print(f"Error: {len(missing)} app bundles are missing or incomplete")
@@ -74,10 +74,10 @@ def test_linux_build():
         exe_path = dist_dir / exe
         if exe_path.exists():
             size_mb = exe_path.stat().st_size / (1024 * 1024)
-            print(f"✅ Found {exe} ({size_mb:.2f} MB)")
+            print(f"OK: Found {exe} ({size_mb:.2f} MB)")
         else:
             missing.append(exe)
-            print(f"❌ Missing {exe}")
+            print(f"ERROR: Missing {exe}")
     
     if missing:
         print(f"Error: {len(missing)} executables are missing from the build")

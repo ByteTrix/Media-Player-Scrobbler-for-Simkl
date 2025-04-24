@@ -131,7 +131,6 @@ hidden_imports = [
     'babelfish.script',
     'babelfish.converters.opensubtitles',
     'babelfish.converters.scope',
-    'babelfish.converters.terminator',
 ]
 
 # Add platform-specific imports
