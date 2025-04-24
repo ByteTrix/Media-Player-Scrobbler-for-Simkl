@@ -2,10 +2,6 @@
 
 This guide covers detailed installation instructions for Media Player Scrobbler for SIMKL across different platforms.
 
-## ✅ Prerequisites
-
-- Python 3.9 or higher
-- pip (Python package manager)
 
 ## 🚀 Standard Installation
 
@@ -18,6 +14,11 @@ This guide covers detailed installation instructions for Media Player Scrobbler 
 3. Look at the Tray For MSP for Simkl.exe
 
 or
+
+## ✅ Prerequisites
+
+- Python 3.9 or higher
+- pip (Python package manager)
 
 ```bash
 # Install using pip
