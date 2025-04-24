@@ -252,7 +252,7 @@ tray_a.datas = [d for d in tray_a.datas if d is not None]
 # Include updater scripts in the distribution
 tray_a.datas += [
     ('utils/updater.ps1', 'simkl_mps/utils/updater.ps1', 'DATA'),
-    ('utils/updater.sh', 'simkl_mps/utils/updater.sh', 'DATA'),
+    ('utils/updater.sh', 'simkl_mps/utils/updater.sh', 'DATA')
 ]
 
 tray_pyz = PYZ(tray_a.pure, tray_a.zipped_data, cipher=block_cipher)
