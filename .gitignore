@@ -51,3 +51,5 @@ simkl_mps/assets/wizard.bmp
 gitpush.py
 build_installer.bat
 update_wiki.py
+push_to_wiki.py
+gitpush_wiki.py
