@@ -13,23 +13,23 @@ This document tracks both completed features and planned improvements for Media 
 - [x] 🧠 Smart movie detection using guessit library
 - [x] 📦 Package distribution via PyPI
 - [x] 😙 New Icon/Logo and Name
+- [x] 🖱️ Enhance the tray application with more controls
 
 ## 🚧 In Progress
 
-- [ ] 🏦 Create installers for cross platform
+- [x] 🏦 Create installers for cross platform(Windows only Tested)
 - [ ] 🚹 Option to User Set Completion Percentage and Edit it Later
 - [ ] 📱 Improve notification system
-
+- [ ] 🪜 Testing Cross-Platform
 
 ## 📝 Planned Features
 
 ### Short Term
 
-- [ ] 🪜 Testing Cross-Platform
 - [ ] 🔐 Enhanced authentication flow
 - [ ] 🧪 Create comprehensive automated test suite
 - [ ] 🔎 Add option to manually correct misidentified movies
-- [ ] 🖱️ Enhance the tray application with more controls
+
 
 ### Medium Term
 
@@ -53,15 +53,6 @@ These are good starting points for new contributors:
 - [ ] ⚡ Performance optimizations
 - [ ] 🧪 Create additional tests
 
-## 📆 Release Planning
 
-### v1.5.0
-- Codebase Refactor
-- Improved notifications
-- More Menu in tray
-
-### v1.5.5
-- Manual correction of misidentified content
-- Enhanced tray application
 
 _Note: Timeline is approximate and subject to change based on contributor availability._
