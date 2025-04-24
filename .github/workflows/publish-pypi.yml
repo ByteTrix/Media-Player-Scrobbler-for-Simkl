@@ -66,17 +66,74 @@ jobs:
 
           echo "✅ Credentials successfully injected into simkl_mps/credentials.py"
 
-      - name: Build and publish
+      - name: Check if package version exists on PyPI
+        id: check_version
+        continue-on-error: true
         run: |
-          poetry build
-          poetry publish
+          pip install requests
+          python - <<EOF
+          import requests
+          import json
+          version = "${{ inputs.version }}"
+          package_name = "simkl-mps"
+          
+          try:
+              response = requests.get(f"https://pypi.org/pypi/{package_name}/json")
+              if response.status_code == 200:
+                  data = response.json()
+                  versions = list(data.get("releases", {}).keys())
+                  if version in versions:
+                      print(f"::warning::Version {version} already exists on PyPI")
+                      print("::set-output name=exists::true")
+                  else:
+                      print(f"Version {version} does not exist on PyPI yet")
+                      print("::set-output name=exists::false")
+              else:
+                  print(f"Package {package_name} not found on PyPI or API error")
+                  print("::set-output name=exists::false")
+          except Exception as e:
+              print(f"Error checking PyPI version: {e}")
+              print("::set-output name=exists::false")
+          EOF
+          
+          # For GitHub Actions v2+
+          echo "exists=$([ "${{ steps.check_version.outputs.exists }}" == "true" ] && echo "true" || echo "false")" >> $GITHUB_OUTPUT
+
+      - name: Build package
+        run: poetry build
         env:
-          POETRY_PYPI_TOKEN_PYPI: ${{ secrets.PYPI_API_TOKEN }}
           VERSION: ${{ inputs.version }}
-      
+
       - name: Upload Python package artifacts
         uses: actions/upload-artifact@v4
         with:
           name: python-package
           path: dist/
           retention-days: 3
+
+      - name: Publish to PyPI
+        id: publish
+        continue-on-error: true
+        if: steps.check_version.outputs.exists != 'true'
+        run: poetry publish
+        env:
+          POETRY_PYPI_TOKEN_PYPI: ${{ secrets.PYPI_API_TOKEN }}
+
+      - name: Handle PyPI publish result
+        run: |
+          if [[ "${{ steps.check_version.outputs.exists }}" == "true" ]]; then
+            echo "::warning::Package version ${{ inputs.version }} already exists on PyPI. Skipping publish but continuing workflow."
+            echo "This is not considered a failure. Workflow will continue with existing PyPI package."
+          elif [[ "${{ steps.publish.outcome }}" == "failure" ]]; then
+            # Check if error message contains the specific "File already exists" message
+            ERROR_LOG="${{ steps.publish.outputs.stderr }}"
+            if [[ $ERROR_LOG == *"File already exists"* ]]; then
+              echo "::warning::PyPI upload failed because the file already exists. Continuing workflow."
+            else
+              echo "::error::PyPI upload failed for an unexpected reason:"
+              echo "$ERROR_LOG"
+              exit 1
+            fi
+          else
+            echo "✅ Successfully published to PyPI"
+          fi
