@@ -49,3 +49,5 @@ generate_icon.py
 simkl_mps/assets/wizard-small.bmp
 simkl_mps/assets/wizard.bmp
 gitpush.py
+build_installer.bat
+update_wiki.py

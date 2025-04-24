@@ -37,96 +37,77 @@ jobs:
 
       - name: Generate macOS icon (.icns file)
         run: |
-          # Create a basic .iconset structure
-          mkdir -p simkl-mps.iconset
-          
-          # Create necessary icons if not exist
-          for size in 16 32 64 128 256 512 1024; do
-            if [ ! -f "simkl_mps/assets/simkl-mps-$size.png" ] && [ -f "simkl_mps/assets/simkl-mps.png" ]; then
-              # If size-specific icon doesn't exist but base icon does, resize it
-              sips -z $size $size simkl_mps/assets/simkl-mps.png --out simkl_mps/assets/simkl-mps-$size.png
-            fi
-          done
-          
-          # Convert existing PNG icons to iconset format
-          if [ -f "simkl_mps/assets/simkl-mps-16.png" ]; then
-            cp simkl_mps/assets/simkl-mps-16.png simkl-mps.iconset/icon_16x16.png
-          fi
-          
-          if [ -f "simkl_mps/assets/simkl-mps-32.png" ]; then
-            cp simkl_mps/assets/simkl-mps-32.png simkl-mps.iconset/icon_16x16@2x.png
-            cp simkl_mps/assets/simkl-mps-32.png simkl-mps.iconset/icon_32x32.png
-          fi
-          
-          if [ -f "simkl_mps/assets/simkl-mps-64.png" ]; then
-            cp simkl_mps/assets/simkl-mps-64.png simkl-mps.iconset/icon_32x32@2x.png
-          fi
-          
-          if [ -f "simkl_mps/assets/simkl-mps-128.png" ]; then
-            cp simkl_mps/assets/simkl-mps-128.png simkl-mps.iconset/icon_128x128.png
-          fi
-          
-          if [ -f "simkl_mps/assets/simkl-mps-256.png" ]; then
-            cp simkl_mps/assets/simkl-mps-256.png simkl-mps.iconset/icon_128x128@2x.png
-            cp simkl_mps/assets/simkl-mps-256.png simkl-mps.iconset/icon_256x256.png
-          fi
-          
-          if [ -f "simkl_mps/assets/simkl-mps-512.png" ]; then
-            cp simkl_mps/assets/simkl-mps-512.png simkl-mps.iconset/icon_256x256@2x.png
-            cp simkl_mps/assets/simkl-mps-512.png simkl-mps.iconset/icon_512x512.png
-          fi
-          
-          if [ -f "simkl_mps/assets/simkl-mps-1024.png" ]; then
-            cp simkl_mps/assets/simkl-mps-1024.png simkl-mps.iconset/icon_512x512@2x.png
-          fi
-          
-          # Fill in any missing icons with resized versions
-          for size in 16 32 64 128 256 512; do
-            if [ ! -f "simkl-mps.iconset/icon_${size}x${size}.png" ]; then
-              # Find the nearest larger icon
-              found=false
-              for src_size in 1024 512 256 128 64 32 16; do
-                if [ $src_size -ge $size ] && [ -f "simkl_mps/assets/simkl-mps-${src_size}.png" ]; then
-                  sips -z $size $size "simkl_mps/assets/simkl-mps-${src_size}.png" --out "simkl-mps.iconset/icon_${size}x${size}.png"
-                  found=true
-                  break
-                fi
-              done
-              
-              # If still not found, use the base icon
-              if [ "$found" = false ] && [ -f "simkl_mps/assets/simkl-mps.png" ]; then
-                sips -z $size $size "simkl_mps/assets/simkl-mps.png" --out "simkl-mps.iconset/icon_${size}x${size}.png"
-              fi
-            fi
+          # Check if .icns file already exists
+          if [ -f "simkl_mps/assets/simkl-mps.icns" ]; then
+            echo "✅ macOS icon (.icns) already exists, skipping generation"
+            ls -la simkl_mps/assets/simkl-mps.icns
+          else
+            echo "🔄 macOS icon (.icns) not found, generating with create_icns.py..."
+            # Run the create_icns.py script from utils directory
+            python -m simkl_mps.utils.create_icns
             
-            # Create @2x version if missing
-            if [ ! -f "simkl-mps.iconset/icon_${size}x${size}@2x.png" ] && [ $((size*2)) -le 1024 ]; then
-              doubled_size=$((size*2))
-              # Find the nearest larger icon
-              found=false
-              for src_size in 1024 512 256 128 64 32; do
-                if [ $src_size -ge $doubled_size ] && [ -f "simkl_mps/assets/simkl-mps-${src_size}.png" ]; then
-                  sips -z $doubled_size $doubled_size "simkl_mps/assets/simkl-mps-${src_size}.png" --out "simkl-mps.iconset/icon_${size}x${size}@2x.png"
-                  found=true
-                  break
+            if [ -f "simkl_mps/assets/simkl-mps.icns" ]; then
+              echo "✅ macOS icon (.icns) created successfully"
+              ls -la simkl_mps/assets/simkl-mps.icns
+            else
+              echo "❌ Failed to create .icns file with script, falling back to native tools"
+              
+              # Fallback to the native macOS tools if the script fails
+              mkdir -p simkl-mps.iconset
+              
+              # Process existing PNG files
+              for size in 16 32 64 128 256 512 1024; do
+                if [ -f "simkl_mps/assets/simkl-mps-$size.png" ]; then
+                  if [ $size -eq 16 ]; then
+                    cp "simkl_mps/assets/simkl-mps-$size.png" "simkl-mps.iconset/icon_${size}x${size}.png"
+                  elif [ $size -eq 32 ]; then
+                    cp "simkl_mps/assets/simkl-mps-$size.png" "simkl-mps.iconset/icon_16x16@2x.png"
+                    cp "simkl_mps/assets/simkl-mps-$size.png" "simkl-mps.iconset/icon_32x32.png"
+                  elif [ $size -eq 64 ]; then
+                    cp "simkl_mps/assets/simkl-mps-$size.png" "simkl-mps.iconset/icon_32x32@2x.png"
+                  elif [ $size -eq 128 ]; then
+                    cp "simkl_mps/assets/simkl-mps-$size.png" "simkl-mps.iconset/icon_128x128.png"
+                  elif [ $size -eq 256 ]; then
+                    cp "simkl_mps/assets/simkl-mps-$size.png" "simkl-mps.iconset/icon_128x128@2x.png"
+                    cp "simkl_mps/assets/simkl-mps-$size.png" "simkl-mps.iconset/icon_256x256.png"
+                  elif [ $size -eq 512 ]; then
+                    cp "simkl_mps/assets/simkl-mps-$size.png" "simkl-mps.iconset/icon_256x256@2x.png"
+                    cp "simkl_mps/assets/simkl-mps-$size.png" "simkl-mps.iconset/icon_512x512.png"
+                  elif [ $size -eq 1024 ]; then
+                    cp "simkl_mps/assets/simkl-mps-$size.png" "simkl-mps.iconset/icon_512x512@2x.png"
+                  fi
                 fi
               done
               
-              # If still not found, use the base icon
-              if [ "$found" = false ] && [ -f "simkl_mps/assets/simkl-mps.png" ]; then
-                sips -z $doubled_size $doubled_size "simkl_mps/assets/simkl-mps.png" --out "simkl-mps.iconset/icon_${size}x${size}@2x.png"
+              # Fill in any missing icons with sips if needed
+              for size in 16 32 64 128 256 512; do
+                if [ ! -f "simkl-mps.iconset/icon_${size}x${size}.png" ]; then
+                  # Find the nearest larger icon or use base icon
+                  for src in "simkl_mps/assets/simkl-mps-1024.png" "simkl_mps/assets/simkl-mps-512.png" \
+                            "simkl_mps/assets/simkl-mps-256.png" "simkl_mps/assets/simkl-mps-128.png" \
+                            "simkl_mps/assets/simkl-mps-64.png" "simkl_mps/assets/simkl-mps-32.png" \
+                            "simkl_mps/assets/simkl-mps-16.png" "simkl_mps/assets/simkl-mps.png"; do
+                    if [ -f "$src" ]; then
+                      sips -z $size $size "$src" --out "simkl-mps.iconset/icon_${size}x${size}.png"
+                      break
+                    fi
+                  done
+                fi
+              done
+              
+              # Generate .icns file using iconutil
+              iconutil -c icns simkl-mps.iconset -o simkl_mps/assets/simkl-mps.icns
+              rm -rf simkl-mps.iconset
+              
+              if [ -f "simkl_mps/assets/simkl-mps.icns" ]; then
+                echo "✅ macOS icon (.icns) created successfully with fallback method"
+                ls -la simkl_mps/assets/simkl-mps.icns
+              else
+                echo "❌ All attempts to create .icns file failed"
+                exit 1
               fi
             fi
-          done
-          
-          # Generate .icns file using iconutil
-          iconutil -c icns simkl-mps.iconset -o simkl_mps/assets/simkl-mps.icns
-          
-          # Clean up
-          rm -rf simkl-mps.iconset
-          
-          echo "✅ macOS icon (.icns) created successfully"
-          ls -la simkl_mps/assets/simkl-mps.icns
+          fi
 
       - name: Inject Simkl Credentials into Code
         env:
