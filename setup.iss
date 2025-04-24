@@ -168,11 +168,14 @@ Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Uninstall\{{3FF84
 
 ; Auto-update settings
 Root: HKCU; Subkey: "Software\{#MyAppPublisher}\{#MyAppName}"; ValueType: string; ValueName: "InstallPath"; ValueData: "{app}"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\{#MyAppPublisher}\{#MyAppName}"; ValueType: dword; ValueName: "CheckUpdates"; ValueData: "1"; Flags: uninsdeletekey
 Root: HKLM; Subkey: "Software\{#MyAppPublisher}\{#MyAppName}"; ValueType: string; ValueName: "InstallPath"; ValueData: "{app}"; Flags: uninsdeletekey; Check: IsAdminInstallMode
 
 ; Add to Apps & Features list for non-admin installs (Windows 10+)
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Uninstall\{{3FF84A4E-B9C2-4F49-A8DE-5F7EA15F5D88}_is1"; ValueType: string; ValueName: "InstallLocation"; ValueData: "{app}"; Flags: uninsdeletekey; Check: not IsAdminInstallMode
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Uninstall\{{3FF84A4E-B9C2-4F49-A8DE-5F7EA15F5D88}_is1"; ValueType: dword; ValueName: "EstimatedSize"; ValueData: "50000"; Flags: uninsdeletekey; Check: not IsAdminInstallMode
+; Add registry value to track first run state - will be used by tray app
+Root: HKCU; Subkey: "Software\{#MyAppPublisher}\{#MyAppName}"; ValueType: dword; ValueName: "FirstRun"; ValueData: "0"; Flags: uninsdeletekey
 
 [Code]
 const
@@ -191,6 +194,7 @@ begin
   PowerShellPath := ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe');
   Params := '-ExecutionPolicy Bypass -NoProfile -WindowStyle Hidden -File "' + AppPath + '" -Silent';
   try
+    // First delete any existing task with the same name to avoid duplicates
     Exec('schtasks.exe', '/Delete /TN "' + TaskName + '" /F', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
     if Exec('schtasks.exe',
       '/Create /TN "' + TaskName + '" /TR "\"' + PowerShellPath + '\" ' + Params + '" /SC WEEKLY /D SAT /ST 12:00 /F',

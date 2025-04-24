@@ -9,6 +9,7 @@ import time
 import threading
 import logging
 import webbrowser
+import subprocess # Added for running updater script
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 import pystray
@@ -36,6 +37,11 @@ class TrayApp:
         self.last_scrobbled = None
         self.config_path = APP_DATA_DIR / ".simkl_mps.env"
         self.log_path = APP_DATA_DIR / "simkl_mps.log"
+        self.update_info = None # To store available update version and URL
+        
+        # Track whether this is a first run (for notifications)
+        self.is_first_run = False
+        self.check_first_run()
 
         # Improved asset path resolution for frozen applications
         if getattr(sys, 'frozen', False):
@@ -190,36 +196,56 @@ class TrayApp:
 
     def create_menu(self):
         """Create the system tray menu with a professional layout"""
+        # Start with basic items
         menu_items = [
             pystray.MenuItem("^_^ MPS for SIMKL", None),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem(f"Status: {self.get_status_text()}", None, enabled=False),
             pystray.Menu.SEPARATOR,
         ]
-        
+
+        # Add Start/Pause item
         if self.status == "running" or self.status == "active":
             menu_items.append(pystray.MenuItem("Pause", self.pause_monitoring))
         else:
             menu_items.append(pystray.MenuItem("Start", self.start_monitoring))
-        
-        menu_items.extend([
-            pystray.Menu.SEPARATOR,
-            pystray.MenuItem("Tools", pystray.Menu(
-                pystray.MenuItem("Open Logs", self.open_logs),
-                pystray.MenuItem("Open Config Directory", self.open_config_dir),
-                pystray.MenuItem("Process Backlog Now", self.process_backlog),
-            )),
-            pystray.MenuItem("Online Services", pystray.Menu(
-                pystray.MenuItem("SIMKL Website", self.open_simkl),
-                pystray.MenuItem("View Watch History", self.open_simkl_history),
-            )),
-            pystray.Menu.SEPARATOR,
-            pystray.MenuItem("Check for Updates", self.check_updates),
-            pystray.MenuItem("About", self.show_about),
-            pystray.MenuItem("Help", self.show_help),
-            pystray.MenuItem("Exit", self.exit_app)
-        ])
-        
+
+        # Add Tools submenu
+        menu_items.append(pystray.Menu.SEPARATOR)
+        menu_items.append(pystray.MenuItem("Tools", pystray.Menu(
+            pystray.MenuItem("Open Logs", self.open_logs),
+            pystray.MenuItem("Open Config Directory", self.open_config_dir),
+            pystray.MenuItem("Process Backlog Now", self.process_backlog),
+        )))
+
+        # Add Online Services submenu
+        menu_items.append(pystray.MenuItem("Online Services", pystray.Menu(
+            pystray.MenuItem("SIMKL Website", self.open_simkl),
+            pystray.MenuItem("View Watch History", self.open_simkl_history),
+        )))
+        menu_items.append(pystray.Menu.SEPARATOR)
+
+        # Add dynamic update menu item
+        if self.update_info:
+            menu_items.append(
+                pystray.MenuItem(
+                    f"Install Update {self.update_info['version']}",
+                    self.install_update_thread # Link to install method
+                )
+            )
+        else:
+             menu_items.append(
+                pystray.MenuItem(
+                    "Check for Updates",
+                    self.check_updates_thread # Link to check method
+                )
+            )
+
+        # Add final items
+        menu_items.append(pystray.MenuItem("About", self.show_about))
+        menu_items.append(pystray.MenuItem("Help", self.show_help))
+        menu_items.append(pystray.MenuItem("Exit", self.exit_app))
+
         return pystray.Menu(*menu_items)
 
     def update_icon(self):
@@ -259,6 +285,7 @@ class TrayApp:
                 logger.warning(f"Config directory not found at {APP_DATA_DIR}")
         except Exception as e:
             logger.error(f"Error opening config directory: {e}")
+        return 0
 
     def show_about(self, _=None):
         """Show application information"""
@@ -344,6 +371,7 @@ Automatically track and scrobble your media to SIMKL."""
         except Exception as e:
             logger.error(f"Error showing about dialog: {e}")
             self.show_notification("About", "Media Player Scrobbler for SIMKL")
+        return 0
 
     def _get_app_path(self):
         """Get the application installation path"""
@@ -401,53 +429,226 @@ Tips:
                 threading.Thread(target=show_dialog, daemon=True).start()
             else:
                 self.show_notification("Help", "Opening help documentation in browser")
+        return 0
 
     def open_simkl(self, _=None):
         """Open the SIMKL website"""
         webbrowser.open("https://simkl.com")
+        return 0
 
     def open_simkl_history(self, _=None):
         """Open the SIMKL history page"""
         webbrowser.open("https://simkl.com/movies/history/")
+        return 0
 
-    def check_updates(self, _=None):
-        """Check for updates to the application"""
+    def check_updates_thread(self, _=None):
+        """Wrapper to run the update check logic in a separate thread"""
+        # Prevent multiple checks running simultaneously
+        if hasattr(self, '_update_check_running') and self._update_check_running:
+            logger.warning("Update check already in progress.")
+            return
+        self._update_check_running = True
+        threading.Thread(target=self._check_updates_logic, daemon=True).start()
+
+    def _check_updates_logic(self):
+        """Check for updates using the PowerShell script and update UI"""
         logger.info("Checking for updates...")
-        
-        import platform
-        import subprocess
-        import sys
-        from pathlib import Path
-        
-        system = platform.system().lower()
-        
+        self.show_notification("Checking for Updates", "Looking for updates to MPS for SIMKL...")
+
+        system = sys.platform.lower()
+        updater_script = 'updater.ps1' if system == 'win32' else 'updater.sh' # Adapt for other OS if needed
+        updater_path = self._get_updater_path(updater_script)
+
+        if not updater_path or not updater_path.exists():
+            logger.error(f"Updater script not found: {updater_path}")
+            self.show_notification("Update Error", "Updater script not found.")
+            self.update_info = None
+            self.update_icon() # Refresh menu
+            self._update_check_running = False
+            return
+
         try:
-            if system == 'windows':
-                # Windows update using PowerShell
-                from simkl_mps.cli import check_for_updates
-                check_for_updates(silent=False)
-            elif system == 'darwin':  # macOS
-                # Use macOS update script
-                updater_path = self._get_updater_path('updater.sh')
-                if updater_path.exists():
-                    subprocess.Popen(['bash', str(updater_path)])
-                else:
-                    self.show_notification("Update Error", "Updater script not found for macOS")
-            elif system == 'linux':
-                # Use Linux update script
-                updater_path = self._get_updater_path('updater.sh')
-                if updater_path.exists():
-                    subprocess.Popen(['bash', str(updater_path)])
-                else:
-                    self.show_notification("Update Error", "Updater script not found for Linux")
+            if system == 'win32':
+                command = ["powershell", "-ExecutionPolicy", "Bypass", "-File", str(updater_path), "-CheckOnly"]
+                # Hide PowerShell window
+                startupinfo = subprocess.STARTUPINFO()
+                startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+                startupinfo.wShowWindow = 0 # SW_HIDE
+                creationflags = subprocess.CREATE_NO_WINDOW
             else:
-                self.show_notification("Update Error", f"Updates not supported on {system}")
+                # Basic command for sh script (adapt if needed)
+                command = ["bash", str(updater_path), "--check-only"] # Assuming sh script supports --check-only
+                startupinfo = None
+                creationflags = 0
+
+            process = subprocess.run(
+                command,
+                capture_output=True,
+                text=True,
+                check=False, # Don't raise exception on non-zero exit code
+                startupinfo=startupinfo,
+                creationflags=creationflags,
+                encoding='utf-8' # Ensure correct decoding
+            )
+
+            stdout = process.stdout.strip()
+            stderr = process.stderr.strip()
+            exit_code = process.returncode
+
+            logger.info(f"Update check script exited with code: {exit_code}")
+            logger.debug(f"Update check stdout: {stdout}")
+            if stderr:
+                logger.error(f"Update check stderr: {stderr}")
+
+            # Process based on exit code first
+            if exit_code != 0:
+                 # Exit code 1 from PS script means check failed
+                if exit_code == 1 and system == 'win32':
+                    logger.error("Update check failed (script exit code 1).")
+                    self.show_notification("Update Check Failed", "Could not check for updates. Please try again later or check logs.")
+                else:
+                    # General script execution error
+                    logger.error(f"Update check script failed with exit code {exit_code}. Stderr: {stderr}")
+                    self.show_notification("Update Error", f"Failed to run update check script (Code: {exit_code}).")
+                self.update_info = None
+
+            # Process stdout if exit code was 0
+            elif stdout.startswith("UPDATE_AVAILABLE:"):
+                try:
+                    parts = stdout.split(" ", 2) # UPDATE_AVAILABLE: <version> <url>
+                    version = parts[1]
+                    url = parts[2]
+                    self.update_info = {'version': version, 'url': url}
+                    logger.info(f"Update found: Version {version}")
+                    self.show_notification("Update Available", f"Version {version} is available. Click 'Install Update' in the menu.")
+                except IndexError:
+                    logger.error(f"Could not parse UPDATE_AVAILABLE string: {stdout}")
+                    self.show_notification("Update Error", "Failed to parse update information.")
+                    self.update_info = None
+            elif stdout.startswith("NO_UPDATE:"):
+                try:
+                    version = stdout.split(" ", 1)[1]
+                    logger.info(f"No update available. Current version: {version}")
+                    self.show_notification("No Updates Available", f"You are already running the latest version ({version}).")
+                    self.update_info = None
+                except IndexError:
+                     logger.error(f"Could not parse NO_UPDATE string: {stdout}")
+                     self.show_notification("No Updates Available", "You are already running the latest version.")
+                     self.update_info = None
+            else:
+                # Unexpected output
+                logger.warning(f"Unexpected output from update check script: {stdout}")
+                self.show_notification("Update Check Info", "Update check completed with unclear results. Check logs.")
+                self.update_info = None
+
+        except FileNotFoundError:
+             logger.error(f"Error running update check: Command not found (powershell/bash?).")
+             self.show_notification("Update Error", "Required command (powershell/bash) not found.")
+             self.update_info = None
         except Exception as e:
-            logger.error(f"Error checking for updates: {e}")
-            self.show_notification("Update Error", f"Failed to check for updates: {e}")
+            logger.error(f"Error during update check: {e}", exc_info=True)
+            self.show_notification("Update Error", f"An error occurred during update check: {e}")
+            self.update_info = None
+        finally:
+            self.update_icon() # Refresh menu state
+            self._update_check_running = False
+
+
+    def install_update_thread(self, _=None):
+        """Wrapper to run the update installation logic in a separate thread"""
+         # Prevent multiple installs running simultaneously
+        if hasattr(self, '_update_install_running') and self._update_install_running:
+            logger.warning("Update installation already in progress.")
+            return
+        self._update_install_running = True
+        threading.Thread(target=self._install_update_logic, daemon=True).start()
+
+    def _install_update_logic(self):
+        """Install the update using the PowerShell script"""
+        if not self.update_info:
+            logger.error("Install update called but no update info available.")
+            self._update_install_running = False
+            return
+
+        version_to_install = self.update_info.get('version', 'Unknown')
+        logger.info(f"Starting installation for version {version_to_install}...")
+
+        # Clear update info and update menu immediately to prevent re-clicks
+        self.update_info = None
+        self.update_icon()
+
+        self.show_notification("Installing Update", f"Installing MPS for SIMKL version {version_to_install}...")
+
+        system = sys.platform.lower()
+        updater_script = 'updater.ps1' if system == 'win32' else 'updater.sh' # Adapt for other OS
+        updater_path = self._get_updater_path(updater_script)
+
+        if not updater_path or not updater_path.exists():
+            logger.error(f"Updater script not found for installation: {updater_path}")
+            self.show_notification("Update Error", "Updater script not found for installation.")
+            self._update_install_running = False
+            return
+
+        exit_code = -1 # Default to error
+        try:
+            if system == 'win32':
+                command = ["powershell", "-ExecutionPolicy", "Bypass", "-File", str(updater_path), "-SilentInstall"]
+                # Hide PowerShell window
+                startupinfo = subprocess.STARTUPINFO()
+                startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+                startupinfo.wShowWindow = 0 # SW_HIDE
+                creationflags = subprocess.CREATE_NO_WINDOW
+            else:
+                 # Basic command for sh script (adapt if needed)
+                command = ["bash", str(updater_path), "--silent-install"] # Assuming sh script supports --silent-install
+                startupinfo = None
+                creationflags = 0
+
+            process = subprocess.run(
+                command,
+                capture_output=True, # Capture output for logging
+                text=True,
+                check=False,
+                startupinfo=startupinfo,
+                creationflags=creationflags,
+                encoding='utf-8'
+            )
+
+            exit_code = process.returncode
+            stdout = process.stdout.strip()
+            stderr = process.stderr.strip()
+
+            logger.info(f"Update install script exited with code: {exit_code}")
+            if stdout: logger.debug(f"Install stdout: {stdout}")
+            if stderr: logger.error(f"Install stderr: {stderr}")
+
+            # Show notification based on exit code
+            if exit_code == 0:
+                self.show_notification("Update Successful", f"MPS for SIMKL version {version_to_install} installed successfully.")
+            elif exit_code == 1:
+                self.show_notification("Update Failed", "Installation failed: Could not check for updates.")
+            elif exit_code == 2:
+                self.show_notification("Update Failed", "Installation failed: Could not download the installer.")
+            elif exit_code == 4:
+                self.show_notification("Update Failed", "Installation process failed. Check updater logs.")
+            elif exit_code == 5:
+                 self.show_notification("Update Failed", "An unexpected error occurred during installation.")
+            else:
+                self.show_notification("Update Failed", f"Installation failed with unknown error code: {exit_code}.")
+
+        except FileNotFoundError:
+             logger.error(f"Error running update install: Command not found (powershell/bash?).")
+             self.show_notification("Update Error", "Required command (powershell/bash) not found.")
+        except Exception as e:
+            logger.error(f"Error during update installation: {e}", exc_info=True)
+            self.show_notification("Update Error", f"An error occurred during installation: {e}")
+        finally:
+            # No need to update menu here, already done at the start
+             self._update_install_running = False
+
 
     def _get_updater_path(self, filename):
-        """Get the path to the updater script"""
+        """Get the path to the updater script (ps1 or sh)"""
         import sys
         from pathlib import Path
         
@@ -624,6 +825,7 @@ Tips:
         # Final fallback: Print to console
         print(f"\n🔔 NOTIFICATION: {title}\n{message}\n")
         logger.info(f"Notification displayed in console: {title} - {message}")
+        return 0
 
     def run(self):
         """Run the tray application"""
@@ -652,6 +854,9 @@ Tips:
 
     def start_monitoring(self, _=None):
         """Start the scrobbler monitoring"""
+        # Check if this is a manual start (from the menu) vs. autostart
+        is_manual_start = _ is not None
+        
         if self.scrobbler and hasattr(self.scrobbler, 'monitor'):
             if not getattr(self.scrobbler.monitor, 'running', False):
                 self.monitoring_active = False
@@ -677,10 +882,16 @@ Tips:
                 if started:
                     self.monitoring_active = True
                     self.update_status("running")
-                    self.show_notification(
-                        "simkl-mps",
-                        "Media monitoring started"
-                    )
+                    
+                    # Only show notification if:
+                    # 1. This is the first run of the app after installation
+                    # 2. User manually started the app from the menu
+                    if self.is_first_run or is_manual_start:
+                        self.show_notification(
+                            "simkl-mps",
+                            "Media monitoring started"
+                        )
+                    
                     logger.info("Monitoring started from tray")
                     return True
                 else:
@@ -767,7 +978,9 @@ Tips:
                     "simkl-mps Error",
                     "Failed to process backlog"
                 )
+            return 0
         threading.Thread(target=_process, daemon=True).start()
+        return 0
 
     def open_logs(self, _=None):
         """Open the log file"""
@@ -797,6 +1010,7 @@ Tips:
             self.stop_monitoring()
         if self.tray_icon:
             self.tray_icon.stop()
+        return 0
 
     def _setup_auto_update_if_needed(self):
         """Set up auto-updates if this is the first run"""
@@ -872,6 +1086,62 @@ Tips:
         
         except Exception as e:
             logger.error(f"Error setting up auto-updates: {e}")
+
+    def check_first_run(self):
+        """Check if this is the first time the app is being run or manually started after being paused"""
+        try:
+            # Create a registry key to track app states on Windows
+            if sys.platform == 'win32':
+                import winreg
+                try:
+                    # Try to open the registry key
+                    registry_path = r"Software\kavinthangavel\Media Player Scrobbler for SIMKL"
+                    key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, registry_path, 0, 
+                                        winreg.KEY_READ | winreg.KEY_WRITE)
+                    
+                    # Check if this is the first run
+                    try:
+                        # If we can read the FirstRun value, it's not the first run
+                        first_run = winreg.QueryValueEx(key, "FirstRun")[0]
+                        self.is_first_run = False
+                    except FileNotFoundError:
+                        # If FirstRun value doesn't exist, this is the first run
+                        self.is_first_run = True
+                        winreg.SetValueEx(key, "FirstRun", 0, winreg.REG_DWORD, 1)
+                    except WindowsError:
+                        # If there's any other error, assume it's not first run
+                        self.is_first_run = False
+                        
+                    winreg.CloseKey(key)
+                    
+                except FileNotFoundError:
+                    # If the key doesn't exist, create it and mark as first run
+                    key = winreg.CreateKey(winreg.HKEY_CURRENT_USER, registry_path)
+                    winreg.SetValueEx(key, "FirstRun", 0, winreg.REG_DWORD, 1)
+                    winreg.CloseKey(key)
+                    self.is_first_run = True
+                except Exception as e:
+                    logger.warning(f"Error checking first run status in registry: {e}")
+                    # Assume not first run on error
+                    self.is_first_run = False
+            else:
+                # For non-Windows platforms, check for a first-run marker file
+                first_run_marker = APP_DATA_DIR / ".first_run_complete"
+                if first_run_marker.exists():
+                    self.is_first_run = False
+                else:
+                    self.is_first_run = True
+                    # Create the marker file for next time
+                    try:
+                        first_run_marker.touch()
+                    except Exception as e:
+                        logger.warning(f"Error creating first run marker file: {e}")
+            
+            logger.debug(f"First run check result: {self.is_first_run}")
+            
+        except Exception as e:
+            logger.error(f"Unexpected error in first run check: {e}")
+            self.is_first_run = False  # Default to not showing the notification on error
 
 def run_tray_app():
     """Run the application in tray mode"""

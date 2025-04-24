@@ -42,6 +42,10 @@ class Monitor:
         self.last_backlog_check = 0
         self.backlog_check_interval = backlog_check_interval
         self.search_callback = None
+        # Add a dictionary to track when we last searched for each title
+        self._last_search_attempts = {}
+        # Search cooldown period when offline (60 seconds)
+        self.offline_search_cooldown = 60
 
     def set_search_callback(self, callback):
         """Set the callback function for movie search"""
@@ -101,8 +105,21 @@ class Monitor:
                         
                         if scrobble_info and self.search_callback and not scrobble_info.get("simkl_id"):
                             title = scrobble_info.get("title", "Unknown")
-                            logger.info(f"Media identification required: '{title}'")
-                            self.search_callback(title)
+                            current_time = time.time()
+                            
+                            # Check if we've recently tried to search for this title
+                            last_attempt = self._last_search_attempts.get(title, 0)
+                            time_since_last_attempt = current_time - last_attempt
+                            
+                            # Only attempt search if it hasn't been tried recently during offline mode
+                            if time_since_last_attempt >= self.offline_search_cooldown:
+                                logger.info(f"Media identification required: '{title}'")
+                                # Record this attempt time before calling search
+                                self._last_search_attempts[title] = current_time
+                                self.search_callback(title)
+                            else:
+                                # If in cooldown period, don't spam logs with the same message
+                                logger.debug(f"Skipping repeated search for '{title}' (cooldown: {int(self.offline_search_cooldown - time_since_last_attempt)}s remaining)")
                         
                         break
                 

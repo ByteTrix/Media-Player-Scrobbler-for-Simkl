@@ -3,9 +3,10 @@
 # This script is called by the Inno Setup installer and can also be run manually or on schedule
 
 param (
-    [switch]$Silent = $false,
-    [switch]$Force = $false,
-    [switch]$CheckOnly = $false
+    [switch]$Silent = $false,         # Suppress non-essential console output (still logs to file)
+    [switch]$Force = $false,          # Force update check even if version matches
+    [switch]$CheckOnly = $false,      # Only check for updates, don't download or install
+    [switch]$SilentInstall = $false  # Perform installation silently without notifications/prompts
 )
 
 # Constants
@@ -120,15 +121,48 @@ function Compare-Versions {
     param([string]$Version1, [string]$Version2)
     
     try {
+        # Ensure versions are properly formatted by removing any leading 'v'
+        $Version1 = $Version1 -replace '^v', ''
+        $Version2 = $Version2 -replace '^v', ''
+        
+        # If versions are identical strings, return 0 immediately
+        if ($Version1 -eq $Version2) {
+            Write-Log "Versions are identical: $Version1 = $Version2"
+            return 0
+        }
+        
+        # Handle versions with different segment counts like "2.0" vs "2.0.0"
+        $V1Parts = $Version1.Split('.')
+        $V2Parts = $Version2.Split('.')
+        
+        # Pad the shorter version with zeros
+        if ($V1Parts.Length -ne $V2Parts.Length) {
+            $MaxLength = [Math]::Max($V1Parts.Length, $V2Parts.Length)
+            if ($V1Parts.Length -lt $MaxLength) {
+                $V1Parts = $V1Parts + (0..($MaxLength - $V1Parts.Length - 1) | ForEach-Object { "0" })
+                $Version1 = [string]::Join(".", $V1Parts)
+            }
+            if ($V2Parts.Length -lt $MaxLength) {
+                $V2Parts = $V2Parts + (0..($MaxLength - $V2Parts.Length - 1) | ForEach-Object { "0" })
+                $Version2 = [string]::Join(".", $V2Parts)
+            }
+            Write-Log "Normalized versions for comparison: $Version1 vs $Version2"
+        }
+        
+        # Parse as System.Version for proper comparison
         $V1 = [System.Version]::Parse($Version1)
         $V2 = [System.Version]::Parse($Version2)
         
-        return $V1.CompareTo($V2)
+        $Result = $V1.CompareTo($V2)
+        Write-Log "Version comparison result: $Result (>0 means $Version1 is newer than $Version2)"
+        return $Result
     }
     catch {
         Write-Log "Error comparing versions: $_"
-        # If we can't parse as System.Version, do a string comparison
-        return [string]::Compare($Version1, $Version2, $true)
+        # Last resort fallback to string comparison
+        if ($Version1 -eq $Version2) { return 0 }
+        elseif ($Version1 -gt $Version2) { return 1 }
+        else { return -1 }
     }
 }
 
@@ -150,6 +184,12 @@ function Get-LatestReleaseInfo {
             # Clean up version string (remove leading 'v' if present)
             $Version = $Response.tag_name -replace '^v', ''
             
+            # Ensure version is properly formatted with at least one decimal (e.g., convert "2" to "2.0")
+            if ($Version -notmatch '\.') {
+                $Version = "$Version.0"
+                Write-Log "Added decimal to version number: $Version"
+            }
+            
             $ReleaseInfo = @{
                 Version = $Version
                 PublishedAt = $Response.published_at
@@ -164,6 +204,13 @@ function Get-LatestReleaseInfo {
                     $ReleaseInfo.DownloadUrl = $Asset.browser_download_url
                     break
                 }
+            }
+            
+            Write-Log "Latest release found: v$Version released on $($Response.published_at)"
+            if ($ReleaseInfo.DownloadUrl) {
+                Write-Log "Installer URL: $($ReleaseInfo.DownloadUrl)"
+            } else {
+                Write-Log "Warning: No installer asset found in release"
             }
             
             return $ReleaseInfo
@@ -234,51 +281,77 @@ function Update-LastCheckTimestamp {
     Set-ItemProperty -Path $RegPath -Name "LastUpdateCheck" -Value $Timestamp
 }
 
-# Display a Windows notification
+# Display a Windows notification - simplified version that always works
+# Suppressed if $SilentInstall is true
 function Show-Notification {
     param (
         [string]$Title,
         [string]$Message
     )
 
+    # Suppress notifications during silent install
+    if ($SilentInstall) {
+        Write-Log "Notification suppressed (SilentInstall): $Title - $Message"
+        return
+    }
+
+    Write-Log "Showing notification: $Title - $Message"
+
+    # Use WPF dialog that mimics a notification without relying on OS notification system
     try {
-        # Load required assemblies for Windows 10 style notifications
-        [Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null
-        [Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom.XmlDocument, ContentType = WindowsRuntime] | Out-Null
-
-        # Get the template
-        $Template = [Windows.UI.Notifications.ToastTemplateType]::ToastText02
-        $XmlDocument = [Windows.UI.Notifications.ToastNotificationManager]::GetTemplateContent($Template)
-
-        # Set the title and message in the notification
-        $TextElements = $XmlDocument.GetElementsByTagName("text")
-        $TextElements[0].AppendChild($XmlDocument.CreateTextNode($Title)) | Out-Null
-        $TextElements[1].AppendChild($XmlDocument.CreateTextNode($Message)) | Out-Null
-
-        # Create the notification
-        $Toast = [Windows.UI.Notifications.ToastNotification]::new($XmlDocument)
-        $Toast.Tag = "MPSS-Update"
+        # Load required assemblies first to check if they exist
+        Add-Type -AssemblyName System.Windows.Forms
+        $notification = New-Object System.Windows.Forms.NotifyIcon
         
-        # Show the notification using the "MPS for SIMKL" app name
-        $Notifier = [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier("MPS for SIMKL")
-        $Notifier.Show($Toast)
+        # Try to find the app icon
+        $IconPath = $null
+        $PossibleIconPaths = @(
+            (Join-Path -Path $PSScriptRoot -ChildPath "..\simkl-mps.ico"),
+            (Join-Path -Path $PSScriptRoot -ChildPath "..\..\simkl-mps.ico"),
+            (Join-Path -Path (Split-Path $PSScriptRoot -Parent) -ChildPath "assets\simkl-mps.ico"),
+            "$env:ProgramFiles\Media Player Scrobbler for SIMKL\simkl-mps.ico",
+            "$env:LOCALAPPDATA\Programs\Media Player Scrobbler for SIMKL\simkl-mps.ico"
+        )
+        
+        foreach ($Path in $PossibleIconPaths) {
+            if (Test-Path $Path) {
+                $IconPath = $Path
+                break
+            }
+        }
+        
+        # Use system icon if we can't find the app icon
+        if ($IconPath -and (Test-Path $IconPath)) {
+            $notification.Icon = [System.Drawing.Icon]::ExtractAssociatedIcon($IconPath)
+        } else {
+            $notification.Icon = [System.Drawing.SystemIcons]::Information
+        }
+        
+        $notification.BalloonTipTitle = $Title
+        $notification.BalloonTipText = $Message
+        $notification.Visible = $true
+        $notification.ShowBalloonTip(10000)
+        
+        # Keep PowerShell process running long enough for notification to be seen
+        Start-Sleep -Seconds 5
+        $notification.Dispose()
+        
+        Write-Log "Successfully displayed Windows Forms notification"
+        return
     }
     catch {
-        # Fallback to PowerShell legacy notification method
-        try {
-            Add-Type -AssemblyName System.Windows.Forms
-            $notification = New-Object System.Windows.Forms.NotifyIcon
-            $notification.Icon = [System.Drawing.Icon]::ExtractAssociatedIcon((Get-Command powershell).Path)
-            $notification.BalloonTipIcon = "Info"
-            $notification.BalloonTipTitle = $Title
-            $notification.BalloonTipText = $Message
-            $notification.Visible = $true
-            $notification.ShowBalloonTip(10000)
-        }
-        catch {
-            # If notifications fail, just log it
-            Write-Log "Could not show notification: $_"
-        }
+        Write-Log "Error with Windows Forms notification: $_"
+    }
+    
+    # Fallback to MessageBox if notification fails
+    try {
+        Add-Type -AssemblyName System.Windows.Forms
+        [System.Windows.Forms.MessageBox]::Show($Message, $Title, 'OK', 'Information')
+        Write-Log "Displayed MessageBox as fallback"
+        return
+    }
+    catch {
+        Write-Log "All notification methods failed. Error: $_"
     }
 }
 
@@ -289,21 +362,70 @@ function Run-Installer {
     try {
         Write-Log "Running installer: $InstallerPath"
         
+        # Verify the installer file exists and has content
+        if (-not (Test-Path $InstallerPath)) {
+            Write-Log "ERROR: Installer file not found at $InstallerPath"
+            return $false
+        }
+        
+        $FileInfo = Get-Item $InstallerPath
+        if ($FileInfo.Length -lt 1000000) {  # Less than ~1MB is suspicious for an installer
+            Write-Log "WARNING: Installer file seems too small (${$FileInfo.Length} bytes)"
+        }
+        
+        # Create more robust installer arguments
         $Arguments = "/SILENT /SUPPRESSMSGBOXES /NORESTART"
         
         # For silent installations, we want to use the same installation dir
         $InstallDir = Get-InstallationPath
         if ($InstallDir) {
+            # Make sure there are no trailing backslashes that could break paths
+            $InstallDir = $InstallDir.TrimEnd('\')
             $Arguments += " /DIR=`"$InstallDir`""
+            Write-Log "Using existing installation directory: $InstallDir"
         }
         
         # Add tasks to preserve the user's choices
         $RegPath = "HKCU:\Software\$Publisher\$AppName"
+        $TasksString = ""
+        
+        # Check for desktop icon preference
+        $DesktopIcon = $false
         if (Test-Path $RegPath) {
-            $AutoUpdate = (Get-ItemProperty -Path $RegPath -Name "AutoUpdate" -ErrorAction SilentlyContinue).AutoUpdate
-            if ($AutoUpdate -eq 1) {
-                $Arguments += " /TASKS=`"autoupdate`""
+            $DesktopIcon = (Get-ItemProperty -Path $RegPath -Name "DesktopIcon" -ErrorAction SilentlyContinue).DesktopIcon
+        }
+        if ($DesktopIcon -eq 1) {
+            $TasksString += "desktopicon,"
+        }
+        
+        # Check for startup preference - default to true if not found
+        $StartupIcon = $true
+        if (Test-Path $RegPath) {
+            $StartupIconValue = (Get-ItemProperty -Path $RegPath -Name "StartupIcon" -ErrorAction SilentlyContinue).StartupIcon
+            if ($null -ne $StartupIconValue) {
+                $StartupIcon = ($StartupIconValue -eq 1)
             }
+        }
+        if ($StartupIcon) {
+            $TasksString += "startupicon,"
+        }
+        
+        # Check for auto-update preference
+        $AutoUpdate = $true  # Default to true
+        if (Test-Path $RegPath) {
+            $AutoUpdateValue = (Get-ItemProperty -Path $RegPath -Name "CheckUpdates" -ErrorAction SilentlyContinue).CheckUpdates
+            if ($null -ne $AutoUpdateValue) {
+                $AutoUpdate = ($AutoUpdateValue -eq 1)
+            }
+        }
+        if ($AutoUpdate) {
+            $TasksString += "scheduledupdate,"
+        }
+        
+        # Trim trailing comma and add to arguments if any tasks were specified
+        $TasksString = $TasksString.TrimEnd(',')
+        if ($TasksString) {
+            $Arguments += " /TASKS=`"$TasksString`""
         }
         
         # Log the command
@@ -315,20 +437,47 @@ function Run-Installer {
         
         Write-Log "Installer completed with exit code: $ExitCode"
         
-        if ($ExitCode -eq 0) {
-            Show-Notification "Update Successful" "Media Player Scrobbler for SIMKL has been updated successfully."
+        # Code 0 = success, Code 3010 = success but needs reboot
+        if ($ExitCode -eq 0 -or $ExitCode -eq 3010) {
+            if (-not $SilentInstall) {
+                if ($ExitCode -eq 3010) {
+                    Show-Notification "Update Successful - Restart Required" "Media Player Scrobbler for SIMKL has been updated successfully. Please restart your computer to complete the installation."
+                } else {
+                    Show-Notification "Update Successful" "Media Player Scrobbler for SIMKL has been updated successfully."
+                }
+            }
+
+            # Wait a moment before trying to restart the app
+            Start-Sleep -Seconds 2
+            
+            # Try to restart the application after update
+            try {
+                $InstallDir = Get-InstallationPath
+                if ($InstallDir -and (Test-Path "$InstallDir\MPS for Simkl.exe")) {
+                    Write-Log "Attempting to restart the application..."
+                    Start-Process -FilePath "$InstallDir\MPS for Simkl.exe" -ArgumentList "start"
+                }
+            }
+            catch {
+                Write-Log "Error restarting application: $_"
+            }
+            
             return $true
         }
         else {
             Write-Log "Update failed with exit code $ExitCode"
-            Show-Notification "Update Failed" "The update could not be completed. Exit code: $ExitCode"
-            return $false
+            if (-not $SilentInstall) {
+                Show-Notification "Update Failed" "The update could not be completed. Exit code: $ExitCode"
+            }
+            return $false # Indicate installer failure
         }
     }
     catch {
         Write-Log "Error running installer: $_"
-        Show-Notification "Update Error" "An error occurred during the update: $_"
-        return $false
+        if (-not $SilentInstall) {
+            Show-Notification "Update Error" "An error occurred during the update: $_"
+        }
+        return $false # Indicate installer failure
     }
 }
 
@@ -345,34 +494,57 @@ function Check-And-Install-Update {
     
     if ($null -eq $LatestRelease) {
         Write-Log "Failed to check for updates."
-        if (-not $Silent) {
+        if (-not $SilentInstall) { # Use SilentInstall to control user-facing notifications
             Show-Notification "Update Check Failed" "Could not check for updates. Please try again later."
         }
-        return $false
+        # Exit Code 1: Failed to check for updates
+        exit 1
     }
-    
+
     Write-Log "Latest version: $($LatestRelease.Version)"
     
     # Compare versions
     $CompareResult = Compare-Versions -Version1 $LatestRelease.Version -Version2 $CurrentVersion
+    # If current version is 0.0.0 or empty, always treat as update needed
+    if ($CurrentVersion -eq "0.0.0" -or [string]::IsNullOrWhiteSpace($CurrentVersion)) {
+        $CompareResult = 1
+        Write-Log "Current version is 0.0.0 or empty, forcing update available."
+    }
     
     if ($CompareResult -le 0 -and -not $ForceInstall) {
         Write-Log "Already running the latest version."
-        if (-not $Silent) {
+        if (-not $SilentInstall) { # Use SilentInstall to control user-facing notifications
             Show-Notification "No Updates Available" "You are already running the latest version ($CurrentVersion)."
         }
-        return $true
+        # Exit Code 0: Success (no update needed)
+        exit 0
     }
-    
-    # If this is only a check, notify about available update and exit
+
+    # If this is only a check, output status to stdout and exit
     if ($CheckOnly) {
-        Write-Log "Update available: $($LatestRelease.Version)"
-        Show-Notification "Update Available" "Version $($LatestRelease.Version) is available. Current version: $CurrentVersion"
-        return $true
+        if ($CompareResult > 0) {
+            Write-Log "Update available: $($LatestRelease.Version)"
+            # Output parsable string for calling application
+            Write-Host "UPDATE_AVAILABLE: $($LatestRelease.Version) $($LatestRelease.DownloadUrl)"
+            # Optionally show notification if not silent
+            if (-not $Silent -and -not $SilentInstall) {
+                 Show-Notification "Update Available" "Version $($LatestRelease.Version) is available. Current version: $CurrentVersion"
+            }
+        } else {
+            Write-Log "No update available - already on latest version $CurrentVersion"
+            # Output parsable string for calling application
+            Write-Host "NO_UPDATE: $CurrentVersion"
+             # Optionally show notification if not silent
+            if (-not $Silent -and -not $SilentInstall) {
+                 Show-Notification "No Updates Available" "You are already running the latest version ($CurrentVersion)."
+            }
+        }
+        # Exit Code 0: Success (check completed)
+        exit 0
     }
-    
-    # Confirm update if not silent or forced
-    if (-not $Silent -and -not $ForceInstall) {
+
+    # Confirm update if not silent or forced or silent install
+    if (-not $Silent -and -not $ForceInstall -and -not $SilentInstall) {
         $Confirmation = [System.Windows.Forms.MessageBox]::Show(
             "A new version ($($LatestRelease.Version)) of Media Player Scrobbler for SIMKL is available.`n`nCurrent version: $CurrentVersion`n`nDo you want to update now?",
             "Update Available",
@@ -382,49 +554,60 @@ function Check-And-Install-Update {
         
         if ($Confirmation -ne [System.Windows.Forms.DialogResult]::Yes) {
             Write-Log "Update canceled by user."
-            return $false
+            # Exit Code 0: User cancelled (not an error)
+            exit 0
         }
     }
-    
+
     # Check for download URL
     if (-not $LatestRelease.DownloadUrl) {
         Write-Log "No download URL found for the latest release."
-        if (-not $Silent) {
+        if (-not $SilentInstall) { # Use SilentInstall to control user-facing notifications
             Show-Notification "Update Error" "Could not find the download URL for the latest version."
         }
-        return $false
+        # Exit Code 2: Failed to find download URL (treat as download failure)
+        exit 2
     }
-    
+
     # Download the installer
     $InstallerPath = Download-Installer -Url $LatestRelease.DownloadUrl
     
     if (-not $InstallerPath) {
         Write-Log "Failed to download the installer."
-        if (-not $Silent) {
+        if (-not $SilentInstall) { # Use SilentInstall to control user-facing notifications
             Show-Notification "Update Error" "Could not download the update. Please try again later."
         }
-        return $false
+        # Exit Code 2: Failed to download
+        exit 2
     }
-    
+
     # Stop running instances
     $Stopped = Stop-RunningApps
     
     if (-not $Stopped) {
-        Write-Log "Failed to stop running applications."
-        if (-not $Silent) {
+        Write-Log "Failed to stop running applications. Update might fail."
+        if (-not $SilentInstall) { # Use SilentInstall to control user-facing notifications
             Show-Notification "Update Warning" "Could not stop all running instances. Update may fail."
         }
+        # Don't exit here, just warn. Installer might still work.
+        # Consider adding Exit Code 3 if this becomes critical
     }
-    
+
     # Run the installer
-    $Result = Run-Installer -InstallerPath $InstallerPath
-    
+    $InstallSuccess = Run-Installer -InstallerPath $InstallerPath
+
     # Clean up the temporary file
     if (Test-Path $InstallerPath) {
         Remove-Item -Path $InstallerPath -Force
     }
-    
-    return $Result
+
+    if (-not $InstallSuccess) {
+        # Exit Code 4: Installer failed
+        exit 4
+    }
+
+    # Exit Code 0: Success (update installed)
+    exit 0
 }
 
 # Main execution
@@ -434,28 +617,28 @@ try {
     
     Write-Log "========================================"
     Write-Log "MPSS Updater started with parameters:"
-    Write-Log "  Silent: $Silent"
-    Write-Log "  Force: $Force"
-    Write-Log "  CheckOnly: $CheckOnly"
-    
+    Write-Log "  Silent: $Silent"          # Console output suppressed
+    Write-Log "  Force: $Force"           # Force check/install
+    Write-Log "  CheckOnly: $CheckOnly"       # Only check, don't install
+    Write-Log "  SilentInstall: $SilentInstall" # Install without notifications/prompts
+
     # Update the "last check" timestamp
     Update-LastCheckTimestamp
     
     # Run the update check
-    $Result = Check-And-Install-Update -ForceInstall $Force
-    
-    if ($Result) {
-        Write-Log "Update process completed successfully."
-        exit 0
-    }
-    else {
-        Write-Log "Update process completed with errors."
-        exit 1
-    }
+    # Run the update check/install process
+    # The Check-And-Install-Update function now handles its own exit codes
+    Check-And-Install-Update -ForceInstall $Force
+
+    # Note: The script will exit within Check-And-Install-Update based on the outcome.
+    # This part might not be reached unless Check-And-Install-Update is modified further.
+    Write-Log "Updater script finished."
+    exit 0 # Default exit code if somehow reached here
+
 }
 catch {
     Write-Log "Unhandled exception in updater: $_"
-    if (-not $Silent) {
+    if (-not $SilentInstall) { # Use SilentInstall to control user-facing notifications
         [System.Windows.Forms.MessageBox]::Show(
             "An unexpected error occurred during the update process: $_",
             "Update Error",
@@ -463,5 +646,6 @@ catch {
             [System.Windows.Forms.MessageBoxIcon]::Error
         )
     }
-    exit 1
+    # Exit Code 5: Unhandled exception
+    exit 5
 }
