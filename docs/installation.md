@@ -12,7 +12,7 @@ This guide covers detailed installation instructions for Media Player Scrobbler 
 [Latest Release](https://github.com/kavinthangavel/Media-Player-Scrobbler-for-Simkl/releases/latest) 
 2. Follow the Terminal Instructions and Authenticate SIMKL
 3. Look at the Tray For MSP for Simkl.exe
-4. Setup Media Player for Best Accurate Scrobbling [Media Players Setup]
+4. Setup Media Player for Best Accurate Scrobbling [Media Players Setup](https://github.com/kavinthangavel/Media-Player-Scrobbler-for-Simkl/blob/main/docs/media-players.md#%EF%B8%8F-player-configuration-for-advanced-tracking)
 
 ##or
 
