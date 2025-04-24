@@ -10,8 +10,6 @@ This guide covers detailed installation instructions for Media Player Scrobbler 
 ## 🚀 Standard Installation
 
 
-For Windows
-
 ### Windows
 
 1. Download this And Install
