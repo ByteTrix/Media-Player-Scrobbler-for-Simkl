@@ -41,22 +41,22 @@ jobs:
             ### Windows
             - [MPSS_Setup_${{ inputs.version }}.exe](https://github.com/${{ github.repository }}/releases/download/v${{ inputs.version }}/MPSS_Setup_${{ inputs.version }}.exe)
             
-            ### macOS
-            - [MPSS_macOS.dmg](https://github.com/${{ github.repository }}/releases/download/v${{ inputs.version }}/MPSS_macOS.dmg) (Drag-and-drop installer)
-            - [MPSS_${{ inputs.version }}.pkg](https://github.com/${{ github.repository }}/releases/download/v${{ inputs.version }}/MPSS_${{ inputs.version }}.pkg) (Package installer)
+            # ### macOS
+            # - [MPSS_macOS.dmg](https://github.com/${{ github.repository }}/releases/download/v${{ inputs.version }}/MPSS_macOS.dmg) (Drag-and-drop installer)
+            # - [MPSS_${{ inputs.version }}.pkg](https://github.com/${{ github.repository }}/releases/download/v${{ inputs.version }}/MPSS_${{ inputs.version }}.pkg) (Package installer)
             
-            ### Linux
-            - [MPSS_${{ inputs.version }}.AppImage](https://github.com/${{ github.repository }}/releases/download/v${{ inputs.version }}/MPSS_${{ inputs.version }}.AppImage) (Universal AppImage - runs on most distros)
-            - [MPSS_${{ inputs.version }}_amd64.deb](https://github.com/${{ github.repository }}/releases/download/v${{ inputs.version }}/MPSS_${{ inputs.version }}_amd64.deb) (Debian/Ubuntu package)
+            # ### Linux
+            # - [MPSS_${{ inputs.version }}.AppImage](https://github.com/${{ github.repository }}/releases/download/v${{ inputs.version }}/MPSS_${{ inputs.version }}.AppImage) (Universal AppImage - runs on most distros)
+            # - [MPSS_${{ inputs.version }}_amd64.deb](https://github.com/${{ github.repository }}/releases/download/v${{ inputs.version }}/MPSS_${{ inputs.version }}_amd64.deb) (Debian/Ubuntu package)
             
             ![GitHub Downloads](https://img.shields.io/github/downloads/${{ github.repository }}/v${{ inputs.version }}/total)
           generate_release_notes: true
           files: |
             release-artifacts/windows-installer/*.exe
-            release-artifacts/macos-installers/*.dmg
-            release-artifacts/macos-installers/*.pkg
-            release-artifacts/linux-installers/*.AppImage
-            release-artifacts/linux-installers/*.deb
+            # release-artifacts/macos-installers/*.dmg
+            # release-artifacts/macos-installers/*.pkg
+            # release-artifacts/linux-installers/*.AppImage
+            # release-artifacts/linux-installers/*.deb
           draft: false
           prerelease: false
           make_latest: true

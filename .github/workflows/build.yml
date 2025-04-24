@@ -57,26 +57,27 @@ jobs:
       SIMKL_CLIENT_ID: ${{ secrets.SIMKL_CLIENT_ID }}
       SIMKL_CLIENT_SECRET: ${{ secrets.SIMKL_CLIENT_SECRET }}
 
-  build-macos:
-    needs: prepare-release
-    uses: ./.github/workflows/macos-build.yml
-    with:
-      version: ${{ needs.prepare-release.outputs.version }}
-    secrets:
-      SIMKL_CLIENT_ID: ${{ secrets.SIMKL_CLIENT_ID }}
-      SIMKL_CLIENT_SECRET: ${{ secrets.SIMKL_CLIENT_SECRET }}
+  # build-macos:
+  #   needs: prepare-release
+  #   uses: ./.github/workflows/macos-build.yml
+  #   with:
+  #     version: ${{ needs.prepare-release.outputs.version }}
+  #   secrets:
+  #     SIMKL_CLIENT_ID: ${{ secrets.SIMKL_CLIENT_ID }}
+  #     SIMKL_CLIENT_SECRET: ${{ secrets.SIMKL_CLIENT_SECRET }}
 
-  build-linux:
-    needs: prepare-release
-    uses: ./.github/workflows/linux-build.yml
-    with:
-      version: ${{ needs.prepare-release.outputs.version }}
-    secrets:
-      SIMKL_CLIENT_ID: ${{ secrets.SIMKL_CLIENT_ID }}
-      SIMKL_CLIENT_SECRET: ${{ secrets.SIMKL_CLIENT_SECRET }}
+  # build-linux:
+  #   needs: prepare-release
+  #   uses: ./.github/workflows/linux-build.yml
+  #   with:
+  #     version: ${{ needs.prepare-release.outputs.version }}
+  #   secrets:
+  #     SIMKL_CLIENT_ID: ${{ secrets.SIMKL_CLIENT_ID }}
+  #     SIMKL_CLIENT_SECRET: ${{ secrets.SIMKL_CLIENT_SECRET }}
 
   create-github-release:
-    needs: [prepare-release, publish-pypi, build-windows, build-macos, build-linux]
+    # needs: [prepare-release, publish-pypi, build-windows, build-macos, build-linux]
+    needs: [prepare-release, publish-pypi, build-windows]
     uses: ./.github/workflows/create-release.yml
     with:
       version: ${{ needs.prepare-release.outputs.version }}
