@@ -110,11 +110,19 @@ class MovieScrobbler:
         except Exception as e:
             logger.error(f"Failed to log playback event: {e} - Data: {log_entry}")
 
+        # Only send periodic "Scrobble Update" notifications if online or already completed
+        # This prevents spamming notifications while offline before completion.
         if event_type == "scrobble_update" and self.notification_callback:
-            self.notification_callback(
-                "Scrobble Update",
-                f"Movie: '{self.movie_name or self.currently_tracking}' (Duration: {self.estimated_duration // 60 if self.estimated_duration else 'Unknown'})\nID: {self.simkl_id or 'N/A'}"
-            )
+            # Import here to avoid circular dependency if moved to top
+            from .simkl_api import is_internet_connected
+            # Only send periodic "Scrobble Update" notifications if online.
+            # Offline completion is handled by the "Offline Scrobbling" notification in mark_as_watched.
+            if is_internet_connected():
+                self.notification_callback(
+                    "Scrobble Update",
+                    f"Movie: '{self.movie_name or self.currently_tracking}' (Duration: {self.estimated_duration // 60 if self.estimated_duration else 'Unknown'})\nID: {self.simkl_id or 'N/A'}"
+                )
+            # No need for an else clause here, as offline periodic updates are intentionally suppressed.
 
     def get_player_position_duration(self, process_name):
         """
@@ -255,6 +263,12 @@ class MovieScrobbler:
         self.simkl_id = None
         self.movie_name = None
 
+# Notify user that tracking has started
+        if self.notification_callback:
+            self.notification_callback(
+                "Tracking Started",
+                f"Started tracking: '{movie_title}'"
+            )
     def _update_tracking(self, window_info=None):
         """Update tracking for the current movie, including position and duration if possible."""
         current_time = time.time()
@@ -326,6 +340,13 @@ class MovieScrobbler:
             
             if completion_pct and completion_pct >= self.completion_threshold:
                  logger.info(f"Completion threshold ({self.completion_threshold}%) met for '{self.movie_name or self.currently_tracking}'")
+                 # Send notification exactly once when threshold is first met
+                 if self.notification_callback:
+                     self.notification_callback(
+                         f"Completion Threshold Reached ({self.completion_threshold}%)",
+                         f"Movie: '{self.movie_name or self.currently_tracking}'"
+                     )
+
                  self._log_playback_event("completion_threshold_reached")
                  
                  if self.simkl_id:
@@ -467,8 +488,8 @@ class MovieScrobbler:
                 
                 if self.notification_callback:
                     self.notification_callback(
-                        "Added to Offline Queue", 
-                        f"'{display_title}' will be marked as watched when back online"
+                        "Offline Scrobbling",
+                        f"'{display_title}' added to backlog. Will sync when online."
                     )
                 return False
             
@@ -554,6 +575,11 @@ class MovieScrobbler:
                         logger.info(f"[Offline Sync] Successfully marked '{title}' as watched on Simkl.")
                         self.backlog_cleaner.remove(simkl_id)
                         success_count += 1
+                        # Notify user about successful sync from backlog
+                        if self.notification_callback:
+                            self.notification_callback(
+                                "Synced from Backlog", f"'{title}' successfully synced to Simkl."
+                            )
                     else:
                         logger.warning(f"[Offline Sync] Failed to mark '{title}' as watched. Will retry.")
                 else:
@@ -565,6 +591,11 @@ class MovieScrobbler:
                     logger.info(f"[Offline Sync] Successfully marked '{title}' as watched on Simkl.")
                     self.backlog_cleaner.remove(simkl_id)
                     success_count += 1
+                    # Notify user about successful sync from backlog
+                    if self.notification_callback:
+                        self.notification_callback(
+                            "Synced from Backlog", f"'{title}' successfully synced to Simkl."
+                        )
                 else:
                     logger.warning(f"[Offline Sync] Failed to mark '{title}' as watched. Will retry.")
             else:

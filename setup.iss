@@ -144,7 +144,7 @@ Root: HKCU; Subkey: "Software\{#MyAppPublisher}\{#MyAppName}"; ValueType: string
 
 ; Custom app registration (for uninstall)
 Root: HKLM; Subkey: "Software\Microsoft\Windows\CurrentVersion\Uninstall\{{3FF84A4E-B9C2-4F49-A8DE-5F7EA15F5D88}_is1"; ValueType: string; ValueName: "DisplayIcon"; ValueData: "{app}\{#MyAppExeName}"; Flags: uninsdeletekey; Check: IsAdminInstallMode
-Root: HKLM; Subkey: "Software\Microsoft\Windows\CurrentVersion\Uninstall\{{3FF84A4E-B9C2-4F49-A8DE-5F7EA15F5D88}_is1"; ValueType: string; ValueName: "DisplayName"; ValueData: "{#MyAppName}"; Flags: uninsdeletekey; Check: IsAdminInstallMode
+Root: HKLM; Subkey: "Software\Microsoft\Windows\CurrentVersion\Uninstall\{{3FF84A4E-B9C2-4F49-A8DE-5F7EA15F5D88}_is1"; ValueType: string; ValueName: "DisplayName"; ValueData: "{#MyAppShortName}"; Flags: uninsdeletekey; Check: IsAdminInstallMode
 Root: HKLM; Subkey: "Software\Microsoft\Windows\CurrentVersion\Uninstall\{{3FF84A4E-B9C2-4F49-A8DE-5F7EA15F5D88}_is1"; ValueType: string; ValueName: "DisplayVersion"; ValueData: "{#MyAppVersion}"; Flags: uninsdeletekey; Check: IsAdminInstallMode
 Root: HKLM; Subkey: "Software\Microsoft\Windows\CurrentVersion\Uninstall\{{3FF84A4E-B9C2-4F49-A8DE-5F7EA15F5D88}_is1"; ValueType: string; ValueName: "Publisher"; ValueData: "{#MyAppPublisher}"; Flags: uninsdeletekey; Check: IsAdminInstallMode
 Root: HKLM; Subkey: "Software\Microsoft\Windows\CurrentVersion\Uninstall\{{3FF84A4E-B9C2-4F49-A8DE-5F7EA15F5D88}_is1"; ValueType: string; ValueName: "URLInfoAbout"; ValueData: "{#MyAppURL}"; Flags: uninsdeletekey; Check: IsAdminInstallMode
@@ -156,7 +156,7 @@ Root: HKLM; Subkey: "Software\Microsoft\Windows\CurrentVersion\Uninstall\{{3FF84
 
 ; User installation registry entries (non-admin installations)
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Uninstall\{{3FF84A4E-B9C2-4F49-A8DE-5F7EA15F5D88}_is1"; ValueType: string; ValueName: "DisplayIcon"; ValueData: "{app}\{#MyAppExeName}"; Flags: uninsdeletekey; Check: not IsAdminInstallMode
-Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Uninstall\{{3FF84A4E-B9C2-4F49-A8DE-5F7EA15F5D88}_is1"; ValueType: string; ValueName: "DisplayName"; ValueData: "{#MyAppName}"; Flags: uninsdeletekey; Check: not IsAdminInstallMode
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Uninstall\{{3FF84A4E-B9C2-4F49-A8DE-5F7EA15F5D88}_is1"; ValueType: string; ValueName: "DisplayName"; ValueData: "{#MyAppShortName}"; Flags: uninsdeletekey; Check: not IsAdminInstallMode
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Uninstall\{{3FF84A4E-B9C2-4F49-A8DE-5F7EA15F5D88}_is1"; ValueType: string; ValueName: "DisplayVersion"; ValueData: "{#MyAppVersion}"; Flags: uninsdeletekey; Check: not IsAdminInstallMode
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Uninstall\{{3FF84A4E-B9C2-4F49-A8DE-5F7EA15F5D88}_is1"; ValueType: string; ValueName: "Publisher"; ValueData: "{#MyAppPublisher}"; Flags: uninsdeletekey; Check: not IsAdminInstallMode
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Uninstall\{{3FF84A4E-B9C2-4F49-A8DE-5F7EA15F5D88}_is1"; ValueType: string; ValueName: "URLInfoAbout"; ValueData: "{#MyAppURL}"; Flags: uninsdeletekey; Check: not IsAdminInstallMode
@@ -179,6 +179,7 @@ Root: HKCU; Subkey: "Software\{#MyAppPublisher}\{#MyAppName}"; ValueType: dword;
 
 [Code]
 const
+  MyAppIdGuid = '{3FF84A4E-B9C2-4F49-A8DE-5F7EA15F5D88}'; // Define the AppId GUID as a script constant
   CONFIG_FOLDER = 'simkl-mps';
   TASK_NAME = 'kavinthangavel.MediaPlayerScrobblerForSIMKL.UpdateCheck';
 
@@ -305,9 +306,23 @@ begin
       end;
       
       // Also clean registry entries
+      Log('Deleting application specific registry keys...');
       RegDeleteKeyIncludingSubkeys(HKCU, 'Software\{#MyAppPublisher}\{#MyAppName}');
       if IsAdminInstallMode then
         RegDeleteKeyIncludingSubkeys(HKLM, 'Software\{#MyAppPublisher}\{#MyAppName}');
+
+      // Explicitly delete Uninstall registry keys for good measure
+      Log('Deleting Uninstall registry keys...');
+      RegDeleteKeyIncludingSubkeys(HKCU, 'Software\Microsoft\Windows\CurrentVersion\Uninstall\' + MyAppIdGuid + '_is1');
+      if IsAdminInstallMode then
+        RegDeleteKeyIncludingSubkeys(HKLM, 'Software\Microsoft\Windows\CurrentVersion\Uninstall\' + MyAppIdGuid + '_is1');
+    end;
+
+    // Attempt to remove the main application directory as a final step
+    Log('Attempting to remove application directory: ' + ExpandConstant('{app}'));
+    if not DelTree(ExpandConstant('{app}'), True, True, True) then
+    begin
+      Log('Failed to remove application directory with DelTree: ' + ExpandConstant('{app}'));
     end;
   end;
 end;
