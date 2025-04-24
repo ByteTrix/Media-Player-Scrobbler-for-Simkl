@@ -9,6 +9,16 @@ This guide covers detailed installation instructions for Media Player Scrobbler 
 
 ## 🚀 Standard Installation
 
+
+For Windows
+
+### Windows
+
+1. Download this And Install
+[Latest Release](https://github.com/kavinthangavel/Media-Player-Scrobbler-for-Simkl/releases/latest) 
+2. Follow the Terminal Instructions and Authenticate SIMKL
+3. Look at the Tray For MSP for Simkl.exe
+
 ```bash
 # Install using pip
 pip install simkl-mps
@@ -23,8 +33,6 @@ The initialization process will guide you through authentication with Simkl usin
 
 ## 💻 Platform-Specific Requirements
 
-### Windows
-No additional requirements.
 
 ### macOS
 For full functionality:
