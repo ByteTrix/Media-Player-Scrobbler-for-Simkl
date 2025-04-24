@@ -13,7 +13,6 @@ on:
     tags:
       - 'v*'
 
-# Add permissions at the workflow level
 permissions:
   contents: write
   id-token: write
@@ -87,4 +86,4 @@ jobs:
     with:
       version: ${{ needs.prepare-release.outputs.version }}
     secrets:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      RELEASE_TOKEN: ${{ secrets.GITHUB_TOKEN }}
