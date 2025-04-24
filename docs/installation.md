@@ -17,6 +17,8 @@ This guide covers detailed installation instructions for Media Player Scrobbler 
 2. Follow the Terminal Instructions and Authenticate SIMKL
 3. Look at the Tray For MSP for Simkl.exe
 
+or
+
 ```bash
 # Install using pip
 pip install simkl-mps
