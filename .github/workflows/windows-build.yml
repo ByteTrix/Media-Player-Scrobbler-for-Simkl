@@ -63,15 +63,7 @@ jobs:
         run: |
           pip install pyinstaller
           
-          # Create a patch script that will run before PyInstaller to fix collections issue
-          echo "import collections.abc, collections" > patch.py
-          echo "for abc_class in ['MutableMapping', 'Mapping', 'Sequence', 'MutableSequence', 'Set', 'MutableSet']:" >> patch.py
-          echo "    if not hasattr(collections, abc_class):" >> patch.py
-          echo "        setattr(collections, abc_class, getattr(collections.abc, abc_class))" >> patch.py
-          echo "print('Applied compatibility patches for collections module')" >> patch.py
-          
-          # Run PyInstaller with the patch applied via environment variable
-          $env:PYTHONSTARTUP = "patch.py"
+          # Patch is now included directly in simkl-mps.spec
           python -m PyInstaller --clean simkl-mps.spec
 
       - name: Test PyInstaller build
