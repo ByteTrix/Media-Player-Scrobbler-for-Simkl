@@ -1,11 +1,16 @@
 [tool.poetry]
 name = "simkl-mps"
-version = "1.0.0"
+version = "2.0.1"
 description = "Automatic Media Scrobbler for Simkl"
-authors = ["kavinthangavel <kavinthangavel.dev@gmail.com>"]
+authors = [
+    "kavinthangavel <kavinthangavel.dev@gmail.com>",
+]
 license = "GPL-3.0"
 readme = "README.md"
-keywords = ["simkl", "scrobbler"]
+keywords = [
+    "simkl",
+    "scrobbler",
+]
 homepage = "https://github.com/kavinthangavel/media-player-scrobbler-for-simkl"
 repository = "https://github.com/kavinthangavel/media-player-scrobbler-for-simkl"
 classifiers = [
@@ -13,9 +18,11 @@ classifiers = [
     "Intended Audience :: End Users/Desktop",
     "Operating System :: OS Independent",
     "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
-    "Programming Language :: Python :: 3"
+    "Programming Language :: Python :: 3",
 ]
-packages = [{include = "simkl_mps"}]
+packages = [
+    { include = "simkl_mps" },
+]
 
 [tool.poetry.dependencies]
 python = ">=3.9,<3.14"
@@ -28,29 +35,51 @@ pystray = ">=0.19.0"
 pillow = ">=11.2.0"
 plyer = ">=2.0.0"
 
-# Platform-specific dependencies
-pygetwindow = { version = ">=0.0.9", markers = "sys_platform == 'win32'" }
-pywin32 = { version = ">=300", markers = "sys_platform == 'win32'" }
-python-xlib = { version = ">=0.31", optional = true, markers = "sys_platform == 'linux'" }
-pyobjc = { version = ">=7.3", optional = true, markers = "sys_platform == 'darwin'" }
-PyGObject = { version = ">=3.42.0", optional = true, markers = "sys_platform == 'linux' and python_version >= '3.9' and python_version < '4.0'" }
+[tool.poetry.dependencies.pygetwindow]
+version = ">=0.0.9"
+markers = "sys_platform == 'win32'"
+
+[tool.poetry.dependencies.pywin32]
+version = ">=300"
+markers = "sys_platform == 'win32'"
+
+[tool.poetry.dependencies.python-xlib]
+version = ">=0.31"
+optional = true
+markers = "sys_platform == 'linux'"
+
+[tool.poetry.dependencies.pyobjc]
+version = ">=7.3"
+optional = true
+markers = "sys_platform == 'darwin'"
+
+[tool.poetry.dependencies.PyGObject]
+version = ">=3.42.0"
+optional = true
+markers = "sys_platform == 'linux' and python_version >= '3.9' and python_version < '4.0'"
 
 [tool.poetry.group.dev.dependencies]
 pytest = ">=6.2.5"
-flake8 = ">=5,<8" # Use v5 for Python 3.7 compatibility
+flake8 = ">=5,<8"
 pytest-mock = ">=3.6.1"
-requests = ">=2.25.0" # Add requests here too for mocking context
-types-requests = ">=2.25.0" # For type hints when mocking requests
+requests = ">=2.25.0"
+types-requests = ">=2.25.0"
 pyinstaller = "^6.13.0"
 
 [tool.poetry.scripts]
 simkl-mps = "simkl_mps.cli:main"
 
-
 [tool.poetry.extras]
-linux = ["python-xlib", "PyGObject"]
-macos = ["pyobjc"]
+linux = [
+    "python-xlib",
+    "PyGObject",
+]
+macos = [
+    "pyobjc",
+]
 
 [build-system]
-requires = ["poetry-core>=1.0.0"]
+requires = [
+    "poetry-core>=1.0.0",
+]
 build-backend = "poetry.core.masonry.api"
