@@ -56,7 +56,7 @@ graph LR
     C -->|Track Progress| D[Simkl API]
     D -->|Mark as Watched| E[Simkl Profile]
     
-    style A fill:#f9d5e5,stroke:#333,stroke-width:2px
+    style A fill:#d5f5e3,stroke:#333,stroke-width:2px
     style E fill:#d5f5e3,stroke:#333,stroke-width:2px
 ```
 
