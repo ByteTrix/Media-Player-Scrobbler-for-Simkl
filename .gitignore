@@ -53,3 +53,11 @@ build_installer.bat
 update_wiki.py
 push_to_wiki.py
 gitpush_wiki.py
+
+# Code signing files
+*.pfx
+*.p12
+*.pem
+*.cer
+code_signing_key.txt
+simkl_mps/utils/av_submission_helper.py
