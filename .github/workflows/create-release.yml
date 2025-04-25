@@ -243,3 +243,8 @@ jobs:
           # if [ -n "$LINUX_DEB" ]; then
           #   gh release upload "v$VERSION" "$LINUX_DEB" --clobber
           # fi
+          
+      - name: Delete all workflow artifacts after release
+        uses: geekyeggo/delete-artifact@v5
+        with:
+          name: '*'      
