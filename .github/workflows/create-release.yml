@@ -19,6 +19,34 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for tag verification
+
+      - name: Verify signed tag
+        run: |
+          echo "Verifying tag signature for v${{ inputs.version }}..."
+          
+          # Fetch all tags
+          git fetch --tags
+          
+          # Verify that the tag exists
+          if ! git tag -l "v${{ inputs.version }}" | grep -q "v${{ inputs.version }}"; then
+            echo "::error::Tag v${{ inputs.version }} not found!"
+            exit 1
+          fi
+          
+          # Attempt to verify the tag signature
+          if git verify-tag "v${{ inputs.version }}" 2>&1 | grep -q "Good signature"; then
+            echo "✅ Tag v${{ inputs.version }} has a valid GPG signature!"
+          else
+            echo "::warning::Tag v${{ inputs.version }} is not GPG-signed or has an invalid signature."
+            echo "For verified releases, please use a GPG-signed tag:"
+            echo "  git tag -s v${{ inputs.version }} -m \"Release version ${{ inputs.version }}\""
+            echo "  git push origin v${{ inputs.version }}"
+            
+            # Uncomment the next line if you want to enforce signed tags
+            # exit 1
+          fi
 
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -107,10 +135,10 @@ jobs:
             --notes "# MPSS Release $VERSION
 
           ## Verification
-            
+          
           This release was built using GitHub Actions workflow run #${{ github.run_number }} (ID: ${{ github.run_id }}). 
           You can verify the authenticity of this build by checking the SHA256 checksums and signature files included with this release.
-            
+          
           View the build: https://github.com/kavinthangavel/Media-Player-Scrobbler-for-Simkl/actions/runs/${{ github.run_id }}" \
             --generate-notes \
             --discussion-category "Releases"

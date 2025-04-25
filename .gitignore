@@ -66,3 +66,6 @@ build_nosign.bat
 simkl_mps/utils/av_submission/av_submission_info.txt
 version_manager.py
 gpg-key-config.txt
+sign_tag.bat
+gpg_sign_tag.bat
+fix_gpg_key.bat
