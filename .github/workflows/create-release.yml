@@ -23,8 +23,20 @@ jobs:
           fetch-depth: 0  # Full history for tag verification
 
       - name: Verify signed tag
+        env:
+          GPG_PUBLIC_KEY: ${{ secrets.GPG_PUBLIC_KEY }} # Add secret to env
         run: |
           echo "Verifying tag signature for v${{ inputs.version }}..."
+          
+          # Import GPG public key
+          if [ -n "$GPG_PUBLIC_KEY" ]; then
+            echo "$GPG_PUBLIC_KEY" | gpg --import -
+            echo "GPG Public Key imported."
+            echo "Available GPG keys:"
+            gpg --list-keys # List keys for debugging
+          else
+            echo "::warning:: GPG_PUBLIC_KEY secret not found. Cannot import key for tag verification."
+          fi
           
           # Check if tag exists in local repository
           if ! git tag -l "v${{ inputs.version }}" | grep -q "v${{ inputs.version }}"; then
