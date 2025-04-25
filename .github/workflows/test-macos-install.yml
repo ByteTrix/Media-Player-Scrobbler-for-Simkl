@@ -12,6 +12,9 @@ on:
     types:
       - completed
 
+permissions:
+  contents: read
+
 jobs:
   test-macos-install:
     runs-on: macos-latest

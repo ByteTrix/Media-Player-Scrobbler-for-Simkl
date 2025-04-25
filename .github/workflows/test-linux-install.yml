@@ -12,6 +12,9 @@ on:
     types:
       - completed
 
+permissions:
+  contents: read
+
 jobs:
   test-linux-install:
     runs-on: ubuntu-latest
@@ -148,7 +151,7 @@ jobs:
           fi
           
           # Return to previous directory
-          cd ..
+          cd ..          
           
           # Optional: Install the package in a Docker container for full testing
           # This part is commented out since it would need more setup

@@ -7,9 +7,13 @@ on:
         required: true
         type: string
 
+permissions: # Default permissions for all jobs
+  contents: read
+
 jobs:
   generate-build-info:
     runs-on: ubuntu-latest
+    # No need to override permissions as they inherit from workflow level
     outputs:
       build_info_path: ${{ steps.create-build-info.outputs.build_info_path }}
       sha256_path: ${{ steps.create-checksums.outputs.sha256_path }}
