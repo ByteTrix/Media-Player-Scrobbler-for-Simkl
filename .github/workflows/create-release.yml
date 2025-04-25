@@ -15,6 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      id-token: write  # Required for provenance
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -63,34 +64,65 @@ jobs:
           
           View the build: https://github.com/kavinthangavel/Media-Player-Scrobbler-for-Simkl/actions/runs/${{ github.run_id }}
           EOF
+
+      - name: Setup GitHub CLI
+        run: |
+          gh --version || (
+            echo "Installing GitHub CLI..."
+            curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+            echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+            sudo apt update
+            sudo apt install gh
+          )
           
-      - name: Create Release
-        id: create_release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v${{ inputs.version }}
-          name: Release ${{ inputs.version }}
-          body: |
-            # MPSS Release ${{ inputs.version }}
-            
-            ## Verification
-            
-            This release was built using GitHub Actions workflow run #${{ github.run_number }} (ID: ${{ github.run_id }}). 
-            You can verify the authenticity of this build by checking the SHA256 checksums and signature files included with this release.
-            
-            View the build: https://github.com/kavinthangavel/Media-Player-Scrobbler-for-Simkl/actions/runs/${{ github.run_id }}
-            
-          generate_release_notes: true
-          files: |
-            release-artifacts/windows-installer/*.exe
-            verification-info/*
-          # release-artifacts/macos-installers/*.dmg
-          # release-artifacts/macos-installers/*.pkg
-          # release-artifacts/linux-installers/*.AppImage
-          # release-artifacts/linux-installers/*.deb
-          draft: false
-          prerelease: false
-          make_latest: true
-          discussion_category_name: "Releases"
+      - name: Create Release with Provenance
         env:
           GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+        run: |
+          VERSION="${{ inputs.version }}"
+          
+          # Find executable installer
+          WINDOWS_INSTALLER=$(find release-artifacts/windows-installer -name "*.exe" | head -1)
+          
+          # Create release with provenance
+          gh release create "v$VERSION" \
+            --title "Release $VERSION" \
+            --notes "# MPSS Release $VERSION
+
+          ## Verification
+            
+          This release was built using GitHub Actions workflow run #${{ github.run_number }} (ID: ${{ github.run_id }}). 
+          You can verify the authenticity of this build by checking the SHA256 checksums and signature files included with this release.
+            
+          View the build: https://github.com/kavinthangavel/Media-Player-Scrobbler-for-Simkl/actions/runs/${{ github.run_id }}" \
+            --generate-notes \
+            --discussion-category "Releases"
+          
+          # Upload verification info
+          find verification-info -type f | while read file; do
+            gh release upload "v$VERSION" "$file" --clobber
+          done
+          
+          # Upload Windows installer with provenance
+          if [ -n "$WINDOWS_INSTALLER" ]; then
+            gh release upload "v$VERSION" "$WINDOWS_INSTALLER" --clobber
+          fi
+          
+          # Upload other installers if we have them (commented out for now)
+          # MACOS_DMG=$(find release-artifacts/macos-installers -name "*.dmg" | head -1)
+          # MACOS_PKG=$(find release-artifacts/macos-installers -name "*.pkg" | head -1)
+          # LINUX_APPIMAGE=$(find release-artifacts/linux-installers -name "*.AppImage" | head -1)
+          # LINUX_DEB=$(find release-artifacts/linux-installers -name "*.deb" | head -1)
+          
+          # if [ -n "$MACOS_DMG" ]; then
+          #   gh release upload "v$VERSION" "$MACOS_DMG" --clobber
+          # fi
+          # if [ -n "$MACOS_PKG" ]; then
+          #   gh release upload "v$VERSION" "$MACOS_PKG" --clobber
+          # fi
+          # if [ -n "$LINUX_APPIMAGE" ]; then
+          #   gh release upload "v$VERSION" "$LINUX_APPIMAGE" --clobber
+          # fi
+          # if [ -n "$LINUX_DEB" ]; then
+          #   gh release upload "v$VERSION" "$LINUX_DEB" --clobber
+          # fi

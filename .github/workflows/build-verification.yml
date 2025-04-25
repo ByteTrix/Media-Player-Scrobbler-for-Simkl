@@ -9,11 +9,11 @@ on:
 
 permissions: # Default permissions for all jobs
   contents: read
+  id-token: write # Required for Sigstore OIDC attestation
 
 jobs:
   generate-build-info:
     runs-on: ubuntu-latest
-    # No need to override permissions as they inherit from workflow level
     outputs:
       build_info_path: ${{ steps.create-build-info.outputs.build_info_path }}
       sha256_path: ${{ steps.create-checksums.outputs.sha256_path }}
@@ -49,9 +49,6 @@ jobs:
   sign-release:
     needs: generate-build-info
     runs-on: ubuntu-latest
-    permissions:
-      id-token: write # Required for Sigstore OIDC
-      contents: read
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -80,6 +77,14 @@ jobs:
           cosign sign-blob --yes SHA256SUMS.txt --output-signature SHA256SUMS.txt.sig
           echo "Signed checksums file with Sigstore/cosign"
 
+      # Add additional SLSA provenance for better GitHub verification
+      - name: Generate SLSA provenance
+        uses: slsa-framework/slsa-github-generator@v1.10.0
+        with:
+          base64-subjects-as-input: $(find all-artifacts -type f -not -path "*/\.*" -name "*.exe" | sort | xargs sha256sum | base64 -w0)
+          provenance-name: windows-installer-provenance.json
+          upload-assets: true
+
       - name: Upload signed artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -87,3 +92,4 @@ jobs:
           path: |
             SHA256SUMS.txt
             SHA256SUMS.txt.sig
+            *-provenance.json
