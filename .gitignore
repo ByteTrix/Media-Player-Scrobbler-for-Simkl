@@ -43,6 +43,7 @@ Thumbs.db
 
 # Wiki temporary directory
 wiki_temp/
+wiki_repo/
 tag_version.py
 simkl-scrobbler.spec
 generate_icon.py
