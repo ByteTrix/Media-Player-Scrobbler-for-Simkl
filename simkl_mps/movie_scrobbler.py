@@ -16,11 +16,11 @@ import threading
 from collections import deque
 
 # Import is_internet_connected at the top level for broader use
-from .simkl_api import mark_as_watched, is_internet_connected
-from .backlog_cleaner import BacklogCleaner
-from .window_detection import parse_movie_title, is_video_player
-from .media_cache import MediaCache
-from .utils.constants import PLAYING, PAUSED, STOPPED, DEFAULT_POLL_INTERVAL
+from simkl_mps.simkl_api import mark_as_watched, is_internet_connected
+from simkl_mps.backlog_cleaner import BacklogCleaner
+from simkl_mps.window_detection import parse_movie_title, is_video_player
+from simkl_mps.media_cache import MediaCache
+from simkl_mps.utils.constants import PLAYING, PAUSED, STOPPED, DEFAULT_POLL_INTERVAL
 
 logger = logging.getLogger(__name__)
 

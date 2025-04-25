@@ -10,9 +10,9 @@ import signal
 import threading
 import pathlib
 import logging
-from .monitor import Monitor
-from .simkl_api import search_movie, get_movie_details, is_internet_connected
-from .credentials import get_credentials
+from simkl_mps.monitor import Monitor
+from simkl_mps.simkl_api import search_movie, get_movie_details, is_internet_connected
+from simkl_mps.credentials import get_credentials
 
 APP_NAME = "simkl-mps"
 USER_SUBDIR = "kavinthangavel"

@@ -299,160 +299,206 @@ def get_user_settings(client_id, access_token):
     except requests.exceptions.RequestException as e:
         logger.error(f"Simkl API: Error getting user settings: {e}", exc_info=True)
         return None
-def get_device_code(client_id):
-    """
-    Initiates the Simkl OAuth device authentication flow.
 
+def pin_auth_flow(client_id, redirect_uri="urn:ietf:wg:oauth:2.0:oob"):
+    """
+    Implements the OAuth 2.0 device authorization flow for Simkl authentication.
+    
     Args:
-        client_id (str): The Simkl application client ID.
-
+        client_id (str): Simkl API client ID
+        redirect_uri (str, optional): OAuth redirect URI. Defaults to device flow URI.
+        
     Returns:
-        dict | None: A dictionary containing 'user_code', 'verification_url',
-                      'device_code', 'interval', and 'expires_in', or None on error.
+        str | None: The access token if authentication succeeds, None otherwise.
     """
-    if not client_id:
-        logger.error("Simkl API: Client ID is required to initiate device authentication.")
+    import time
+    import requests
+    import webbrowser
+    from pathlib import Path
+    from simkl_mps.credentials import get_env_file_path
+    
+    logger.info("Starting Simkl PIN authentication flow")
+    
+    if not is_internet_connected():
+        logger.error("Cannot start authentication flow: no internet connection")
+        print("[ERROR] No internet connection detected. Please check your connection and try again.")
         return None
-    url = f"{SIMKL_API_BASE_URL}/oauth/pin?client_id={client_id}"
-    headers = {'Content-Type': 'application/json'}
-    headers = _add_user_agent(headers)
-    logger.info("Simkl API: Requesting device code for authentication...")
+    
+    # Step 1: Request device code
     try:
-        response = requests.get(url, headers=headers)
-        response.raise_for_status()
-        data = response.json()
-        if all(k in data for k in ("user_code", "verification_url", "device_code")):
-            logger.info("Simkl API: Device code received successfully.")
-            return data
-        else:
-            logger.error(f"Simkl API: Unexpected response format from device code endpoint: {data}")
-            return None
+        headers = _add_user_agent({"Content-Type": "application/json"})
+        resp = requests.get(
+            f"{SIMKL_API_BASE_URL}/oauth/pin",
+            params={"client_id": client_id, "redirect": redirect_uri},
+            headers=headers,
+            timeout=10
+        )
+        resp.raise_for_status()
+        data = resp.json()
     except requests.exceptions.RequestException as e:
-        logger.error(f"Simkl API: Error requesting device code: {e}", exc_info=True)
-        if e.response is not None:
-            logger.error(f"Simkl API: Response status: {e.response.status_code}")
-            try: 
-                logger.error(f"Simkl API: Response body: {e.response.json()}")
-            except: 
-                logger.error(f"Simkl API: Response body: {e.response.text}")
-    return None
-
-def poll_for_token(client_id, user_code, interval, expires_in):
-    """Polls Simkl to check if the user has authorized the device."""
-    if not client_id or not user_code:
-        logger.error("Missing arguments for poll_for_token.")
+        logger.error(f"Failed to initiate PIN auth: {e}", exc_info=True)
+        print("[ERROR] Could not contact Simkl for authentication. Please check your internet connection and try again.")
         return None
-
-    url = f"{SIMKL_API_BASE_URL}/oauth/pin/{user_code}?client_id={client_id}"
-    headers = {
-        'Content-Type': 'application/json',
-        'simkl-api-key': client_id
-    }
-    headers = _add_user_agent(headers)
-    print("Waiting for user authorization (this may take a minute)...")
     
-    time.sleep(18)
+    # Extract authentication parameters
+    user_code = data["user_code"]
+    verification_url = data["verification_url"]
+    expires_in = data.get("expires_in", 900)  # Default to 15 minutes if not provided
+    pin_url = f"https://simkl.com/pin/{user_code}"
+    interval = data.get("interval", 5)  # Default poll interval of 5 seconds
     
+    # Display authentication instructions
+    print("\n=== Simkl Authentication ===")
+    print(f"1. We've opened your browser to: {pin_url}")
+    print(f"   (If it didn't open, copy and paste this URL into your browser.)")
+    print(f"2. Or go to: {verification_url} and enter the code: {user_code}")
+    print(f"   (Code: {user_code})")
+    print(f"   (You have {expires_in//60} minutes to complete authentication.)\n")
+    
+    # Open browser for user convenience
+    try:
+        # Use https:// protocol explicitly to avoid unknown protocol errors
+        webbrowser.open(f"https://simkl.com/pin/{user_code}")
+    except Exception as e:
+        logger.warning(f"Failed to open browser: {e}")
+        # Continue anyway, as user can manually navigate
+    
+    print("Waiting for you to authorize this application...")
+    
+    # Step 2: Poll for access token with adaptive backoff
     start_time = time.time()
-    poll_count = 0
+    poll_headers = _add_user_agent({"Content-Type": "application/json"})
+    current_interval = interval
+    timeout_warning_shown = False
     
     while time.time() - start_time < expires_in:
-        poll_count += 1
+        # Show a reminder halfway through the expiration time
+        elapsed = time.time() - start_time
+        if elapsed > (expires_in / 2) and not timeout_warning_shown:
+            remaining_mins = int((expires_in - elapsed) / 60)
+            print(f"\n[!] Reminder: You have about {remaining_mins} minutes left to complete authentication.")
+            timeout_warning_shown = True
+        
         try:
-            response = requests.get(url, headers=headers)
+            poll = requests.get(
+                f"{SIMKL_API_BASE_URL}/oauth/pin/{user_code}",
+                params={"client_id": client_id},
+                headers=poll_headers,
+                timeout=10
+            )
             
-            response_data = None
-            try:
-                response_data = response.json()
-            except ValueError:
-                logger.warning(f"Non-JSON response: {response.text}")
+            if poll.status_code != 200:
+                logger.warning(f"Pin verification returned status {poll.status_code}, retrying...")
+                time.sleep(current_interval)
+                continue
+                
+            result = poll.json()
             
-            if response.status_code == 200:
-                if not response_data:
-                    logger.warning("Empty response with status 200")
-                    time.sleep(interval)
-                    continue
+            if result.get("result") == "OK":
+                access_token = result.get("access_token")
+                if access_token:
+                    # Success! Save the token
+                    print("\n[✓] Authentication successful!")
                     
-                if response_data.get('result') == 'OK' and 'access_token' in response_data:
-                    print("[NICE] Authorization successful!")
-                    return response_data
-                elif response_data.get('result') == 'KO':
-                    print("✗ Authorization denied by user")
-                    return None
+                    # Save token to .env file
+                    env_path = get_env_file_path()
+                    if not _save_access_token(env_path, access_token):
+                        print("[!] Warning: Couldn't save access token to file, but you can still use it for this session.")
+                    else:
+                        print(f"[✓] Access token saved to: {env_path}\n")
+                    
+                    # Important: After success, navigate the user back to Simkl main page to complete the experience
+                    try:
+                        webbrowser.open("https://simkl.com/")
+                    except Exception as e:
+                        logger.warning(f"Failed to open browser after authentication: {e}")
+                    
+                    # Validate the token works
+                    if _validate_access_token(client_id, access_token):
+                        logger.info("Access token validated successfully")
+                        return access_token
+                    else:
+                        logger.error("Access token validation failed")
+                        print("[ERROR] Authentication completed but token validation failed. Please try again.")
+                        return None
+                        
+            elif result.get("result") == "KO":
+                msg = result.get("message", "")
+                if msg == "Authorization pending":
+                    # Normal state while waiting for user
+                    time.sleep(current_interval)
+                elif msg == "Slow down":
+                    # API rate limiting, increase interval
+                    logger.warning("Received 'Slow down' response, increasing polling interval")
+                    current_interval = min(current_interval * 2, 30)  # Max 30 seconds
+                    time.sleep(current_interval)
                 else:
-                    if poll_count % 3 == 0:
-                        print(f"Still waiting for authorization... ({int(time.time() - start_time)}s elapsed)")
-                    time.sleep(interval)
-            
-            elif response.status_code == 400:
-                if poll_count % 10 == 0:
-                    print(".", end="", flush=True)
-                time.sleep(interval)
-                
-            elif response.status_code == 404:
-                print("✗ Device code expired or not found")
-                return None
-                
+                    logger.error(f"Authentication failed: {msg}")
+                    print(f"[ERROR] Authentication failed: {msg}")
+                    return None
             else:
-                logger.warning(f"Unexpected status code: {response.status_code}")
-                if response_data:
-                    logger.warning("Response data contains unexpected content. Logging skipped for security reasons.")
-                time.sleep(interval)
+                time.sleep(current_interval)
                 
         except requests.exceptions.RequestException as e:
-            logger.error(f"Network error while polling: {str(e)}")
-            time.sleep(2)
-
-    print("\n Authentication timed out")
+            logger.warning(f"Network error during polling: {e}")
+            # Implement exponential backoff for connection issues
+            current_interval = min(current_interval * 1.5, 20)
+            time.sleep(current_interval)
+    
+    print("[ERROR] Authentication timed out. Please try again.")
     return None
 
-def authenticate(client_id=None):
-    """
-    Handles the complete Simkl OAuth device authentication flow.
+def _save_access_token(env_path, access_token):
+    """Helper function to save access token to .env file"""
+    try:
+        from pathlib import Path
+        
+        env_path = Path(env_path)
+        env_dir = env_path.parent
+        
+        # Create directory if it doesn't exist
+        if not env_dir.exists():
+            env_dir.mkdir(parents=True, exist_ok=True)
+        
+        lines = []
+        if env_path.exists():
+            with open(env_path, "r", encoding="utf-8") as f:
+                lines = f.readlines()
+        
+        # Update or add the access token
+        found = False
+        for i, line in enumerate(lines):
+            if line.strip().startswith("SIMKL_ACCESS_TOKEN="):
+                lines[i] = f"SIMKL_ACCESS_TOKEN={access_token}\n"
+                found = True
+                break
+        
+        if not found:
+            lines.append(f"SIMKL_ACCESS_TOKEN={access_token}\n")
+        
+        with open(env_path, "w", encoding="utf-8") as f:
+            f.writelines(lines)
+        
+        return True
+    except Exception as e:
+        logger.error(f"Failed to save access token: {e}", exc_info=True)
+        return False
 
-    Args:
-        client_id (str): The Simkl application client ID.
-
-    Returns:
-        str | None: The obtained access token, or None if authentication fails.
-    """
-    if not client_id:
-        logger.critical("Simkl API: Authentication cannot proceed without a Client ID.")
-        return None
-
-    logger.info("Initiating Simkl Device Authentication...")
-    device_info = get_device_code(client_id)
-    if not device_info:
-        logger.error("Simkl API: Failed to obtain device code.")
-        print("ERROR: Could not obtain device code from Simkl.")
-        return None
-
-    user_code = device_info.get('user_code')
-    verification_url = device_info.get('verification_url')
-    interval = max(device_info.get('interval', 5), 3)
-    expires_in = 60
-    logger.info(f"Simkl API: Using auth interval={interval}s, expires_in={expires_in}s.")
-
-    if not all([user_code, verification_url]):
-        logger.error("Simkl API: Incomplete device information received from Simkl.")
-        print("ERROR: Incomplete authentication information received from Simkl.")
-        return None
-
-    print("=" * 60)
-    print("ACTION REQUIRED:")
-    print(f"1. Go to: {verification_url}")
-    print(f"2. Enter the code: {user_code}")
-    print(f"   (Code is valid for approximately {int(expires_in/60)} minute(s))")
-    print("=" * 60)
-
-    access_token_info = poll_for_token(client_id, user_code, interval, expires_in)
-
-    if access_token_info and 'access_token' in access_token_info:
-        token = access_token_info['access_token']
-        logger.info("Simkl API: Authentication successful, token obtained.")
-        print("\nAuthentication Complete. Access token received.\n")
-        return token
-    else:
-        logger.error("Simkl API: Authentication process failed, timed out, or was denied.")
-        print("\nERROR: Authentication failed, timed out, or was denied by user.\nIf you need more time, please run the 'init' command again.")
-        return None
+def _validate_access_token(client_id, access_token):
+    """Verify the access token works by making a simple API call"""
+    try:
+        headers = {
+            'Content-Type': 'application/json',
+            'simkl-api-key': client_id,
+            'Authorization': f'Bearer {access_token}'
+        }
+        headers = _add_user_agent(headers)
+        
+        response = requests.get(
+            f'{SIMKL_API_BASE_URL}/users/settings', 
+            headers=headers,
+            timeout=10
+        )
+        return response.status_code == 200
+    except:
+        return False
