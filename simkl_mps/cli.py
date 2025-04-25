@@ -15,68 +15,43 @@ import json
 from pathlib import Path
 from colorama import Fore, Style
 
-VERSION = "1.0.0"  # Default fallback version
+VERSION = "unknown" # Default fallback version
 
 def get_version():
-    """Get version information dynamically, using modern approaches."""
+    """Get version information dynamically."""
+    global VERSION # Allow modification of the global VERSION
 
+    # 1. Try importlib.metadata (for installed package)
     try:
-
         for pkg_name in ['simkl-mps', 'simkl_mps']:
             try:
-                return importlib.metadata.version(pkg_name)
+                VERSION = importlib.metadata.version(pkg_name)
+                return VERSION
             except importlib.metadata.PackageNotFoundError:
                 pass
-    except (ImportError, AttributeError):
-        pass
-
-    try:
-        import subprocess
-        try:
-
-            result = subprocess.run(
-                ['git', 'describe', '--tags', '--always'],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                check=False
-            )
-            if result.returncode == 0 and result.stdout:
-                return result.stdout.strip()
-        except (subprocess.SubprocessError, FileNotFoundError):
-            pass
     except ImportError:
-        pass
+        logger.debug("importlib.metadata not available.")
+        pass # Ignore if importlib.metadata is not available
 
+    # 2. Try __version__ from __init__.py (for development source)
     try:
         from simkl_mps import __version__
-        return __version__
+        VERSION = __version__
+        return VERSION
     except (ImportError, AttributeError):
-        pass
+         logger.debug("Could not import __version__ from simkl_mps.")
+         pass
 
-    try:
-
-        import simkl_mps
-        pkg_dir = Path(simkl_mps.__file__).parent
-        version_file = pkg_dir / 'VERSION'
-        if version_file.exists():
-            return version_file.read_text().strip()
-    except (ImportError, AttributeError, OSError):
-        pass
-
+    # 3. Fallback (already set)
+    logger.warning(f"Could not determine version dynamically, using fallback: {VERSION}")
     return VERSION
 
+# Initialize VERSION by calling get_version()
 VERSION = get_version()
 
+# Removed early exit for version flags - argparse will handle this.
 
-if len(sys.argv) > 1 and sys.argv[1] in ["--version", "-v", "version"]:
-    print(f"simkl-mps v{VERSION}")
-    print(f"Python: {sys.version.split()[0]}")
-    print(f"Platform: {sys.platform}")
-    sys.exit(0)
-
-# from simkl_mps.simkl_api import authenticate
-from simkl_mps.simkl_api import pin_auth_flow
+from simkl_mps.simkl_api import pin_auth_flow, get_user_settings # Added get_user_settings
 from simkl_mps.credentials import get_credentials, get_env_file_path
 from simkl_mps.main import SimklScrobbler, APP_DATA_DIR # Import APP_DATA_DIR for log path display
 from simkl_mps.tray_app import run_tray_app
@@ -148,13 +123,20 @@ def init_command(args):
             print(f"{Fore.RED}ERROR: Authentication failed or was cancelled.{Style.RESET_ALL}", file=sys.stderr)
             return 1
         print(f"{Fore.GREEN}✓ Access token saved successfully.{Style.RESET_ALL}")
-        access_token = new_access_token
-    print(f"Verifying application configuration...")
-    verifier_scrobbler = SimklScrobbler()
-    if not verifier_scrobbler.initialize():
-        print(f"{Fore.RED}ERROR: Configuration verification failed. Check logs for details: {APP_DATA_DIR / 'simkl_mps.log'}{Style.RESET_ALL}", file=sys.stderr)
-        print(f"{Fore.YELLOW}Hint: If the token seems valid but verification fails, check Simkl API status or report a bug.{Style.RESET_ALL}")
+        access_token = new_access_token # Use the newly obtained token
+
+    print(f"Verifying application configuration by checking API access...")
+    # Use get_user_settings for a lightweight verification check
+    user_settings = get_user_settings(client_id, access_token)
+    if not user_settings:
+        print(f"{Fore.RED}ERROR: Configuration verification failed. Could not connect to Simkl API with the current credentials.{Style.RESET_ALL}", file=sys.stderr)
+        print(f"{Fore.YELLOW}Hint: Check your internet connection, Simkl API status, or try re-initializing ('simkl-mps init').{Style.RESET_ALL}")
+        print(f"{Fore.YELLOW}Log file: {APP_DATA_DIR / 'simkl_mps.log'}{Style.RESET_ALL}")
         return 1
+    else:
+        user_id = user_settings.get('user_id', 'N/A')
+        print(f"{Fore.GREEN}✓ API connection verified successfully (User ID: {user_id}).{Style.RESET_ALL}")
+
     print(f"{Fore.GREEN}Initialization Complete!{Style.RESET_ALL}")
     print(f"To start monitoring and scrobbling, run: {Fore.WHITE}simkl-mps start{Style.RESET_ALL}")
     return 0
@@ -465,9 +447,10 @@ def main():
     parser = create_parser()
     args = parser.parse_args()
 
-    if getattr(args, 'version', False):
-        return version_command(args)
+    # Removed redundant version check here - argparse handles it via the 'version' action/command.
 
+    # If no command was provided (e.g., just 'simkl-mps'), print help.
+    # Note: 'required=True' in add_subparsers makes this less likely, but good practice.
     if not hasattr(args, 'command') or not args.command:
         parser.print_help()
         return 0

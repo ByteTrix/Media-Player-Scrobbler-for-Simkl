@@ -206,11 +206,14 @@ class TrayApp:
             pystray.Menu.SEPARATOR,
         ]
 
-        # Add Start/Pause item
-        if self.status == "running" or self.status == "active":
-            menu_items.append(pystray.MenuItem("Pause", self.pause_monitoring))
-        else:
-            menu_items.append(pystray.MenuItem("Start", self.start_monitoring))
+        # Add Start/Stop item (Renamed from Pause)
+        if self.status == "running":
+             # If running, show "Stop"
+            menu_items.append(pystray.MenuItem("Stop Monitoring", self.stop_monitoring))
+        elif self.status == "stopped" or self.status == "error" or self.status == "paused":
+             # If stopped, paused, or error, show "Start"
+            menu_items.append(pystray.MenuItem("Start Monitoring", self.start_monitoring))
+        # Note: 'paused' state might need review if true pause/resume is implemented later
 
         # Add Tools submenu
         menu_items.append(pystray.Menu.SEPARATOR)
@@ -292,15 +295,7 @@ class TrayApp:
                 import pkg_resources
                 version = pkg_resources.get_distribution("simkl-mps").version
             except (pkg_resources.DistributionNotFound, ImportError):
-                # 2. Check for version.txt file
-                version_file = Path(self._get_app_path()) / "version.txt"
-                if version_file.exists():
-                    try:
-                        version = version_file.read_text().strip()
-                    except:
-                        pass
-                        
-                # 3. Try to get from registry (Windows)
+                # 2. Try to get from registry (Windows) - Removed version.txt check
                 if version == "Unknown" and sys.platform == 'win32':
                     try:
                         import winreg
@@ -367,13 +362,7 @@ Automatically track and scrobble your media to SIMKL."""
             self.show_notification("About", "Media Player Scrobbler for SIMKL")
         return 0
 
-    def _get_app_path(self):
-        """Get the application installation path"""
-        if getattr(sys, 'frozen', False):
-            return Path(sys.executable).parent
-        else:
-            import simkl_mps
-            return Path(simkl_mps.__file__).parent.parent
+    # Removed unused _get_app_path method
 
     def show_help(self, _=None):
         """Show help information"""
@@ -437,7 +426,18 @@ Tips:
             creds = get_credentials()
             client_id = creds.get("client_id")
             access_token = creds.get("access_token")
-
+            
+            # First, check if we have the user ID stored in credentials
+            user_id = creds.get("user_id")
+            
+            if user_id:
+                logger.info(f"Using stored user ID from credentials: {user_id}")
+                history_url = f"https://simkl.com/{user_id}/stats/seen/"
+                logger.info(f"Opening SIMKL history URL: {history_url}")
+                webbrowser.open(history_url)
+                return
+                
+            # If no stored user ID, we need to fetch it from the API
             if not client_id or not access_token:
                 logger.error("Cannot open history: Missing credentials.")
                 self.show_notification("Error", "Missing credentials to fetch user history.")
@@ -449,6 +449,13 @@ Tips:
                 history_url = f"https://simkl.com/{user_id}/stats/seen/"
                 logger.info(f"Opening SIMKL history URL: {history_url}")
                 webbrowser.open(history_url)
+                
+                # Save the user ID for future use
+                from simkl_mps.simkl_api import _save_access_token
+                from simkl_mps.credentials import get_env_file_path
+                env_path = get_env_file_path()
+                _save_access_token(env_path, access_token, user_id)
+                logger.info(f"Saved user ID {user_id} to credentials file for future use")
             else:
                 logger.error("Could not retrieve user ID from Simkl settings.")
                 self.show_notification("Error", "Could not retrieve user ID to open history.")
@@ -826,38 +833,18 @@ Tips:
                 return False
         return True
 
-    def pause_monitoring(self, _=None):
-        """Pause monitoring (actually pause scrobbling, not just stop)"""
-        if self.monitoring_active and self.status == "running":
-            if hasattr(self.scrobbler, "pause"):
-                self.scrobbler.pause()
-            else:
-                self.scrobbler.stop()
-            self.update_status("paused")
-            self.show_notification(
-                "simkl-mps",
-                "Monitoring paused"
-            )
-            logger.info("Monitoring paused from tray")
-
-    def resume_monitoring(self, _=None):
-        """Resume monitoring from paused state"""
-        if self.monitoring_active and self.status == "paused":
-            if hasattr(self.scrobbler, "resume"):
-                self.scrobbler.resume()
-            else:
-                self.scrobbler.start()
-            self.update_status("running")
-            self.show_notification(
-                "simkl-mps",
-                "Monitoring resumed"
-            )
-            logger.info("Monitoring resumed from tray")
+    # Removed pause_monitoring and resume_monitoring as they were effectively stop/start.
+    # Kept stop_monitoring and start_monitoring.
 
     def stop_monitoring(self, _=None):
         """Stop the scrobbler monitoring"""
         if self.monitoring_active:
-            self.scrobbler.stop()
+            logger.info("Stop monitoring requested from tray.")
+            # Ensure scrobbler exists before trying to stop
+            if self.scrobbler:
+                self.scrobbler.stop()
+            else:
+                logger.warning("Stop monitoring called, but scrobbler instance is None.")
             self.monitoring_active = False
             self.update_status("stopped")
             self.show_notification(

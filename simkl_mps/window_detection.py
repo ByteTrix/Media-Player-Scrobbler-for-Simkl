@@ -89,24 +89,8 @@ VIDEO_PLAYER_EXECUTABLES = {
 
 CURRENT_PLATFORM_PLAYERS = VIDEO_PLAYER_EXECUTABLES.get(PLATFORM, [])
 
-VIDEO_PLAYER_KEYWORDS = [
-    'VLC',
-    'MPC-HC',
-    'MPC-BE',
-    'Windows Media Player',
-    'mpv',
-    'PotPlayer',
-    'SMPlayer',
-    'KMPlayer',
-    'GOM Player',
-    'Media Player Classic',
-    'IINA',
-    'QuickTime Player',
-    'Elmedia Player',
-    'Movist',
-    'Totem',
-    'Celluloid',
-]
+# Removed unused VIDEO_PLAYER_KEYWORDS list.
+# Player detection relies on VIDEO_PLAYER_EXECUTABLES.
 
 def get_process_name_from_hwnd(hwnd):
     """Get the process name from a window handle - Windows-specific function."""

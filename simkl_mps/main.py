@@ -13,6 +13,9 @@ import logging
 from simkl_mps.monitor import Monitor
 from simkl_mps.simkl_api import search_movie, get_movie_details, is_internet_connected
 from simkl_mps.credentials import get_credentials
+class ConfigurationError(Exception):
+    """Custom exception for configuration loading errors."""
+    pass
 
 APP_NAME = "simkl-mps"
 USER_SUBDIR = "kavinthangavel"
@@ -58,11 +61,11 @@ def load_configuration():
     """
     Loads necessary credentials using the credentials module.
 
-    Exits the application with a critical error if essential credentials
-    (Client ID, Client Secret, Access Token) are missing.
+    Raises:
+        ConfigurationError: If essential credentials (Client ID, Client Secret, Access Token) are missing.
 
     Returns:
-        tuple[str, str]: A tuple containing the client_id and access_token.
+        dict: The credentials dictionary containing 'client_id', 'client_secret', 'access_token', etc.
     """
     logger.info("Loading application configuration...")
     creds = get_credentials()
@@ -71,20 +74,20 @@ def load_configuration():
     access_token = creds.get("access_token")
 
     if not client_id:
-        logger.critical("Configuration Error: Client ID not found. This might indicate a build issue.")
-        print("CRITICAL ERROR: Application Client ID is missing. Please check the installation or build process.", file=sys.stderr)
-        sys.exit(1)
+        msg = "Client ID not found. Check installation/build or dev environment."
+        logger.critical(f"Configuration Error: {msg}")
+        raise ConfigurationError(msg)
     if not client_secret:
-        logger.critical("Configuration Error: Client Secret not found. This might indicate a build issue.")
-        print("CRITICAL ERROR: Application Client Secret is missing. Please check the installation or build process.", file=sys.stderr)
-        sys.exit(1)
+        msg = "Client Secret not found. Check installation/build or dev environment."
+        logger.critical(f"Configuration Error: {msg}")
+        raise ConfigurationError(msg)
     if not access_token:
-        logger.critical("Configuration Error: Access Token not found. Please run initialization.")
-        print("ERROR: Access Token is missing. Please run 'simkl-mps init' to authenticate.", file=sys.stderr)
-        sys.exit(1)
+        msg = "Access Token not found. Please run 'simkl-mps init' to authenticate."
+        logger.critical(f"Configuration Error: {msg}")
+        raise ConfigurationError(msg)
 
     logger.info("Application configuration loaded successfully.")
-    return client_id, access_token
+    return creds # Return the whole dictionary
 
 class SimklScrobbler:
     """
@@ -107,14 +110,23 @@ class SimklScrobbler:
         """
         logger.info("Initializing Media Player Scrobbler for SIMKL core components...")
         try:
-            self.client_id, self.access_token = load_configuration()
-        except SystemExit:
-             logger.error("Initialization failed due to configuration errors.")
+            # Load configuration - raises ConfigurationError on failure
+            creds = load_configuration()
+            self.client_id = creds.get("client_id")
+            self.access_token = creds.get("access_token")
+
+        except ConfigurationError as e:
+             logger.error(f"Initialization failed: {e}")
+             # Print user-friendly message based on the specific error
+             print(f"ERROR: {e}", file=sys.stderr)
              return False
         except Exception as e:
+            # Catch any other unexpected errors during loading
             logger.exception(f"Unexpected error during configuration loading: {e}")
+            print(f"CRITICAL ERROR: An unexpected error occurred during initialization. Check logs.", file=sys.stderr)
             return False
 
+        # Set credentials in the monitor using the loaded values
         self.monitor.set_credentials(self.client_id, self.access_token)
 
         logger.info("Processing scrobble backlog...")
@@ -180,62 +192,71 @@ class SimklScrobbler:
         Callback function provided to the Monitor for movie identification.
 
         Searches Simkl for the movie title, retrieves details (like runtime),
-        and caches the information via the Monitor.
+        and caches the information via the Monitor's scrobbler.
 
         Args:
             title (str): The movie title extracted by the monitor.
         """
         if not title:
-            logger.warning("Monitor Callback: Received empty title for search.")
+            logger.warning("Search Callback: Received empty title.")
             return
-            
-        if not self.client_id or not self.access_token:
-             logger.error(f"Monitor Callback: Missing credentials when searching for '{title}'.")
-             return
 
-        logger.info(f"Monitor Callback: Searching Simkl for title: '{title}'")
+        logger.info(f"Search Callback: Identifying title: '{title}'")
 
         if not is_internet_connected():
-            logger.warning(f"Monitor Callback: Cannot search for '{title}', no internet connection.")
+            # Logged within is_internet_connected if it fails multiple times
+            logger.debug(f"Search Callback: Cannot search for '{title}', no internet connection.")
             return
 
         try:
-            movie = search_movie(title, self.client_id, self.access_token)
-            if not movie:
-                logger.warning(f"Monitor Callback: No Simkl match found for '{title}'.")
+            # Search for the movie using the API
+            search_result = search_movie(title, self.client_id, self.access_token)
+            if not search_result:
+                logger.warning(f"Search Callback: No Simkl match found for '{title}'.")
+                # Optionally cache the negative result to avoid repeated searches?
+                # self.monitor.cache_movie_info(title, None, None, None) # Consider adding this
                 return
 
+            # Extract Simkl ID and official title
             simkl_id = None
-            movie_name = title
-            runtime = None
+            movie_name = title # Default to original title
+            runtime_minutes = None
 
-            ids_dict = movie.get('ids') or movie.get('movie', {}).get('ids')
+            # Handle different possible structures of the search result
+            ids_dict = search_result.get('ids') or search_result.get('movie', {}).get('ids')
             if ids_dict:
                 simkl_id = ids_dict.get('simkl') or ids_dict.get('simkl_id')
 
             if simkl_id:
-                 movie_name = movie.get('title') or movie.get('movie', {}).get('title', title)
-                 logger.info(f"Monitor Callback: Found Simkl ID {simkl_id} for '{movie_name}'. Fetching details...")
+                # Use the title from the Simkl result if available
+                movie_name = search_result.get('title') or search_result.get('movie', {}).get('title', title)
+                logger.info(f"Search Callback: Found Simkl ID {simkl_id} for '{movie_name}'. Fetching details...")
 
-                 try:
-                     details = get_movie_details(simkl_id, self.client_id, self.access_token)
-                     if details and 'runtime' in details:
-                         runtime = details.get('runtime')
-                         if runtime:
-                             logger.info(f"Monitor Callback: Retrieved runtime: {runtime} minutes for ID {simkl_id}.")
-                         else:
-                              logger.warning(f"Monitor Callback: Runtime is present but empty/zero for ID {simkl_id}.")
-                     else:
-                          logger.warning(f"Monitor Callback: Could not retrieve runtime details for ID {simkl_id}.")
-                 except Exception as detail_error:
-                     logger.error(f"Monitor Callback: Error fetching details for ID {simkl_id}: {detail_error}", exc_info=True)
+                # Fetch detailed information (including runtime)
+                try:
+                    details = get_movie_details(simkl_id, self.client_id, self.access_token)
+                    if details:
+                        runtime_minutes = details.get('runtime')
+                        if runtime_minutes:
+                            logger.info(f"Search Callback: Retrieved runtime: {runtime_minutes} minutes for ID {simkl_id}.")
+                        else:
+                            logger.warning(f"Search Callback: Runtime missing or zero in details for ID {simkl_id}.")
+                    else:
+                        logger.warning(f"Search Callback: Could not retrieve details for ID {simkl_id}.")
+                except Exception as detail_error:
+                    logger.error(f"Search Callback: Error fetching details for ID {simkl_id}: {detail_error}", exc_info=True)
 
-                 self.monitor.cache_movie_info(title, simkl_id, movie_name, runtime)
-                 logger.info(f"Monitor Callback: Cached info for '{title}' -> '{movie_name}' (ID: {simkl_id}, Runtime: {runtime})")
+                # Cache the found information (original title -> simkl info)
+                self.monitor.cache_movie_info(title, simkl_id, movie_name, runtime_minutes)
+                logger.info(f"Search Callback: Cached info: '{title}' -> '{movie_name}' (ID: {simkl_id}, Runtime: {runtime_minutes})")
             else:
-                logger.warning(f"Monitor Callback: No Simkl ID could be extracted for '{title}'.")
+                logger.warning(f"Search Callback: No Simkl ID could be extracted from search result for '{title}'.")
+                # Optionally cache negative result here too
+                # self.monitor.cache_movie_info(title, None, None, None)
+
         except Exception as e:
-            logger.exception(f"Monitor Callback: Unexpected error during search/cache for '{title}': {e}")
+            # Catch unexpected errors during the API interaction or processing
+            logger.exception(f"Search Callback: Unexpected error during search/cache for '{title}': {e}")
 
 def run_as_background_service():
     """
