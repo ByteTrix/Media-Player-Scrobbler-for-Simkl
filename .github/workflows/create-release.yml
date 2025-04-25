@@ -80,9 +80,6 @@ jobs:
             
             View the build: https://github.com/kavinthangavel/Media-Player-Scrobbler-for-Simkl/actions/runs/${{ github.run_id }}
             
-            See the verification-info directory for more information on how to verify this build.
-            
-            *(Additional release notes below were automatically generated)*
           generate_release_notes: true
           files: |
             release-artifacts/windows-installer/*.exe
