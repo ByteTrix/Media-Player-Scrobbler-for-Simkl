@@ -32,10 +32,24 @@ jobs:
           
           # Import GPG public key
           if [ -n "$GPG_PUBLIC_KEY" ]; then
-            echo "$GPG_PUBLIC_KEY" | gpg --import -
-            echo "GPG Public Key imported."
+            # Write the key to a file first to avoid shell interpretation issues
+            echo "$GPG_PUBLIC_KEY" > /tmp/gpg_public_key.asc
+            # Fix any potential line ending issues
+            sed -i 's/\r$//' /tmp/gpg_public_key.asc
+            # Make sure the key file has proper GPG armor headers
+            if ! grep -q "^-----BEGIN PGP PUBLIC KEY BLOCK-----" /tmp/gpg_public_key.asc; then
+              echo "-----BEGIN PGP PUBLIC KEY BLOCK-----" > /tmp/fixed_key.asc
+              cat /tmp/gpg_public_key.asc >> /tmp/fixed_key.asc
+              echo "-----END PGP PUBLIC KEY BLOCK-----" >> /tmp/fixed_key.asc
+              mv /tmp/fixed_key.asc /tmp/gpg_public_key.asc
+            fi
+            # Import the key from the file
+            gpg --batch --import /tmp/gpg_public_key.asc || echo "::warning::Failed to import GPG key, but continuing..."
+            echo "GPG Public Key import attempted."
             echo "Available GPG keys:"
             gpg --list-keys # List keys for debugging
+            # Clean up
+            rm -f /tmp/gpg_public_key.asc
           else
             echo "::warning:: GPG_PUBLIC_KEY secret not found. Cannot import key for tag verification."
           fi
