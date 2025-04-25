@@ -94,3 +94,4 @@ jobs:
       version: ${{ needs.prepare-release.outputs.version }}
     secrets:
       RELEASE_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GPG_PUBLIC_KEY: ${{ secrets.GPG_PUBLIC_KEY }}
