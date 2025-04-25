@@ -26,7 +26,18 @@ jobs:
           path: release-artifacts
           
       - name: List downloaded artifacts
-        run: find release-artifacts -type f | sort
+        run: |
+          echo "All downloaded artifacts:"
+          find release-artifacts -type f | sort
+          
+          # Show specific information for the Windows installer
+          WINDOWS_INSTALLER=$(find release-artifacts/windows-installer -name "*.exe" | head -1)
+          if [ -n "$WINDOWS_INSTALLER" ]; then
+            echo "Found Windows installer: $WINDOWS_INSTALLER"
+            ls -la "$WINDOWS_INSTALLER"
+          else
+            echo "Warning: No Windows installer found!"
+          fi
 
       - name: Prepare verification information
         run: |
@@ -81,8 +92,14 @@ jobs:
         run: |
           VERSION="${{ inputs.version }}"
           
-          # Find executable installer
-          WINDOWS_INSTALLER=$(find release-artifacts/windows-installer -name "*.exe" | head -1)
+          # Find Windows installer with more robust approach
+          WINDOWS_INSTALLER="$(find release-artifacts -name "MPSS_Setup_*.exe" -o -name "*.exe" | grep -i "setup" | head -1)"
+          if [ -z "$WINDOWS_INSTALLER" ]; then
+            # Fallback to any .exe if we can't find the specific installer pattern
+            WINDOWS_INSTALLER="$(find release-artifacts -name "*.exe" | head -1)"
+          fi
+          
+          echo "Windows installer to upload: $WINDOWS_INSTALLER"
           
           # Create release with provenance
           gh release create "v$VERSION" \
@@ -103,9 +120,16 @@ jobs:
             gh release upload "v$VERSION" "$file" --clobber
           done
           
-          # Upload Windows installer with provenance
-          if [ -n "$WINDOWS_INSTALLER" ]; then
+          # Upload Windows installer with more defensive checks and verbose output
+          if [ -n "$WINDOWS_INSTALLER" ] && [ -f "$WINDOWS_INSTALLER" ]; then
+            echo "Uploading Windows installer: $WINDOWS_INSTALLER"
             gh release upload "v$VERSION" "$WINDOWS_INSTALLER" --clobber
+            echo "Windows installer upload completed"
+          else
+            echo "Error: Windows installer not found or not a valid file: '$WINDOWS_INSTALLER'"
+            # List all potential exe files
+            find release-artifacts -name "*.exe" || echo "No .exe files found"
+            exit 1
           fi
           
           # Upload other installers if we have them (commented out for now)

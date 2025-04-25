@@ -64,3 +64,5 @@ code_signing_key.txt
 simkl_mps/utils/av_submission_helper.py
 build_nosign.bat
 simkl_mps/utils/av_submission/av_submission_info.txt
+version_manager.py
+gpg-key-config.txt
