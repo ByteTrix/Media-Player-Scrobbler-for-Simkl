@@ -77,44 +77,13 @@ jobs:
           cosign sign-blob --yes SHA256SUMS.txt --output-signature SHA256SUMS.txt.sig
           echo "Signed checksums file with Sigstore/cosign"
 
-      # Use GitHub's built-in provenance capability instead of SLSA generator
-      - name: Prepare artifact provenance data
-        run: |
-          # Find exe files
-          WINDOWS_INSTALLERS=$(find all-artifacts -name "*.exe" | sort)
-          
-          if [ -n "$WINDOWS_INSTALLERS" ]; then
-            echo "Found Windows installers: $WINDOWS_INSTALLERS"
-            
-            # Create a simple provenance file with relevant metadata
-            cat > artifact-provenance.json << EOF
-          {
-            "version": 1,
-            "buildType": "githubActions",
-            "builder": {
-              "id": "GitHub Actions workflow ${{ github.workflow }}",
-              "version": "${{ github.run_id }}-${{ github.run_number }}"
-            },
-            "metadata": {
-              "invocationId": "${{ github.run_id }}",
-              "startedOn": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
-              "finishedOn": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
-              "reproducible": true
-            }
-          }
-          EOF
-            
-            cat artifact-provenance.json
-          else
-            echo "No Windows installers found"
-            touch artifact-provenance.json
-          fi
+      # The custom provenance step below is removed as GitHub's built-in
+      # provenance via 'gh release create' is used in the create-release workflow.
 
-      - name: Upload signed artifacts
+      - name: Upload verification artifacts
         uses: actions/upload-artifact@v4
         with:
           name: verification-artifacts
           path: |
             SHA256SUMS.txt
             SHA256SUMS.txt.sig
-            artifact-provenance.json

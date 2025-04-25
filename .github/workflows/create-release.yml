@@ -48,8 +48,8 @@ jobs:
             echo "  git tag -s v${{ inputs.version }} -m \"Release version ${{ inputs.version }}\""
             echo "  git push origin v${{ inputs.version }}"
             
-            # Uncomment the next line if you want to enforce signed tags
-            # exit 1
+            # Enforce signed tags for verified releases
+            exit 1
           fi
 
       - name: Download all artifacts
@@ -71,7 +71,28 @@ jobs:
             echo "Warning: No Windows installer found!"
           fi
 
-      - name: Prepare verification information
+      - name: Find Windows Installer # Corrected indentation
+        id: find_installer
+        run: |
+          INSTALLER_PATH=$(find release-artifacts -name "MPSS_Setup_*.exe" -o -name "*.exe" | grep -i "setup" | head -1)
+          if [ -z "$INSTALLER_PATH" ]; then
+            INSTALLER_PATH=$(find release-artifacts -name "*.exe" | head -1)
+          fi
+          if [ -n "$INSTALLER_PATH" ] && [ -f "$INSTALLER_PATH" ]; then
+            echo "Found installer: $INSTALLER_PATH"
+            echo "path=$INSTALLER_PATH" >> $GITHUB_OUTPUT
+          else
+            echo "::error::Windows installer not found or not a valid file!"
+            find release-artifacts -name "*.exe" || echo "No .exe files found"
+            exit 1
+          fi
+      - name: Sign Windows Installer with Sigstore # Moved this step up
+        uses: sigstore/gh-action-sigstore@v2.0.0
+        # Permissions are set at the job level (id-token: write)
+        with:
+          artifact_path: ${{ steps.find_installer.outputs.path }}
+
+      - name: Prepare verification information # Correctly associate run block
         run: |
           # Ensure verification-artifacts directory exists
           mkdir -p verification-info
@@ -123,51 +144,42 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
         run: |
           VERSION="${{ inputs.version }}"
+          INSTALLER_PATH="${{ steps.find_installer.outputs.path }}" # Use path from previous step
           
-          # Find Windows installer with more robust approach
-          WINDOWS_INSTALLER="$(find release-artifacts -name "MPSS_Setup_*.exe" -o -name "*.exe" | grep -i "setup" | head -1)"
-          if [ -z "$WINDOWS_INSTALLER" ]; then
-            # Fallback to any .exe if we can't find the specific installer pattern
-            WINDOWS_INSTALLER="$(find release-artifacts -name "*.exe" | head -1)"
-          fi
-          
-          echo "Windows installer to upload: $WINDOWS_INSTALLER"
+          echo "Windows installer to upload: $INSTALLER_PATH"
           
           # Check if release already exists
           if gh release view "v$VERSION" &>/dev/null; then
             echo "Release v$VERSION already exists. Skipping creation but will upload artifacts."
           else
-            # Create release with provenance
+            # Create release with provenance, attaching the main artifact directly
             gh release create "v$VERSION" \
+              "$INSTALLER_PATH" \
               --title "Release $VERSION" \
               --notes "# MPSS Release $VERSION
 
           ## Verification
           
-          This release was built using GitHub Actions workflow run #${{ github.run_number }} (ID: ${{ github.run_id }}). 
+          This release was built using GitHub Actions workflow run #${{ github.run_number }} (ID: ${{ github.run_id }}).
           You can verify the authenticity of this build by checking the SHA256 checksums and signature files included with this release.
           
           View the build: https://github.com/kavinthangavel/Media-Player-Scrobbler-for-Simkl/actions/runs/${{ github.run_id }}" \
               --generate-notes \
+              --verify-tag \
               --discussion-category "Releases"
+            echo "Release created and Windows installer attached."
           fi
           
-          # Upload verification info
+          # Upload verification info (checksums, signatures, etc.)
+          echo "Uploading verification artifacts..."
           find verification-info -type f | while read file; do
+            echo "Uploading $file..."
             gh release upload "v$VERSION" "$file" --clobber
           done
-          
-          # Upload Windows installer with more defensive checks and verbose output
-          if [ -n "$WINDOWS_INSTALLER" ] && [ -f "$WINDOWS_INSTALLER" ]; then
-            echo "Uploading Windows installer: $WINDOWS_INSTALLER"
-            gh release upload "v$VERSION" "$WINDOWS_INSTALLER" --clobber
-            echo "Windows installer upload completed"
-          else
-            echo "Error: Windows installer not found or not a valid file: '$WINDOWS_INSTALLER'"
-            # List all potential exe files
-            find release-artifacts -name "*.exe" || echo "No .exe files found"
-            exit 1
-          fi
+          echo "Verification artifacts uploaded."
+
+          # The Windows installer is now attached during 'gh release create',
+          # so the separate upload step below is removed.
           
           # Upload other installers if we have them (commented out for now)
           # MACOS_DMG=$(find release-artifacts/macos-installers -name "*.dmg" | head -1)
