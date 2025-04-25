@@ -42,6 +42,12 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Using version: $VERSION"
 
+  build-verification:
+    needs: prepare-release
+    uses: ./.github/workflows/build-verification.yml
+    with:
+      version: ${{ needs.prepare-release.outputs.version }}
+
   publish-pypi:
     needs: prepare-release
     uses: ./.github/workflows/publish-pypi.yml
@@ -53,7 +59,7 @@ jobs:
       PYPI_API_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
 
   build-windows:
-    needs: prepare-release
+    needs: [prepare-release, build-verification]
     uses: ./.github/workflows/windows-build.yml
     with:
       version: ${{ needs.prepare-release.outputs.version }}
@@ -81,7 +87,7 @@ jobs:
 
   create-github-release:
     # needs: [prepare-release, publish-pypi, build-windows, build-macos, build-linux]
-    needs: [prepare-release, publish-pypi, build-windows]
+    needs: [prepare-release, publish-pypi, build-windows, build-verification]
     uses: ./.github/workflows/create-release.yml
     with:
       version: ${{ needs.prepare-release.outputs.version }}

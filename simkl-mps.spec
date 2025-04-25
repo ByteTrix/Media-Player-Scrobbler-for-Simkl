@@ -14,8 +14,6 @@ import os
 import time
 import subprocess
 import shutil
-import platform
-import datetime
 
 # Get the directory containing this spec file
 spec_dir = Path(SPECPATH)
@@ -24,15 +22,7 @@ assets_path = spec_dir / 'simkl_mps' / 'assets'
 
 assets_dest = 'simkl_mps/assets'
 
-# Add metadata for identifying legitimate executable
-version = '1.0.0'  # Default version, typically overridden during build
-current_year = datetime.datetime.now().year
-company_name = 'SIMKL'
-app_description = 'Media Player Scrobbler for SIMKL'
-app_copyright = f'Copyright © {current_year} {company_name}'
-app_name = 'MPSS'
-
-# Anti-virus avoidance techniques
+# Add pre-build cleanup to handle locked files
 def cleanup_build_artifacts():
     """Attempt to clean up previous build artifacts that might be locked"""
     print("Performing pre-build cleanup...")
@@ -126,8 +116,7 @@ except Exception as e:
     babelfish_data_path = None
 # --- End find babelfish data path ---
 
-# Use NONE cipher instead of block_cipher=None to avoid AV detection patterns
-block_cipher = 'NONE'
+block_cipher = None
 
 # Define platform-specific hidden imports
 hidden_imports = [
@@ -142,21 +131,6 @@ hidden_imports = [
     'babelfish.script',
     'babelfish.converters.opensubtitles',
     'babelfish.converters.scope',
-    # Add standard library imports that help avoid suspicious patterns
-    'json',
-    'logging',
-    'urllib',
-    'ssl',
-    'sqlite3',
-    'xml',
-    'email',
-    'hashlib',
-    'socket',
-    'datetime',
-    'csv',
-    'zlib',
-    'platform',
-    'uuid',
 ]
 
 # Add platform-specific imports
@@ -164,11 +138,8 @@ if sys.platform == 'win32':
     hidden_imports.extend([
         'plyer.platforms.win.notification',
         'win32api', 'win32con', 'win32gui',
-        'win32com',  # Add this to avoid suspicious imports patterns
         'tkinter', 'tkinter.ttk',  # Add tkinter for dialogs
         'threading',  # Ensure threading is included
-        'winsound',  # Standard library for Windows sounds
-        'ctypes.wintypes',  # Common Windows types
     ])
 elif sys.platform == 'darwin':
     hidden_imports.extend([
@@ -190,19 +161,6 @@ elif sys.platform.startswith('linux'):
         'threading',  # Ensure threading is included
     ])
 
-# Explicitly exclude modules that might trigger AV detection
-excludes = [
-    'cryptography',  # Often triggers AV
-    'Crypto',        # Often triggers AV
-    'pywin32_system32',
-    'lib2to3',
-    'tcl',
-    'Tkconstants', 
-    'tkinter.constants',
-    'pydoc_data',
-    'matplotlib'
-]
-
 # Main application analysis
 a = Analysis(
     ['simkl_mps/cli.py'],
@@ -218,12 +176,11 @@ a = Analysis(
         (guessit_config_path, 'guessit/config') if guessit_config_path and os.path.isdir(guessit_config_path) else None
     ],
     hiddenimports=hidden_imports,
-    excludes=excludes,
+    excludes=[],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    win_private_assemblies=True,   # Helps with Windows false positives
-    win_no_prefer_redirects=True,  # Helps with Windows false positives
+    private_asss=False,
     cipher=block_cipher,
     noarchive=False,
 )
@@ -235,20 +192,6 @@ a.datas += [
     ('utils/updater.ps1', 'simkl_mps/utils/updater.ps1', 'DATA'),
     ('utils/updater.sh', 'simkl_mps/utils/updater.sh', 'DATA'),
 ]
-
-# Add version info to avoid AV flags
-version_info = {
-    'version': version,
-    'company_name': company_name,
-    'product_name': 'Media Player Scrobbler for SIMKL',
-    'product_version': version,
-    'file_description': app_description,
-    'comments': 'https://github.com/SIMKL/Sync',
-    'legal_copyright': app_copyright,
-    'legal_trademarks': 'SIMKL',
-    'original_filename': 'MPSS.exe',
-    'internal_name': 'MPSS'
-}
 
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 
@@ -271,7 +214,7 @@ exe = EXE(
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=True,
+    upx=False,
     upx_exclude=[],
     runtime_tmpdir=None,
     console=True,  # Set to False for a GUI-only app (no console window)
@@ -281,8 +224,6 @@ exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
     icon=icon_path if os.path.exists(icon_path) else None,
-    version=version_info if sys.platform == 'win32' else None,  # Add version info for Windows
-    uac_admin=False,  # Not requiring admin rights reduces AV flags
 )
 
 # Tray application analysis
@@ -297,12 +238,11 @@ tray_a = Analysis(
         (guessit_config_path, 'guessit/config') if guessit_config_path and os.path.isdir(guessit_config_path) else None
     ],
     hiddenimports=hidden_imports,
-    excludes=excludes,
+    excludes=[],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    win_private_assemblies=True,   # Helps with Windows false positives
-    win_no_prefer_redirects=True,  # Helps with Windows false positives
+    private_asss=False,
     cipher=block_cipher,
     noarchive=False,
 )
@@ -328,7 +268,7 @@ tray_exe = EXE(
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=True,
+    upx=False,
     upx_exclude=[],
     runtime_tmpdir=None,
     console=False,  # No console for tray app
@@ -338,8 +278,6 @@ tray_exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
     icon=icon_path if os.path.exists(icon_path) else None,
-    version=version_info if sys.platform == 'win32' else None,  # Add version info for Windows
-    uac_admin=False,  # Not requiring admin rights reduces AV flags
 )
 
 # For macOS, create application bundles

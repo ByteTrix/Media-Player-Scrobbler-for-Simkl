@@ -36,6 +36,19 @@ jobs:
       - name: Set version in pyproject.toml
         run: poetry version ${{ inputs.version }}
 
+      - name: Download build-info artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: build-info
+          path: build-info
+
+      - name: Display build info
+        shell: bash
+        run: |
+          cat build-info/build_info.json
+          mkdir -p dist/
+          cp build-info/build_info.json dist/
+
       - name: Inject Simkl Credentials into Code
         env:
           SIMKL_CLIENT_ID: ${{ secrets.SIMKL_CLIENT_ID }}
@@ -66,6 +79,9 @@ jobs:
           
           # Patch is now included directly in simkl-mps.spec
           python -m PyInstaller --clean simkl-mps.spec
+          
+          # Copy build_info.json to the PyInstaller dist directory
+          cp build-info/build_info.json dist/simkl-mps/
 
       - name: Test PyInstaller build
         shell: bash
@@ -76,6 +92,10 @@ jobs:
         run: |
           $version = "${{ inputs.version }}"
           (Get-Content setup.iss) -replace '#define MyAppVersion "[^"]*"', "#define MyAppVersion `"$version`"" | Set-Content setup_temp.iss
+          
+          # Modify Inno Setup script to include build verification info
+          Add-Content setup_temp.iss "`n; Include build verification information`nSource: `"build-info\build_info.json`"; DestDir: `"{app}`"; Flags: ignoreversion"
+          
           & 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe' /Q setup_temp.iss
           
       - name: Rename and move installer

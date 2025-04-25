@@ -1,0 +1,85 @@
+name: Build Verification
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
+
+jobs:
+  generate-build-info:
+    runs-on: ubuntu-latest
+    outputs:
+      build_info_path: ${{ steps.create-build-info.outputs.build_info_path }}
+      sha256_path: ${{ steps.create-checksums.outputs.sha256_path }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Create build info file
+        id: create-build-info
+        run: |
+          # Create build info file with metadata
+          cat > build_info.json << EOF
+          {
+            "version": "${{ inputs.version }}",
+            "git_commit": "${{ github.sha }}",
+            "build_time": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
+            "build_number": "${{ github.run_number }}",
+            "github_workflow": "${{ github.workflow }}",
+            "github_run_id": "${{ github.run_id }}",
+            "github_run_number": "${{ github.run_number }}"
+          }
+          EOF
+          
+          echo "build_info_path=build_info.json" >> $GITHUB_OUTPUT
+          cat build_info.json
+
+      - name: Upload build info as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-info
+          path: build_info.json
+          
+  sign-release:
+    needs: generate-build-info
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write # Required for Sigstore OIDC
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: all-artifacts
+
+      - name: List all artifacts
+        run: find all-artifacts -type f | sort
+
+      - name: Calculate SHA256 checksums
+        id: create-checksums
+        run: |
+          # Create a checksums file
+          find all-artifacts -type f -not -path "*/\.*" | sort | xargs sha256sum > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+          echo "sha256_path=SHA256SUMS.txt" >> $GITHUB_OUTPUT
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3.4.0
+
+      - name: Sign checksums with keyless signing
+        run: |
+          cosign sign-blob --yes SHA256SUMS.txt --output-signature SHA256SUMS.txt.sig
+          echo "Signed checksums file with Sigstore/cosign"
+
+      - name: Upload signed artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: verification-artifacts
+          path: |
+            SHA256SUMS.txt
+            SHA256SUMS.txt.sig

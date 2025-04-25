@@ -11,6 +11,7 @@ import colorama
 import subprocess
 import logging
 import importlib.metadata
+import json
 from pathlib import Path
 from colorama import Fore, Style
 
@@ -78,6 +79,7 @@ from simkl_mps.simkl_api import authenticate
 from simkl_mps.credentials import get_credentials, get_env_file_path
 from simkl_mps.main import SimklScrobbler, APP_DATA_DIR # Import APP_DATA_DIR for log path display
 from simkl_mps.tray_app import run_tray_app
+from simkl_mps.utils.verification import get_verification_info, get_executable_checksum
 
 colorama.init()
 logger = logging.getLogger(__name__)
@@ -322,6 +324,46 @@ def version_command(args):
     print(f"\nData directory: {APP_DATA_DIR}")
     return 0
 
+def verify_command(args):
+    """
+    Handles the 'verify' command.
+    
+    Displays build verification information to help users verify that
+    the app was built from source using GitHub Actions.
+    """
+    print(f"{Fore.CYAN}=== Simkl MPS Build Verification ==={Style.RESET_ALL}")
+    logger.info("Displaying build verification information")
+    
+    # Get verification info
+    verification_info = get_verification_info()
+    
+    print(f"\n{Fore.GREEN}Build Information:{Style.RESET_ALL}")
+    print(f"{Fore.WHITE}┌{'─' * 60}┐{Style.RESET_ALL}")
+    
+    for key, value in verification_info.items():
+        print(f"{Fore.WHITE}│{Style.RESET_ALL} {Fore.YELLOW}{key:<20}{Style.RESET_ALL}: {value}")
+    
+    print(f"{Fore.WHITE}└{'─' * 60}┘{Style.RESET_ALL}")
+    
+    # Get executable checksum
+    checksum = get_executable_checksum()
+    print(f"\n{Fore.GREEN}Executable SHA256 Checksum:{Style.RESET_ALL}")
+    print(f"{checksum}")
+    
+    # Verification instructions
+    print(f"\n{Fore.GREEN}How to verify this build:{Style.RESET_ALL}")
+    print(f"1. Visit the GitHub release page at:")
+    print(f"   https://github.com/kavinthangavel/Media-Player-Scrobbler-for-Simkl/releases/tag/v{verification_info['Application Version']}")
+    print(f"2. Compare the checksum above with the SHA256SUMS.txt file in the release assets")
+    print(f"3. Verify that the build was created by the GitHub Actions workflow:")
+    
+    if verification_info["GitHub Run ID"] != "local":
+        print(f"   {verification_info['GitHub Run URL']}")
+    else:
+        print(f"   This appears to be a local development build, not an official release build.")
+    
+    return 0
+
 def check_for_updates(silent=False):
     """
     Check for updates to the application.
@@ -407,11 +449,16 @@ def create_parser():
         help="Run ONLY tray icon attached to the terminal (shows logs)."
     )
 
-
     version_parser = subparsers.add_parser(
         "version",
         aliases=['V'],
         help="Display the current installed version of simkl-mps."
+    )
+    
+    verify_parser = subparsers.add_parser(
+        "verify",
+        aliases=['vf'],
+        help="Verify build authenticity and display build information."
     )
     
     return parser
@@ -455,6 +502,7 @@ def main():
         "start": start_command,
         "tray": tray_command,
         "version": version_command,
+        "verify": verify_command,
         "help": lambda _: parser.print_help()
     }
 
