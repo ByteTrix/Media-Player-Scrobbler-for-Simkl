@@ -1,352 +1,151 @@
-# 🔧 Troubleshooting Guide
+# 🛠️ Troubleshooting Guide
 
-This document provides solutions for common issues with MPS for SIMKL and steps to diagnose and resolve problems.
+This guide helps you solve common problems with MPS for SIMKL.
 
-## 🚨 Common Issues and Solutions
-
-### 🔐 Authentication Problems
+## 🚩 Common Issues & Solutions
 
 <details>
-<summary><b>Authentication fails or token errors</b></summary>
-
-| Issue | Solution |
-|-------|----------|
-| "Unable to authenticate" | Check your internet connection and try again |
-| "Invalid PIN code" | Make sure you're entering the exact code shown |
-| "Token expired" | Run `simkl-mps init` to get a new access token |
-| "Client ID not valid" | If using a custom client ID, verify it in your Simkl developer settings |
-
-**Quick fix command:**
-```bash
-simkl-mps init --force
-```
-
-This resets your authentication completely and starts a fresh authentication flow.
+<summary><b>Authentication Problems</b></summary>
+- Run `simkl-mps init --force` to reset authentication
+- Check your internet connection
+- Use the exact code shown for device login
+- If using a custom client ID, verify it in Simkl developer settings
 </details>
 
 <details>
-<summary><b>Multiple users/devices</b></summary>
-
-MPS for SIMKL currently supports one Simkl account per installation. To switch accounts:
-
-1. Run `simkl-mps init --force` to reset authentication
-2. Complete the new authentication flow with your desired account
-
-For multiple users on the same machine, consider using separate user accounts or custom data directories:
-```bash
-simkl-mps start --data-dir "/path/to/custom/location"
-```
-</details>
-
-### 🔍 Detection Issues
-
-<details>
-<summary><b>Media not detected</b></summary>
-
-If your media isn't being detected:
-
-1. **Check window title:** Ensure your media player shows the filename in its window title
-2. **File naming:** Use clear filenames with the movie/show title and year when possible
-3. **Player support:** Verify your player is in the [supported list](media-players.md)
-4. **Window detection:** Some players may hide or modify titles in fullscreen mode
-
-**Debugging steps:**
-```bash
-# Run with debug logging to see what titles are being detected
-simkl-mps tray --debug
-
-# Look for lines containing "Window title detected" or "Parsing title"
-```
-
-When playing media, you should see log entries showing the detected window title and parsing attempts.
+<summary><b>Detection Issues</b></summary>
+- Ensure your player shows the filename in the window title
+- Use clear filenames with title and year
+- Check if your player is supported ([see list](media-players.md))
+- Some players may hide titles in fullscreen
+- Run `simkl-mps tray --debug` and look for "Window title detected"
 </details>
 
 <details>
-<summary><b>Wrong movie/show detected</b></summary>
-
-If the wrong title is being matched:
-
-1. **Improve filename:** Include the full title and year in parentheses: `Movie Title (2023).mp4`
-2. **Check logs:** Run with `--debug` to see what title was extracted and what Simkl matched it to
-3. **Manual handling:** For files that consistently mismatch, consider renaming them
-
-**Advanced solution:**
-You can modify the title parsing regex in your configuration:
-```ini
-# In .simkl_mps.env
-SIMKL_TITLE_REGEX=(?i)(.+?)(?:\W\d{4}\W|\W\(\d{4}\)|\W\d{4}$|$)
-```
+<summary><b>Tracking Problems</b></summary>
+- Make sure you've watched enough (default: 80%)
+- Check your internet connection
+- Configure your player for advanced tracking ([see guide](media-players.md))
+- Run `simkl-mps backlog process` to send pending updates
+- Run in debug mode to see progress updates
 </details>
 
 <details>
-<summary><b>No detection in some media players</b></summary>
-
-Some media players may not expose the necessary information:
-
-1. **Configure advanced tracking:** Set up the player's web interface or IPC connection (see [Media Players](media-players.md))
-2. **Alternative view modes:** Some players expose title information in windowed mode but not fullscreen
-3. **Window title format:** Check if your player has settings to customize the window title format
-
-**Testing command:**
-```bash
-# This will show all window titles currently visible
-simkl-mps windows
-```
-</details>
-
-### 📊 Tracking Problems
-
-<details>
-<summary><b>Media never marked as watched</b></summary>
-
-If media isn't being marked as watched:
-
-1. **Completion threshold:** Verify you've watched enough of the media (default: 80%)
-2. **Internet connection:** Check if you're online; offline tracking stores to backlog
-3. **Advanced tracking:** Configure your player for position detection (see [Media Players](media-players.md))
-4. **Process backlog:** Try `simkl-mps backlog process` to send pending updates
-
-**Check progress tracking:**
-```bash
-# Run in debug mode to see progress updates
-simkl-mps tray --debug
-
-# Look for lines containing "Progress" or "position"
-```
-
-You should see periodic updates showing your current position and progress percentage.
+<summary><b>Position Tracking Not Working</b></summary>
+- Ensure player web interface or IPC is set up
+- Check for port conflicts or firewall issues
+- Some player versions may change their API
+- Test player connection (see below)
 </details>
 
 <details>
-<summary><b>Position tracking not working</b></summary>
+<summary><b>Platform-Specific Issues</b></summary>
 
-If position isn't being detected:
+**Windows:**
+- Add Python Scripts to PATH or use `py -m simkl_mps`
+- Check Event Viewer for errors
+- Enable system tray in taskbar settings
+- Install Visual C++ Redistributable if DLLs missing
+- Run as Administrator for service install
 
-1. **Player configuration:** Ensure your player's web interface or IPC is properly set up
-2. **Port conflicts:** Check if the default ports are being used by other applications
-3. **Firewall issues:** Ensure local connections to player ports aren't being blocked
-4. **Player versions:** Some newer player versions may have changed their API
+**macOS:**
+- Grant accessibility and notification permissions
+- Install Python via Homebrew if not found
+- Check logs in Console app
 
-**Test player connections:**
-```bash
-# For VLC
-curl http://localhost:8080/requests/status.xml
-
-# For MPC-HC
-curl http://localhost:13579/variables.html
-
-# For MPV on Windows
-# (requires special tools to test pipe connections)
-```
+**Linux:**
+- Install `wmctrl`, `xdotool`, `python3-gi`, `libnotify-bin`
+- Ensure your desktop supports system trays
+- Check D-Bus and window manager support
 </details>
 
-### 💻 Platform-Specific Issues
+---
+
+## 🧑‍💻 Advanced Diagnostics
 
 <details>
-<summary><b>Windows issues</b></summary>
-
-| Issue | Solution |
-|-------|----------|
-| "Command not found" | Add Python Scripts directory to PATH or use `py -m simkl_mps` |
-| Application won't start | Check Windows Event Viewer for Python errors |
-| Tray icon missing | Verify you have system tray enabled in taskbar settings |
-| Missing DLLs | Install Visual C++ Redistributable packages |
-| Service won't install | Run Command Prompt as Administrator |
-
-For advanced Windows troubleshooting:
-```powershell
-# Check if the process is running
-Get-Process -Name "MPSS*" -ErrorAction SilentlyContinue
-
-# View log file
-Get-Content "$env:APPDATA\kavinthangavel\simkl-mps\simkl_mps.log" -Tail 50
-```
+<summary><b>Debug Logging</b></summary>
+- Run with debug logging: `simkl-mps tray --log-level DEBUG`
+- Set persistent debug: add `SIMKL_LOG_LEVEL=DEBUG` to your config file
+- Look for INFO, WARNING, ERROR, CRITICAL in logs
 </details>
 
 <details>
-<summary><b>macOS issues</b></summary>
-
-| Issue | Solution |
-|-------|----------|
-| Missing permissions | Grant accessibility permissions in System Preferences > Security & Privacy > Privacy > Accessibility |
-| Python not found | Install Python properly via Homebrew: `brew install python` |
-| Notification issues | Grant notification permissions in System Preferences |
-| App not starting | Check console logs: `console` application, filter for Python |
-
-For advanced macOS troubleshooting:
-```bash
-# Check process status
-ps aux | grep -i simkl
-
-# View log file
-tail -n 50 ~/Library/Application\ Support/kavinthangavel/simkl-mps/simkl_mps.log
-```
+<summary><b>Network Diagnostics</b></summary>
+- Test SIMKL API: `curl -I https://api.simkl.com/`
+- Test VLC: `curl -I http://localhost:8080/`
+- Test MPC: `curl -I http://localhost:13579/`
+- Check for processes on ports: `netstat -ano | findstr "8080 13579"` (Windows)
 </details>
 
 <details>
-<summary><b>Linux issues</b></summary>
-
-| Issue | Solution |
-|-------|----------|
-| Window detection fails | Install required packages: `sudo apt install wmctrl xdotool` (or equivalent) |
-| Missing dependencies | Install GTK and notification libraries: `sudo apt install python3-gi gir1.2-gtk-3.0 libnotify-bin` |
-| Tray icon issues | Ensure your desktop environment supports system trays/indicators |
-| D-Bus errors | Verify you're running in a standard desktop environment with D-Bus |
-
-For advanced Linux troubleshooting:
-```bash
-# Check process status
-ps aux | grep -i simkl
-
-# View log file
-tail -n 50 ~/.local/share/kavinthangavel/simkl-mps/simkl_mps.log
-
-# Check if your window manager is supported
-echo $XDG_CURRENT_DESKTOP
-
-# Debug window detection
-wmctrl -l
-```
+<summary><b>System Resource Usage</b></summary>
+- Windows: `Get-Process -Name "MPSS*" | Select-Object Name, CPU, WS`
+- macOS/Linux: `ps aux | grep -i simkl`
+- App should use <1% CPU and <50MB RAM when idle
 </details>
 
-## 🔬 Advanced Diagnostics
+---
+
+## 🔄 Reset & Recovery
 
 <details>
-<summary><b>Debug logging</b></summary>
-
-Enable verbose logging to diagnose issues:
-
-```bash
-# Run with debug logging in terminal mode
-simkl-mps tray --log-level DEBUG
-
-# Set persistent debug logging
-echo "SIMKL_LOG_LEVEL=DEBUG" >> ~/.local/share/kavinthangavel/simkl-mps/.simkl_mps.env
-```
-
-Key logging indicators:
-- **INFO:** Normal operation events
-- **WARNING:** Minor issues that don't prevent functionality
-- **ERROR:** Problems that prevent specific operations
-- **CRITICAL:** Severe issues that prevent the application from running
-
-Important log sections to check:
-1. **Authentication issues:** Look for "auth," "token," or "Simkl API" messages
-2. **Detection issues:** Look for "window," "title," or "parsing" messages
-3. **Playback issues:** Look for "position," "duration," or "progress" messages
-4. **Scrobbling issues:** Look for "marked as watched" or "scrobble" messages
-</details>
-
-<details>
-<summary><b>Network diagnostics</b></summary>
-
-Test connections to SIMKL API and media player interfaces:
-
-```bash
-# Test SIMKL API connectivity
-curl -I https://api.simkl.com/
-
-# Test VLC web interface (if configured)
-curl -I http://localhost:8080/
-
-# Test MPC web interface (if configured)
-curl -I http://localhost:13579/
-
-# Check for processes listening on media player ports
-# Windows (PowerShell):
-netstat -ano | findstr "8080 13579"
-
-# macOS/Linux:
-netstat -tuln | grep -E "8080|13579"
-```
-
-Network-related issues are often indicated by timeout errors or connection refused messages in the logs.
-</details>
-
-<details>
-<summary><b>System resource usage</b></summary>
-
-If you're experiencing performance issues:
-
-```bash
-# Check CPU and memory usage
-# Windows (PowerShell):
-Get-Process -Name "MPSS*" | Select-Object Name, CPU, WS
-
-# macOS/Linux:
-ps aux | grep -i simkl
-```
-
-The application should use minimal resources (typically <1% CPU and <50MB RAM) when idle.
-</details>
-
-## 🧹 Reset and Recovery
-
-<details>
-<summary><b>Complete application reset</b></summary>
-
-To reset everything and start fresh:
-
-1. Stop all instances of the application:
-   ```bash
-   simkl-mps stop
-   ```
-
-2. Delete the application data directory:
+<summary><b>Full Reset</b></summary>
+1. Stop all instances: `simkl-mps stop`
+2. Delete app data directory:
    - Windows: `%APPDATA%\kavinthangavel\simkl-mps`
    - macOS: `~/Library/Application Support/kavinthangavel/simkl-mps`
    - Linux: `~/.local/share/kavinthangavel/simkl-mps`
-
-3. Reinstall the application:
-   ```bash
-   pip install --force-reinstall simkl-mps
-   ```
-
-4. Initialize again:
-   ```bash
-   simkl-mps init
-   ```
+3. Reinstall: `pip install --force-reinstall simkl-mps`
+4. Run `simkl-mps init`
 </details>
 
 <details>
-<summary><b>Recovering from crashes</b></summary>
-
-If the application is crashing or freezing:
-
-1. Stop any running instances:
-   ```bash
-   simkl-mps stop --force
-   ```
-
-2. Backup and examine logs:
-   ```bash
-   # Windows (PowerShell):
-   Copy-Item "$env:APPDATA\kavinthangavel\simkl-mps\simkl_mps.log" "$env:USERPROFILE\Desktop\simkl_backup.log"
-
-   # macOS/Linux:
-   cp ~/.local/share/kavinthangavel/simkl-mps/simkl_mps.log ~/simkl_backup.log
-   ```
-
-3. Try running in safe mode (disables advanced features):
-   ```bash
-   simkl-mps start --safe-mode
-   ```
+<summary><b>Recovering from Crashes</b></summary>
+1. Stop any running instances: `simkl-mps stop --force`
+2. Backup and check logs
+3. Try running in safe mode: `simkl-mps start --safe-mode`
 </details>
+
+---
+
+## 🖥️ Troubleshooting the Windows Executable (MPS for Simkl.exe)
+
+The Windows installer provides a native executable (`MPS for Simkl.exe`) with tray icon and auto-update. Here are some tips for troubleshooting the EXE version:
+
+### Authentication Issues
+- If authentication fails or you get stuck, try closing and reopening **MPS for Simkl.exe** from the Start menu or desktop shortcut. This can reset the authentication flow and prompt you again.
+- Make sure only one instance is running (check the system tray for the icon).
+
+
+### Update or Installation Errors
+- If an update fails or you see an installation error, try restarting your computer and running **MPS for Simkl.exe** again from the Start menu or desktop.
+- Make sure you have the latest installer from the [Releases Page](https://github.com/kavinthangavel/media-player-scrobbler-for-simkl/releases/latest).
+- If the tray icon does not appear after updating, try reinstalling the application.
+- Always check the log file for details: `%APPDATA%\kavinthangavel\simkl-mps\simkl_mps.log`
+- If you encounter persistent update or install issues, please report them in the [GitHub Discussions or Issues](https://github.com/kavinthangavel/media-player-scrobbler-for-simkl/issues) and mention you are using the EXE version.
+
+### Basic EXE Troubleshooting
+- Double-click the desktop or Start menu shortcut to launch the app. If nothing happens, check the Task Manager for any running `MPS for Simkl.exe` or `MPSS.exe` processes and end them before trying again.
+- If the tray icon is missing, ensure your Windows system tray is enabled and not hiding the icon.
+- If you see errors about missing DLLs, install the latest [Visual C++ Redistributable](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170).
+- For auto-start issues, check that the shortcut exists in your Startup folder (`shell:startup` in Run dialog).
+- If you get repeated errors or crashes, try running the EXE as Administrator (right-click → Run as administrator).
+- For update problems, you can manually run the updater script: right-click `updater.ps1` in the install directory and select "Run with PowerShell".
+
+### Need More Help?
+- For real-time help, you can join the official [Simkl Discord server](https://discord.gg/simkl) and ask in the [MPSS Post](https://discord.com/channels/322804221688938516/1363974113429032960). Mention you are using the Windows EXE/tray version.
+- Always include your OS version, app version, and any error messages or log excerpts when asking for help.
+
+---
 
 ## 🆘 Getting Help
 
-If you've tried everything above and still have issues:
-
-1. Check the [GitHub Issues](https://github.com/kavinthangavel/media-player-scrobbler-for-simkl/issues) to see if your problem is already known
-2. Collect diagnostic information:
-   ```bash
-   simkl-mps diagnose > simkl-diagnostic-report.txt
-   ```
-3. [Open a new issue](https://github.com/kavinthangavel/media-player-scrobbler-for-simkl/issues/new) with:
-   - Your operating system and version
-   - MPS for SIMKL version (`simkl-mps --version`)
-   - Relevant log excerpts (with sensitive information redacted)
-   - Steps to reproduce the problem
-   - The diagnostic report file
-   
-Include as much detail as possible to help the developers identify and fix the issue quickly.
+- Check [GitHub Issues](https://github.com/kavinthangavel/media-player-scrobbler-for-simkl/issues)
+- Collect diagnostics: `simkl-mps diagnose > simkl-diagnostic-report.txt`
+- Open a new issue with:
+  - OS and version
+  - MPS version (`simkl-mps --version`)
+  - Log excerpts (redact sensitive info)
+  - Steps to reproduce
+  - Diagnostic report file
