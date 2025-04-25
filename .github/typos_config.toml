@@ -8,3 +8,4 @@ extend-ignore-re = [
 [default.extend-words]
 # Add exceptions to the dictionary
 datas = "datas"
+gir = "gir"
