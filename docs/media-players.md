@@ -1,135 +1,280 @@
 # 🎥 Supported Media Players
 
-This guide lists compatible media players and explains how to configure them for best tracking.
+This guide provides comprehensive information about compatible media players and detailed configuration instructions to ensure optimal movie tracking performance.
 
-## 🗂️ Compatibility Matrix
+## ⚠️ Important: Media Player Configuration
+
+**Media player configuration is a critical step for accurate movie tracking.** While the application can work with basic window title detection, configuring your media players for advanced tracking significantly improves accuracy and reliability.
 
 ```mermaid
 graph TD
-    A[Media Players] --> B[Basic Support]
+    A[Tracking Methods] --> B[Basic Tracking]
     A --> C[Advanced Tracking]
-    B -->|Window Title Detection| D[Any Player with Visible Filename]
-    C --> E[VLC]
-    C --> F[MPV]
-    C --> G[MPC-HC/BE]
-    E -->|Web Interface| I[Position Tracking]
-    F -->|IPC Socket| I
-    G -->|Web Interface| I
-    I --> J[Accurate Scrobbling]
+    B -->|Window Title Only| D[Limited Accuracy]
+    C -->|Player API Integration| E[High Accuracy]
+    C --> F[Required Setup]
+    F --> G[Player Configuration]
+    G --> H[Optimal Performance]
     style A fill:#4285f4,stroke:#333,stroke-width:2px,color:#fff
     style C fill:#34a853,stroke:#333,stroke-width:2px,color:#fff
-    style J fill:#fbbc05,stroke:#333,stroke-width:2px
+    style H fill:#fbbc05,stroke:#333,stroke-width:2px,color:#fff
 ```
 
----
+## 🗂️ Compatibility Matrix
 
-## 🪟 Windows
-| Player                | Basic | Advanced | Config Method         |
-|-----------------------|:-----:|:--------:|----------------------|
-| VLC                   | ✅    | ✅       | Web interface (8080) |
-| MPC-HC/BE             | ✅    | ✅       | Web interface (13579)|
-| MPV                   | ✅    | ✅       | IPC socket           |
-| PotPlayer             | ✅    | ✅       | Web interface (8080) |
-| Windows Media Player  | ✅    | ❌       | Window title only    |
-| SMPlayer, KMPlayer... | ✅    | ❌       | Window title only    |
+| Player                | Windows | macOS | Linux | Advanced Tracking | Configuration Difficulty |
+|-----------------------|:-------:|:-----:|:-----:|:----------------:|:----------------------:|
+| VLC                   | ✅      | ✅    | ✅    | ✅              | Easy                   |
+| MPV                   | ✅      | ✅    | ✅    | ✅              | Moderate               |
+| MPC-HC/BE             | ✅      | ❌    | ❌    | ✅              | Easy                   |
+| PotPlayer             | ✅      | ❌    | ❌    | ✅              | Easy                   |
+| Windows Media Player  | ✅      | ❌    | ❌    | ❌              | Not Available          |
+| QuickTime             | ❌      | ✅    | ❌    | ❌              | Not Available          |
+| Infuse                | ❌      | ✅    | ❌    | ✅              | Moderate               |
+| Other Players         | ✅      | ✅    | ✅    | ❌              | Not Available          |
 
-## 🍏 macOS
-| Player         | Basic | Advanced | Config Method         |
-|---------------|:-----:|:--------:|----------------------|
-| VLC           | ✅    | ✅       | Web interface (8080) |
-| MPV           | ✅    | ✅       | IPC socket           |
-| QuickTime     | ✅    | ❌       | Window title only    |
-| Elmedia, Movist| ✅   | ❌       | Window title only    |
-
-## 🐧 Linux
-| Player         | Basic | Advanced | Config Method         |
-|---------------|:-----:|:--------:|----------------------|
-| VLC           | ✅    | ✅       | Web interface (8080) |
-| MPV           | ✅    | ✅       | IPC socket           |
-| SMPlayer, Totem| ✅   | ❌       | Window title only    |
-| Kaffeine       | ✅    | ❌       | Window title only    |
+> **Note**: The application currently supports **movie tracking only**. TV show support is planned for future updates.
 
 ---
 
-## 🧠 Tracking Methods
+## 🪟 Windows Media Player Configuration
+
+### VLC Media Player (Recommended)
+
+```mermaid
+flowchart TD
+    A[Open VLC] --> B[Tools → Preferences]
+    B --> C[Show Settings: All]
+    C --> D[Interface → Main interfaces]
+    D --> E[Check 'Web' option]
+    E --> F[Interface → Main interfaces → Lua]
+    F --> G[Set HTTP Password]
+    G --> H[Save & Restart VLC]
+    style A fill:#d4f1f9,stroke:#333,stroke-width:2px
+    style H fill:#d5f5e3,stroke:#333,stroke-width:2px
+```
+
+**Step-by-Step Configuration:**
+1. Open VLC Media Player
+2. Navigate to **Tools → Preferences**
+3. At the bottom left, change **Show settings** to **All**
+4. Navigate to **Interface → Main interfaces**
+5. Check the box for **Web** to enable the web interface
+6. Go to **Interface → Main interfaces → Lua**
+7. Set a password in the **Lua HTTP Password** field (remember this password)
+8. Optional: Change the port number (default is 8080)
+9. Click **Save** and restart VLC
+
+**Verification:**
+- The scrobbler will automatically connect to VLC on port 8080 (or your custom port)
+- Play a movie in VLC to test - you should see accurate position tracking
+
+### MPV Media Player
+
+**Windows Configuration:**
+1. Locate or create the MPV configuration directory:
+   - Navigate to `%APPDATA%\mpv\` (create it if it doesn't exist)
+2. Create or edit `mpv.conf` file
+3. Add the following lines:
+   ```
+   # Enable IPC socket for advanced tracking
+   input-ipc-server=\\.\pipe\mpvsocket
+   ```
+4. Save the file and restart MPV
+
+**Verification:**
+- Play a movie in MPV
+- The scrobbler will connect to the pipe socket
+- Position data should be accurately tracked
+
+### MPC-HC/BE (Media Player Classic)
+
+```mermaid
+flowchart TD
+    A[Open MPC-HC/BE] --> B[View → Options]
+    B --> C[Player → Web Interface]
+    C --> D[Enable Web Interface]
+    D --> E[Set port to 13579]
+    E --> F[Save & Restart]
+    style A fill:#d4f1f9,stroke:#333,stroke-width:2px
+    style F fill:#d5f5e3,stroke:#333,stroke-width:2px
+```
+
+**Step-by-Step Configuration:**
+1. Open MPC-HC or MPC-BE
+2. Navigate to **View → Options**
+3. Go to **Player → Web Interface**
+4. Check **Listen on port:** and ensure it's set to **13579** (default)
+5. Click **OK** and restart MPC
+
+**Verification:**
+- Play a movie in MPC
+- The scrobbler will connect to the web interface
+- Position data should be accurately tracked
+
+### PotPlayer
+
+**Configuration Steps:**
+1. Open PotPlayer
+2. Navigate to **Preferences** (F5)
+3. Go to **Network → Remote Control**
+4. Enable **HTTP control**
+5. Set the port to **8080** (or another port of your choice)
+6. Click **OK** and restart PotPlayer
+
+**Verification:**
+- The scrobbler connects to PotPlayer's HTTP control interface
+- Position data should be accurately tracked during playback
+
+---
+
+## 🍏 macOS Media Player Configuration
+
+### VLC Media Player
+
+Follow the same configuration steps as shown in the Windows VLC section above.
+
+### MPV Media Player
+
+1. Create or locate the MPV configuration directory:
+   - `~/.config/mpv/` (create it if it doesn't exist)
+2. Create or edit `mpv.conf`
+3. Add the following line:
+   ```
+   # Enable IPC socket for advanced tracking
+   input-ipc-server=/tmp/mpvsocket
+   ```
+4. Save and restart MPV
+
+### Infuse (Apple TV/iOS)
+
+Infuse requires special configuration through its settings menu.
+
+---
+
+## 🐧 Linux Media Player Configuration
+
+### VLC Media Player
+
+Follow the same configuration steps as shown in the Windows VLC section above.
+
+### MPV Media Player
+
+1. Create or locate the MPV configuration directory:
+   - `~/.config/mpv/` (create it if it doesn't exist)
+2. Create or edit `mpv.conf`
+3. Add the following line:
+   ```
+   # Enable IPC socket for advanced tracking
+   input-ipc-server=/tmp/mpvsocket
+   ```
+4. Ensure the socket path has appropriate permissions
+5. Save and restart MPV
+
+---
+
+## 🧠 Tracking Methods Explained
 
 ```mermaid
 graph LR
-    A[Tracking Methods] --> B[Basic Support]
-    A --> C[Advanced Tracking]
-    B -->|Window Title| D[Generic Detection]
-    D --> E[Estimated Progress]
-    C -->|Player API| F[Direct Connection]
-    F --> G[Precise Position Data]
-    E --> H[Less Accurate]
-    G --> I[More Accurate]
+    A[Player Integration Methods] --> B[Web Interface]
+    A --> C[IPC Socket]
+    A --> D[Window Title]
+    B --> E[VLC, MPC, PotPlayer]
+    C --> F[MPV]
+    D --> G[Other Players]
+    E --> H[Position + Filename]
+    F --> H
+    G --> I[Filename Only]
+    H --> J[High Accuracy]
+    I --> K[Basic Accuracy]
     style A fill:#4285f4,stroke:#333,stroke-width:2px,color:#fff
-    style B fill:#fbbc05,stroke:#333,stroke-width:2px
-    style C fill:#34a853,stroke:#333,stroke-width:2px,color:#fff
+    style J fill:#34a853,stroke:#333,stroke-width:2px,color:#fff
+    style K fill:#fbbc05,stroke:#333,stroke-width:2px
 ```
 
-- **Basic:** Works by window title, no config needed, less accurate
-- **Advanced:** Uses player API for exact position, needs setup, more accurate
+### Advanced Tracking
+With advanced tracking (properly configured players):
+- Exact playback position is known
+- Precise tracking of watch progress
+- Accurate determination of when a movie is completed
+- Better handling of pauses and skips
 
----
-
-## ⚙️ Player Configuration Guides
-
-<details>
-<summary><b>VLC (All Platforms)</b></summary>
-Enable web interface (port 8080), set password, restart VLC. See [Configuration](configuration.md).
-</details>
-
-<details>
-<summary><b>MPV (All Platforms)</b></summary>
-Set up IPC socket in `mpv.conf`. See [Configuration](configuration.md).
-</details>
-
-<details>
-<summary><b>MPC-HC/BE (Windows)</b></summary>
-Enable web interface (port 13579) in options. See [Configuration](configuration.md).
-</details>
-
-<details>
-<summary><b>PotPlayer (Windows, Testing)</b></summary>
-Enable web interface (port 8080) in preferences.
-</details>
+### Basic Tracking
+Without player configuration:
+- Relies only on window titles
+- Less accurate progress estimation
+- May miss some watch events
+- More prone to false positives/negatives
 
 ---
 
 ## 🏷️ Filename Best Practices
 
+For optimal movie identification, follow these naming conventions:
+
 ```mermaid
-graph LR
-    A[Optimal Filename Format] --> B[Movies]
-    A --> C[TV Shows]
-    B --> D["MovieTitle (Year).ext"]
-    C --> E["ShowTitle SXXEXX.ext"]
-    D --> F["Inception (2010).mkv"]
-    E --> G["Breaking Bad S01E01.mp4"]
+graph TD
+    A[Optimal Movie Filename Format] --> B["MovieTitle (Year).ext"]
+    B --> C["Inception (2010).mkv"]
+    B --> D["The Godfather (1972).mp4"]
+    B --> E["Parasite (2019).avi"]
     style A fill:#4285f4,stroke:#333,stroke-width:2px,color:#fff
+    style C fill:#d5f5e3,stroke:#333,stroke-width:2px
+    style D fill:#d5f5e3,stroke:#333,stroke-width:2px
+    style E fill:#d5f5e3,stroke:#333,stroke-width:2px
 ```
-- Movies: `Inception (2010).mkv`
-- TV: `Breaking Bad S01E01.mp4`
+
+**Recommended Format:** `MovieTitle (Year).extension`
+
+**Examples:**
+- `Inception (2010).mkv`
+- `The Shawshank Redemption (1994).mp4`
+- `Pulp Fiction (1994).avi`
+
+**Additional Tips:**
+- Include the year for better identification
+- Avoid extra text like quality info or release group names in main filename
+- Remove unnecessary punctuation
+- If the movie has a subtitle, include it: `Movie Title: Subtitle (Year).ext`
 
 ---
 
-## 🛠️ Troubleshooting & Testing
+## 🛠️ Troubleshooting Player Configuration
 
-| Problem                  | Solution                                  |
-|--------------------------|-------------------------------------------|
-| Can't connect to VLC     | Enable web interface, check password      |
-| MPV socket not found     | Check socket path, permissions            |
-| MPC web not responding   | Enable interface, check port              |
-| Position not working     | Use supported player, verify config       |
+| Issue | Possible Cause | Solution |
+|-------|----------------|----------|
+| VLC connection fails | Web interface not enabled | Enable web interface in VLC settings |
+| | Wrong password | Check the password in VLC Lua HTTP settings |
+| | Port conflict | Change the port in VLC settings |
+| MPV socket error | Incorrect socket path | Verify the path in mpv.conf matches expectations |
+| | Permission issues | Check file permissions on the socket |
+| MPC-HC not detected | Web interface disabled | Enable web interface in MPC options |
+| | Wrong port | Verify port is set to 13579 |
+| PotPlayer not tracking | HTTP control disabled | Enable HTTP control in preferences |
+| General tracking issues | Filename format | Ensure movie files follow naming best practices |
 
-**Test your setup:**
-1. Start player with advanced tracking enabled
-2. Run `simkl-mps tray --debug`
-3. Play a media file
-4. Check logs for connection and position data
+### Testing Player Configuration
 
-If advanced tracking fails:
-- Use window title detection
-- Try a different player (VLC is most reliable)
-- Use clear filenames for best results
+1. Configure your media player according to the instructions
+2. Start the Media Player Scrobbler for Simkl with debug logging:
+   ```bash
+   simkl-mps tray --debug
+   ```
+3. Play a movie in your configured media player
+4. Check the logs for connection messages and position data
+5. If successful, position data should appear in the logs
+
+---
+
+## 📊 Player Comparison
+
+| Feature | VLC | MPV | MPC-HC/BE | PotPlayer |
+|---------|-----|-----|-----------|-----------|
+| Ease of configuration | ★★★★☆ | ★★★☆☆ | ★★★★☆ | ★★★★☆ |
+| Cross-platform | ✅ | ✅ | ❌ | ❌ |
+| Position accuracy | High | Very High | High | High |
+| Resource usage | Moderate | Low | Low | Moderate |
+| Recommended for | Beginners | Power users | Windows users | Windows users |
+
+The best player for tracking depends on your platform and preferences, but properly configured **VLC** offers the most universal compatibility and reliable tracking.

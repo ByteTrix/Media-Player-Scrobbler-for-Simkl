@@ -14,19 +14,19 @@ This document tracks both completed features and planned improvements for Media 
 - [x] 📦 Package distribution via PyPI
 - [x] 😙 New Icon/Logo and Name
 - [x] 🖱️ Enhance the tray application with more controls
+- [x] 📱 Improve notification system
+- [x] 🔐 Enhanced authentication flow
 
 ## 🚧 In Progress
 
 - [x] 🏦 Create installers for cross platform(Windows only Tested)
 - [ ] 🚹 Option to User Set Completion Percentage and Edit it Later
-- [ ] 📱 Improve notification system
 - [ ] 🪜 Testing Cross-Platform
 
 ## 📝 Planned Features
 
 ### Short Term
 
-- [ ] 🔐 Enhanced authentication flow
 - [ ] 🧪 Create comprehensive automated test suite
 - [ ] 🔎 Add option to manually correct misidentified movies
 

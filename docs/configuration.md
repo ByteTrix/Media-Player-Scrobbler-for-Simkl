@@ -58,11 +58,6 @@ graph TD
 | Offline Mode    | `--offline`         | `SIMKL_OFFLINE_MODE`         | false   | Force offline operation      |
 | Auto Process    | `--auto-process`    | `SIMKL_AUTO_PROCESS_BACKLOG` | true    | Process backlog on connect   |
 
-### Notifications
-| Setting              | CLI Option         | Env Var                  | Default | Description                  |
-|----------------------|-------------------|--------------------------|---------|------------------------------|
-| Disable Notifications| `--no-notify`     | `SIMKL_NO_NOTIFICATIONS` | false   | Turn off desktop notifications|
-| Notification Level   | `--notify-level`  | `SIMKL_NOTIFY_LEVEL`     | normal  | `minimal`, `normal`, `verbose`|
 
 ### Logging
 | Setting   | CLI Option         | Env Var           | Default | Description                  |
@@ -77,11 +72,7 @@ graph TD
 ```ini
 # .simkl_mps.env
 SIMKL_ACCESS_TOKEN=your_access_token_here
-SIMKL_POLL_INTERVAL=5
-SIMKL_COMPLETION_THRESHOLD=85
-SIMKL_LOG_LEVEL=INFO
-SIMKL_NO_NOTIFICATIONS=false
-SIMKL_NOTIFY_LEVEL=normal
+
 ```
 
 ---
@@ -121,12 +112,6 @@ SIMKL_CONNECTION_TIMEOUT=10
   simkl-mps start --interval 5 --threshold 85 --log-level DEBUG
   ```
 - **Config File:** Edit `.simkl_mps.env` in your data directory
-- **Environment Variables:**
-  ```bash
-  export SIMKL_POLL_INTERVAL=5
-  export SIMKL_LOG_LEVEL=DEBUG
-  simkl-mps start
-  ```
 
 ---
 
@@ -136,15 +121,6 @@ SIMKL_CONNECTION_TIMEOUT=10
 - Set custom log file: `simkl-mps start --log-file ~/simkl-debug.log`
 - Use descriptive filenames for best detection
 - Increase poll interval for lower resource use
-- Clean old data: `simkl-mps clean`
 
 ---
 
-## 🔄 Resetting Configuration
-
-- Full reset:
-  ```bash
-  simkl-mps reset
-  ```
-- Manual: delete the config/data directory for your OS
-- After reset, run `simkl-mps init` to reconfigure

@@ -18,7 +18,8 @@ MPS for SIMKL (Media Player Scrobbler) is a cross-platform app that automaticall
 ## ⚡ Quick Start
 
 - **Windows:** [Download the installer](https://github.com/kavinthangavel/media-player-scrobbler-for-simkl/releases/latest) and follow the setup wizard.
-- **macOS/Linux:**
+
+- **macOS/Linux:** [Testing in Progress]
   ```bash
   pip install simkl-mps
   simkl-mps start

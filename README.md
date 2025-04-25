@@ -13,12 +13,12 @@
 ## ✨ Features
 
 - 🎮 **Universal Media Player Support** (VLC, MPV, MPC-HC, PotPlayer, and more)
-- 🚀 **Zero Configuration** – Works out of the box
-- 🌐 **Cross-Platform** – Windows, macOS, Linux
-- 🖥️ **Native Executable** – System tray, auto-update, and background service
-- 📈 **Accurate Position Tracking** – For supported players
+- 🌐 **Cross-Platform** – Windows, (macOS, Linux)- Testing in Progress
+- 🖥️ **Native Executable** – System tray, auto-update, and background service (Windows)
+- 📈 **Accurate Position Tracking** – For supported players Need to Configure [Media Player](docs/media-players.md)
 - 🔌 **Offline Support** – Queues updates when offline
-- 🧠 **Smart Detection** – Intelligent filename parsing
+- 🧠 **Smart Movie Detection** – Intelligent filename parsing
+- 🍿 **Movie-Focused** – Currently optimized for movies (TV show tracking planned for future updates)
 
 ## 🖥️ Executable Overview
 
@@ -31,22 +31,30 @@ MPS for SIMKL provides a professional, cross-platform executable for Windows, ma
 
 ## ⚡ Quick Start
 
+Download the latest installer for Windows from the [Releases Page](https://github.com/kavinthangavel/media-player-scrobbler-for-simkl/releases/latest).
+
+> Must Setup [Media Player](docs/media-player.md)
+> Detailed Guide about [Windows installer](docs/windows-guide.md)
+
+or
+
 ```bash
+#mac/linux testing is still in progress
 pip install simkl-mps
 simkl-mps start
 ```
 
-Or download the latest installer for Windows from the [Releases Page](https://github.com/kavinthangavel/media-player-scrobbler-for-simkl/releases/latest).
 
 ## 📚 Documentation
 
-- [Installation Guide](docs/installation.md)
-- [Usage Guide](docs/usage.md)
-- [Supported Media Players](docs/media-players.md)
-- [Configuration](docs/configuration.md)
-- [Troubleshooting](docs/troubleshooting.md)
-- [Development Guide](docs/development.md)
-- [Todo List](docs/todo.md)
+- [Installation Guide](docs/installation.md) - Platform-specific installation instructions
+- [Windows Guide](docs/windows-guide.md) - Full Guide for Windows Installer
+- [Usage Guide](docs/usage.md) - Getting started and day-to-day usage
+- [Supported Media Players](docs/media-players.md) - Compatible players and configuration
+- [Configuration](docs/configuration.md) - Advanced settings and options
+- [Troubleshooting](docs/troubleshooting.md) - Common issues and solutions
+- [Development Guide](docs/development.md) - Contributing to the project
+- [Todo List](docs/todo.md) - Upcoming features and improvements
 
 ## 🔍 How It Works
 
@@ -62,7 +70,7 @@ graph LR
 
 ## 🚦 Performance Notes
 
-- **Movie identification:** 15–30 seconds (typical)
+- **Movie identification:** 15–25 seconds (typical)
 - **Mark as watched (online):** 2–8 seconds (best connection)
 - **Offline scrobble:** 4–10 seconds to process title, 1–3 seconds to add to backlog after threshold
 

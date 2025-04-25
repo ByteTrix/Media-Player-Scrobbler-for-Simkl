@@ -1,151 +1,347 @@
 # 🛠️ Troubleshooting Guide
 
-This guide helps you solve common problems with MPS for SIMKL.
+This comprehensive guide helps you solve common problems with Media Player Scrobbler for Simkl, with a focus on media player configuration, the Windows installer, and movie tracking issues.
 
 ## 🚩 Common Issues & Solutions
 
+### 🔐 Authentication Problems
+
 <details>
-<summary><b>Authentication Problems</b></summary>
+<summary><b>Can't authenticate with Simkl</b></summary>
+
 - Run `simkl-mps init --force` to reset authentication
 - Check your internet connection
 - Use the exact code shown for device login
 - If using a custom client ID, verify it in Simkl developer settings
+- For Windows installer: Try restarting the application from the Start menu
 </details>
 
 <details>
-<summary><b>Detection Issues</b></summary>
+<summary><b>Authentication token expired or invalid</b></summary>
+
+- Your authentication token may have expired or been invalidated
+- Run `simkl-mps init` to re-authenticate with Simkl
+- For Windows installer: Try Starting Application in Start Menu
+</details>
+
+### 🔍 Movie Detection Issues
+
+<details>
+<summary><b>Movies not being detected</b></summary>
+
 - Ensure your player shows the filename in the window title
-- Use clear filenames with title and year
-- Check if your player is supported ([see list](media-players.md))
-- Some players may hide titles in fullscreen
-- Run `simkl-mps tray --debug` and look for "Window title detected"
+- Use clear filenames with movie title and year: `Movie Title (Year).ext`
+- Check if your player is supported (see [Media Players](media-players.md))
+- Some players may hide titles in fullscreen mode
+- Run with debug logging: `simkl-mps tray --debug` and look for "Window title detected"
+- **Important**: TV shows are not yet supported (planned for future updates)
 </details>
 
 <details>
-<summary><b>Tracking Problems</b></summary>
-- Make sure you've watched enough (default: 80%)
+<summary><b>Wrong movie being identified</b></summary>
+
+- Improve your filename format: `Movie Title (Year).ext`
+- Example: `Inception (2010).mkv` instead of just `Inception.mkv`
+- Remove extra text like quality info or release group names
+- Check logs to see which title was extracted from your filename
+</details>
+
+### ⚙️ Media Player Configuration Issues
+
+<details>
+<summary><b>VLC configuration problems</b></summary>
+
+**Symptoms**: No position tracking, movie not detected, or less accurate scrobbling
+
+**Solutions**:
+1. Verify web interface is enabled:
+   - Tools → Preferences → Show settings: All
+   - Interface → Main interfaces → Check "Web"
+2. Check password configuration:
+   - Interface → Main interfaces → Lua
+   - Ensure "Lua HTTP Password" is set
+3. Test connection:
+   - Open `http://localhost:8080` in a browser
+   - You should be prompted for a password
+4. Port conflicts:
+   - Try changing the VLC web interface port if 8080 is in use
+   - Check Task Manager for other processes using port 8080
+5. Restart VLC after making changes
+</details>
+
+<details>
+<summary><b>MPV configuration problems</b></summary>
+
+**Symptoms**: No position tracking or MPV not detected
+
+**Solutions**:
+1. Verify your `mpv.conf` file:
+   - Windows: Located at `%APPDATA%\mpv\mpv.conf`
+   - Should contain: `input-ipc-server=\\.\pipe\mpvsocket`
+   - macOS/Linux: Should contain: `input-ipc-server=/tmp/mpvsocket`
+2. Check for typos in the configuration line
+3. Ensure MPV is restarted after configuration changes
+4. Verify the socket is created when MPV is running
+5. Try running MPV from command line to see any socket errors
+</details>
+
+<details>
+<summary><b>MPC-HC/BE configuration problems</b></summary>
+
+**Symptoms**: No position tracking or MPC not detected
+
+**Solutions**:
+1. Verify web interface is enabled:
+   - View → Options → Player → Web Interface
+   - Check "Listen on port:" and set to 13579
+2. Test connection:
+   - Open `http://localhost:13579` in a browser
+   - You should see the web interface
+3. Check firewall settings:
+   - Ensure MPC is allowed in your firewall
+4. Restart MPC after making changes
+</details>
+
+<details>
+<summary><b>PotPlayer configuration problems</b></summary>
+
+**Symptoms**: No position tracking or PotPlayer not detected
+
+**Solutions**:
+1. Verify HTTP control is enabled:
+   - Preferences (F5) → Network → Remote Control
+   - Enable "HTTP control" and set port to 8080
+2. Check port conflicts:
+   - Try a different port if 8080 is in use
+3. Restart PotPlayer after making changes
+</details>
+
+### 🚫 Tracking & Scrobbling Problems
+
+<details>
+<summary><b>Movies not marked as watched</b></summary>
+
+- Make sure you've watched enough of the movie (default threshold: 80%)
 - Check your internet connection
-- Configure your player for advanced tracking ([see guide](media-players.md))
+- Configure your player for advanced tracking (see [Media Players](media-players.md))
 - Run `simkl-mps backlog process` to send pending updates
-- Run in debug mode to see progress updates
+- Run in debug mode to see progress updates: `simkl-mps tray --debug`
+- Check if the movie was properly identified (look for "Identified movie:" in logs)
 </details>
 
 <details>
-<summary><b>Position Tracking Not Working</b></summary>
-- Ensure player web interface or IPC is set up
+<summary><b>Position tracking not working</b></summary>
+
+- Ensure player web interface or IPC socket is properly configured
 - Check for port conflicts or firewall issues
-- Some player versions may change their API
-- Test player connection (see below)
+- Some player versions may have different APIs or changed behavior
+- Try a different media player to compare behavior
+- For VLC: Make sure you're using the password you configured
+</details>
+
+### 🪟 Windows Installer & EXE Issues
+
+<details>
+<summary><b>Installation failures</b></summary>
+
+- Run the installer as Administrator (right-click → Run as administrator)
+- Check Windows Defender or antivirus settings (may block the installer)
+- Verify you have sufficient disk space
+- Try downloading the installer again (file may be corrupted)
+- Ensure you have the latest Windows updates installed
 </details>
 
 <details>
-<summary><b>Platform-Specific Issues</b></summary>
+<summary><b>Application doesn't start after installation</b></summary>
 
-**Windows:**
-- Add Python Scripts to PATH or use `py -m simkl_mps`
-- Check Event Viewer for errors
-- Enable system tray in taskbar settings
-- Install Visual C++ Redistributable if DLLs missing
-- Run as Administrator for service install
-
-**macOS:**
-- Grant accessibility and notification permissions
-- Install Python via Homebrew if not found
-- Check logs in Console app
-
-**Linux:**
-- Install `wmctrl`, `xdotool`, `python3-gi`, `libnotify-bin`
-- Ensure your desktop supports system trays
-- Check D-Bus and window manager support
+- Check Windows Event Viewer for application errors
+- Verify .NET Framework is installed and up to date
+- Try running the application as Administrator
+- Check if the application appears in Task Manager (may be running but not visible)
+- Look for error logs in `%APPDATA%\kavinthangavel\simkl-mps\simkl_mps.log`
 </details>
 
----
+<details>
+<summary><b>System tray icon missing</b></summary>
+
+- Check if the application is running in Task Manager
+- Ensure your system tray is enabled and not hiding icons
+- Click the up arrow in the system tray to check for hidden icons
+- Try restarting the application from the Start menu
+- In Windows 11, check notification area settings in Taskbar settings
+</details>
+
+<details>
+<summary><b>Auto-update problems</b></summary>
+
+- Check if you have internet access
+- Try manually checking for updates (right-click tray icon → Check for Updates)
+- Verify you have write permissions to the installation directory
+- Run the application as Administrator
+- Try reinstalling the latest version from the releases page
+</details>
+
+<details>
+<summary><b>Windows service/auto-start issues</b></summary>
+
+- Check if the application appears in Task Manager at startup
+- Verify the startup entry exists in Task Manager → Startup
+- Try adding a manual startup shortcut in `shell:startup`
+- For service issues, try running `simkl-mps.exe --service-install` as Administrator
+</details>
+
+### 🖥️ Platform-Specific Issues
+
+<details>
+<summary><b>Windows</b></summary>
+
+- Add Python Scripts to PATH or use `py -m simkl_mps` (for pip installations)
+- Check Event Viewer for application errors
+- Enable system tray in taskbar settings
+- Install Visual C++ Redistributable if DLLs are missing
+- Run as Administrator for service installation
+- Check Windows Defender or antivirus exclusions if the app is being blocked
+</details>
+
+<details>
+<summary><b>macOS</b></summary>
+
+- Grant accessibility and notification permissions in System Preferences
+- Install Python via Homebrew if not found (`brew install python`)
+- Check logs in Console app
+- For pip installations, ensure pip is installed with the correct Python version
+- Use `simkl-mps[macos]` to install macOS-specific dependencies
+</details>
+
+<details>
+<summary><b>Linux</b></summary>
+
+- Install required dependencies: `wmctrl`, `xdotool`, `python3-gi`, `libnotify-bin`
+- Ensure your desktop environment supports system trays
+- Check D-Bus and window manager support
+- Verify Python 3.9+ is installed
+- For some distributions, you may need additional packages for GTK integration
+</details>
 
 ## 🧑‍💻 Advanced Diagnostics
 
-<details>
-<summary><b>Debug Logging</b></summary>
-- Run with debug logging: `simkl-mps tray --log-level DEBUG`
-- Set persistent debug: add `SIMKL_LOG_LEVEL=DEBUG` to your config file
-- Look for INFO, WARNING, ERROR, CRITICAL in logs
-</details>
+### Debug Logging
 
-<details>
-<summary><b>Network Diagnostics</b></summary>
-- Test SIMKL API: `curl -I https://api.simkl.com/`
-- Test VLC: `curl -I http://localhost:8080/`
-- Test MPC: `curl -I http://localhost:13579/`
-- Check for processes on ports: `netstat -ano | findstr "8080 13579"` (Windows)
-</details>
+For detailed logging that helps identify issues:
 
-<details>
-<summary><b>System Resource Usage</b></summary>
+```bash
+# Run with debug logging
+simkl-mps tray --log-level DEBUG
+
+# For Windows installer version
+"C:\Program Files\Media Player Scrobbler for Simkl\simkl-mps.exe" --debug
+```
+
+Set persistent debug logging by adding to your config file:
+```
+SIMKL_LOG_LEVEL=DEBUG
+```
+
+### Key Log Locations
+
+- **Windows**: `%APPDATA%\kavinthangavel\simkl-mps\simkl_mps.log`
+- **macOS**: `~/Library/Application Support/kavinthangavel/simkl-mps/simkl_mps.log`
+- **Linux**: `~/.local/share/kavinthangavel/simkl-mps/simkl_mps.log`
+
+### Important Log Messages to Look For
+
+- `Window title detected:` – Shows what is being monitored
+- `Identified movie:` – Successful movie detection
+- `Progress:` – Current playback position
+- `Marked as watched:` – Successful scrobbling
+- `ERROR:` – Problems requiring attention
+
+### Network Diagnostics
+
+Test connectivity to required services:
+
+```bash
+# Test SIMKL API
+curl -I https://api.simkl.com/
+
+# Test VLC web interface
+curl -I http://localhost:8080/
+
+# Test MPC web interface
+curl -I http://localhost:13579/
+```
+
+Check for port conflicts:
+- Windows: `netstat -ano | findstr "8080 13579"`
+- macOS/Linux: `sudo lsof -i :8080` and `sudo lsof -i :13579`
+
+### System Resource Usage
+
+The application should use minimal resources:
 - Windows: `Get-Process -Name "MPSS*" | Select-Object Name, CPU, WS`
 - macOS/Linux: `ps aux | grep -i simkl`
-- App should use <1% CPU and <50MB RAM when idle
-</details>
-
----
+- Expected usage: <1% CPU and <60MB RAM when idle
 
 ## 🔄 Reset & Recovery
 
-<details>
-<summary><b>Full Reset</b></summary>
-1. Stop all instances: `simkl-mps stop`
+### Full Reset Procedure
+
+If you need to completely reset the application:
+
+1. Stop all instances: `simkl-mps stop` or end process in Task Manager
 2. Delete app data directory:
    - Windows: `%APPDATA%\kavinthangavel\simkl-mps`
    - macOS: `~/Library/Application Support/kavinthangavel/simkl-mps`
    - Linux: `~/.local/share/kavinthangavel/simkl-mps`
-3. Reinstall: `pip install --force-reinstall simkl-mps`
-4. Run `simkl-mps init`
-</details>
+3. For pip installations: `pip install --force-reinstall simkl-mps`
+4. For Windows installer: Uninstall via Settings → Apps, then reinstall
+5. Run initial setup: `simkl-mps start`
 
-<details>
-<summary><b>Recovering from Crashes</b></summary>
-1. Stop any running instances: `simkl-mps stop --force`
-2. Backup and check logs
+### Recovering from Crashes
+
+1. Stop any running instances: `simkl-mps stop --force` or use Task Manager
+2. Backup and check logs for errors
 3. Try running in safe mode: `simkl-mps start --safe-mode`
-</details>
+4. If using Windows installer and crashes persist, try the pip installation method
 
----
+## 📊 Diagnostic Tests
 
-## 🖥️ Troubleshooting the Windows Executable (MPS for Simkl.exe)
+### Media Player Connection Test
 
-The Windows installer provides a native executable (`MPS for Simkl.exe`) with tray icon and auto-update. Here are some tips for troubleshooting the EXE version:
+Testing if your media player is properly configured:
 
-### Authentication Issues
-- If authentication fails or you get stuck, try closing and reopening **MPS for Simkl.exe** from the Start menu or desktop shortcut. This can reset the authentication flow and prompt you again.
-- Make sure only one instance is running (check the system tray for the icon).
+```bash
+# Test VLC configuration (Windows Command Prompt)
+curl -I http://localhost:8080/
 
+# Test MPV socket (Windows PowerShell)
+Test-Path -Path \\.\pipe\mpvsocket
+```
 
-### Update or Installation Errors
-- If an update fails or you see an installation error, try restarting your computer and running **MPS for Simkl.exe** again from the Start menu or desktop.
-- Make sure you have the latest installer from the [Releases Page](https://github.com/kavinthangavel/media-player-scrobbler-for-simkl/releases/latest).
-- If the tray icon does not appear after updating, try reinstalling the application.
-- Always check the log file for details: `%APPDATA%\kavinthangavel\simkl-mps\simkl_mps.log`
-- If you encounter persistent update or install issues, please report them in the [GitHub Discussions or Issues](https://github.com/kavinthangavel/media-player-scrobbler-for-simkl/issues) and mention you are using the EXE version.
-
-### Basic EXE Troubleshooting
-- Double-click the desktop or Start menu shortcut to launch the app. If nothing happens, check the Task Manager for any running `MPS for Simkl.exe` or `MPSS.exe` processes and end them before trying again.
-- If the tray icon is missing, ensure your Windows system tray is enabled and not hiding the icon.
-- If you see errors about missing DLLs, install the latest [Visual C++ Redistributable](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170).
-- For auto-start issues, check that the shortcut exists in your Startup folder (`shell:startup` in Run dialog).
-- If you get repeated errors or crashes, try running the EXE as Administrator (right-click → Run as administrator).
-- For update problems, you can manually run the updater script: right-click `updater.ps1` in the install directory and select "Run with PowerShell".
-
-### Need More Help?
-- For real-time help, you can join the official [Simkl Discord server](https://discord.gg/simkl) and ask in the [MPSS Post](https://discord.com/channels/322804221688938516/1363974113429032960). Mention you are using the Windows EXE/tray version.
-- Always include your OS version, app version, and any error messages or log excerpts when asking for help.
-
----
 
 ## 🆘 Getting Help
 
-- Check [GitHub Issues](https://github.com/kavinthangavel/media-player-scrobbler-for-simkl/issues)
-- Collect diagnostics: `simkl-mps diagnose > simkl-diagnostic-report.txt`
-- Open a new issue with:
-  - OS and version
-  - MPS version (`simkl-mps --version`)
-  - Log excerpts (redact sensitive info)
-  - Steps to reproduce
-  - Diagnostic report file
+If you still can't resolve your issue:
+
+1. Check the [GitHub Issues](https://github.com/kavinthangavel/media-player-scrobbler-for-simkl/issues) for similar problems
+2. Open a new issue with:
+   - OS name and version
+   - Media Player Scrobbler for Simkl version (`simkl-mps --version`)
+   - Log excerpts (redact sensitive information)
+   - Steps to reproduce the issue
+   - Attach your diagnostic report file
+   - Media player and version you're using
+
+## 💡 Quick Reference: Common Problems and Fixes
+
+| Problem | Likely Cause | Quick Fix |
+|---------|--------------|-----------|
+| No movies detected | Media player not supported or configured | Configure player according to [Media Players](media-players.md) guide |
+| Wrong movie identified | Poor filename | Rename to `Movie Title (Year).ext` format |
+| VLC not connecting | Web interface not enabled | Enable web interface in VLC preferences |
+| MPV not connecting | IPC socket not configured | Add socket path to mpv.conf |
+| Movies not marked as watched | Not watched enough/threshold not met | Watch at least 80% of the movie |
+| Offline scrobbles not syncing | Internet connection or backlog issue | Run `simkl-mps backlog process` manually |
+| System tray icon missing | System tray settings or app crash | Check hidden icons or restart app |
+| Windows installer fails | Admin rights or antivirus | Run as Administrator and check antivirus settings |
+| High CPU usage | Debug logging or process conflict | Restart app or check for conflicting processes |

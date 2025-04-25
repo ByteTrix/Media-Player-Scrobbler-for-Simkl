@@ -36,7 +36,7 @@ simkl-movie-tracker/
    pre-commit install
    ```
 
-## 🧪 Testing & Code Style
+<!-- ## 🧪 Testing & Code Style
 
 - Run all tests:
   ```bash
@@ -49,7 +49,7 @@ simkl-movie-tracker/
 - Lint code:
   ```bash
   poetry run flake8 simkl_mps
-  ```
+  ``` -->
 
 ## ➕ Adding a New Media Player
 
