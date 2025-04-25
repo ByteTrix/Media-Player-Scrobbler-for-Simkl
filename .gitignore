@@ -71,3 +71,4 @@ gpg_sign_tag.bat
 fix_gpg_key.bat
 delete_tag.bat
 testing
+bump_version.bat
