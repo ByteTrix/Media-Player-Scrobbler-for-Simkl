@@ -2,4 +2,4 @@
 Utility modules for Media Player Scrobbler for SIMKL.
 """
 
-from .constants import *
+from simkl_mps.utils.constants import *

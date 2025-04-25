@@ -16,8 +16,8 @@ import pystray
 from plyer import notification
 
 # Import API and credential functions
-from .simkl_api import get_user_settings
-from .credentials import get_credentials
+from simkl_mps.simkl_api import get_user_settings
+from simkl_mps.credentials import get_credentials
 # Import constants only, not the whole module
 from simkl_mps.main import APP_DATA_DIR, APP_NAME
 
