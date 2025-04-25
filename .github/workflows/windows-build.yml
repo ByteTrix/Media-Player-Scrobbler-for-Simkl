@@ -97,8 +97,11 @@ jobs:
           # Replace version in setup.iss
           (Get-Content setup.iss) -replace '#define MyAppVersion "[^"]*"', "#define MyAppVersion `"$version`"" | Set-Content setup_temp.iss
           
-          # Add build_info.json to the [Files] section instead of appending at the end
-          (Get-Content setup_temp.iss) -replace '(\[Files\][^\[]*)', "$1`r`n; Include build verification information`r`nSource: `"build-info\build_info.json`"; DestDir: `"{app}`"; Flags: ignoreversion`r`n" | Set-Content setup_temp.iss
+          # Find the end of the [Files] section and properly add the build_info.json entry
+          $fileContent = Get-Content setup_temp.iss -Raw
+          $filesPattern = "(\[Files\].*?)(^\[)"
+          $newContent = $fileContent -replace $filesPattern, "`$1`r`nSource: `"build-info\build_info.json`"; DestDir: `"{app}`"; Flags: ignoreversion`r`n`r`n`$2" -replace '(?smi)'
+          Set-Content -Path setup_temp.iss -Value $newContent
           
           # Compile the setup
           & 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe' /Q setup_temp.iss
