@@ -80,8 +80,11 @@ jobs:
           # Patch is now included directly in simkl-mps.spec
           python -m PyInstaller --clean simkl-mps.spec
           
+          # Make sure the destination directory exists before copying
+          New-Item -Path "dist\simkl-mps" -ItemType Directory -Force
+          
           # Copy build_info.json to the PyInstaller dist directory
-          cp build-info/build_info.json dist/simkl-mps/
+          Copy-Item -Path "build-info\build_info.json" -Destination "dist\simkl-mps\" -Force
 
       - name: Test PyInstaller build
         shell: bash
