@@ -86,13 +86,20 @@ jobs:
             find release-artifacts -name "*.exe" || echo "No .exe files found"
             exit 1
           fi
-      - name: Sign Windows Installer with Sigstore # Moved this step up
-        uses: sigstore/gh-action-sigstore@v2.0.0
-        # Permissions are set at the job level (id-token: write)
-        with:
-          artifact_path: ${{ steps.find_installer.outputs.path }}
+      # Removed incorrect sigstore/gh-action-sigstore step
+      - name: Install cosign # Corrected indentation
+        uses: sigstore/cosign-installer@v3.4.0 # Use the same version as in build-verification.yml
 
-      - name: Prepare verification information # Correctly associate run block
+      - name: Sign Windows Installer with Cosign # Corrected indentation
+        id: sign_installer
+        run: |
+          INSTALLER_PATH="${{ steps.find_installer.outputs.path }}"
+          echo "Signing $INSTALLER_PATH..."
+          cosign sign-blob --yes "$INSTALLER_PATH" --output-signature "${INSTALLER_PATH}.sig"
+          echo "Signature created at ${INSTALLER_PATH}.sig"
+          echo "signature_path=${INSTALLER_PATH}.sig" >> $GITHUB_OUTPUT
+          
+      - name: Prepare verification information # Corrected indentation
         run: |
           # Ensure verification-artifacts directory exists
           mkdir -p verification-info
@@ -170,12 +177,21 @@ jobs:
             echo "Release created and Windows installer attached."
           fi
           
-          # Upload verification info (checksums, signatures, etc.)
-          echo "Uploading verification artifacts..."
+          # Upload verification info (checksums, checksum sig)
+          echo "Uploading verification artifacts from verification-info/ ..."
           find verification-info -type f | while read file; do
             echo "Uploading $file..."
             gh release upload "v$VERSION" "$file" --clobber
           done
+          
+          # Upload the installer signature
+          INSTALLER_SIG_PATH="${{ steps.sign_installer.outputs.signature_path }}"
+          if [ -f "$INSTALLER_SIG_PATH" ]; then
+            echo "Uploading installer signature: $INSTALLER_SIG_PATH"
+            gh release upload "v$VERSION" "$INSTALLER_SIG_PATH" --clobber
+          else
+            echo "::warning:: Installer signature file not found at $INSTALLER_SIG_PATH"
+          fi
           echo "Verification artifacts uploaded."
 
           # The Windows installer is now attached during 'gh release create',
