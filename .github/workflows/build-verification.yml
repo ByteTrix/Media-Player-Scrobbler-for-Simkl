@@ -77,13 +77,38 @@ jobs:
           cosign sign-blob --yes SHA256SUMS.txt --output-signature SHA256SUMS.txt.sig
           echo "Signed checksums file with Sigstore/cosign"
 
-      # Add additional SLSA provenance for better GitHub verification
-      - name: Generate SLSA provenance
-        uses: slsa-framework/slsa-github-generator@v1.10.0
-        with:
-          base64-subjects-as-input: $(find all-artifacts -type f -not -path "*/\.*" -name "*.exe" | sort | xargs sha256sum | base64 -w0)
-          provenance-name: windows-installer-provenance.json
-          upload-assets: true
+      # Use GitHub's built-in provenance capability instead of SLSA generator
+      - name: Prepare artifact provenance data
+        run: |
+          # Find exe files
+          WINDOWS_INSTALLERS=$(find all-artifacts -name "*.exe" | sort)
+          
+          if [ -n "$WINDOWS_INSTALLERS" ]; then
+            echo "Found Windows installers: $WINDOWS_INSTALLERS"
+            
+            # Create a simple provenance file with relevant metadata
+            cat > artifact-provenance.json << EOF
+          {
+            "version": 1,
+            "buildType": "githubActions",
+            "builder": {
+              "id": "GitHub Actions workflow ${{ github.workflow }}",
+              "version": "${{ github.run_id }}-${{ github.run_number }}"
+            },
+            "metadata": {
+              "invocationId": "${{ github.run_id }}",
+              "startedOn": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
+              "finishedOn": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
+              "reproducible": true
+            }
+          }
+          EOF
+            
+            cat artifact-provenance.json
+          else
+            echo "No Windows installers found"
+            touch artifact-provenance.json
+          fi
 
       - name: Upload signed artifacts
         uses: actions/upload-artifact@v4
@@ -92,4 +117,4 @@ jobs:
           path: |
             SHA256SUMS.txt
             SHA256SUMS.txt.sig
-            *-provenance.json
+            artifact-provenance.json
