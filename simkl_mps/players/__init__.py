@@ -6,6 +6,7 @@ from .vlc import VLCIntegration
 from .mpv import create_mpv_integration, MPVIntegration
 from .mpc import MPCHCIntegration, MPCIntegration
 from .potplayer import PotPlayerIntegration
+from .infuse import InfuseIntegration
 
 __all__ = [
     'VLCIntegration',
@@ -13,5 +14,6 @@ __all__ = [
     'MPVIntegration',
     'MPCHCIntegration',
     'MPCIntegration',
-    'PotPlayerIntegration'
+    'PotPlayerIntegration',
+    'InfuseIntegration'
 ]

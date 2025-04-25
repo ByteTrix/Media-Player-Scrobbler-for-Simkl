@@ -1,0 +1,166 @@
+name: Test Linux Installation
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to test'
+        required: true
+        default: '0.0.0'
+  workflow_run:
+    workflows: ["Build Linux"]
+    types:
+      - completed
+
+permissions:
+  contents: read
+
+jobs:
+  test-linux-install:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Linux installer artifacts
+        uses: dawidd6/action-download-artifact@v2
+        with:
+          workflow: linux-build.yml
+          workflow_conclusion: success
+          name: linux-installers
+          path: ./installers
+
+      - name: List downloaded installers
+        run: |
+          ls -la ./installers
+          echo "Downloaded installers:"
+          find ./installers -type f | sort
+
+      - name: Set up environment for AppImage
+        run: |
+          # Install required dependencies for testing AppImage
+          sudo apt-get update
+          sudo apt-get install -y libfuse2 libgtk-3-0 libnotify4
+
+      - name: Test AppImage
+        run: |
+          # Find AppImage file
+          APPIMAGE=$(find ./installers -name "*.AppImage" | head -1)
+          
+          if [ -z "$APPIMAGE" ]; then
+            echo "Error: No AppImage found in artifacts"
+            exit 1
+          fi
+          
+          echo "Testing AppImage: $APPIMAGE"
+          
+          # Make AppImage executable
+          chmod +x "$APPIMAGE"
+          
+          # Extract AppImage (don't run it, just extract for testing)
+          "$APPIMAGE" --appimage-extract
+          
+          # Check if extraction worked
+          if [ -d "squashfs-root" ]; then
+            echo "✅ AppImage extracted successfully"
+          else
+            echo "❌ AppImage extraction failed"
+            exit 1
+          fi
+          
+          # Check if main executable exists in extracted AppImage
+          if [ -f "squashfs-root/simkl-mps" ] && [ -x "squashfs-root/simkl-mps" ]; then
+            echo "✅ Executable found in AppImage"
+          else
+            echo "❌ Executable not found in AppImage or not executable"
+            exit 1
+          fi
+          
+          # Test help command in headless mode
+          ./squashfs-root/simkl-mps --help
+          
+          if [ $? -eq 0 ]; then
+            echo "✅ AppImage executable runs successfully with --help"
+          else
+            echo "❌ AppImage executable failed to run with --help"
+            exit 1
+          fi
+          
+          # Try version command
+          ./squashfs-root/simkl-mps --version
+          
+          # Cleanup AppImage extraction
+          rm -rf squashfs-root
+
+      - name: Test Debian package
+        run: |
+          # Find DEB file
+          DEB_FILE=$(find ./installers -name "*.deb" | head -1)
+          
+          if [ -z "$DEB_FILE" ]; then
+            echo "Error: No DEB file found in artifacts"
+            exit 1
+          fi
+          
+          echo "Testing DEB package: $DEB_FILE"
+          
+          # Create a temporary directory for extracting the deb
+          mkdir -p deb-extract
+          cd deb-extract
+          
+          # Extract the deb
+          ar x "$DEB_FILE"
+          
+          # Extract the data archive
+          tar -xf data.tar.* || (tar -xf data.tar.xz || tar -xf data.tar.gz)
+          
+          # Check package contents
+          if [ -d "usr/bin" ]; then
+            echo "✅ Package has /usr/bin directory"
+          else
+            echo "❌ Package missing /usr/bin directory"
+            exit 1
+          fi
+          
+          # Check if main executable exists
+          if [ -f "usr/bin/simkl-mps" ]; then
+            echo "✅ Executable found in package"
+          else
+            echo "❌ Executable not found in package"
+            exit 1
+          fi
+          
+          # Check for other required files
+          if [ -d "usr/share/applications" ] && [ -f "usr/share/applications/simkl-mps.desktop" ]; then
+            echo "✅ Desktop file found"
+          else
+            echo "❌ Desktop file missing"
+            exit 1
+          fi
+          
+          if [ -d "usr/share/simkl-mps/utils" ] && [ -f "usr/share/simkl-mps/utils/updater.sh" ]; then
+            echo "✅ Updater script found"
+          else
+            echo "❌ Updater script missing"
+            exit 1
+          fi
+          
+          # Check permissions on main executable
+          if [ -x "usr/bin/simkl-mps" ]; then
+            echo "✅ Executable has correct permissions"
+          else
+            echo "❌ Executable missing executable permissions"
+            exit 1
+          fi
+          
+          # Return to previous directory
+          cd ..          
+          
+          # Optional: Install the package in a Docker container for full testing
+          # This part is commented out since it would need more setup
+          # Docker would be needed to properly install and test the package
+          
+          # Cleanup
+          rm -rf deb-extract
+
+      - name: Cleanup
+        run: |
+          rm -rf ./installers
+          echo "Installer artifacts removed"

@@ -51,3 +51,15 @@ simkl_mps/assets/wizard.bmp
 gitpush.py
 build_installer.bat
 update_wiki.py
+push_to_wiki.py
+gitpush_wiki.py
+
+# Code signing files
+*.pfx
+*.p12
+*.pem
+*.cer
+code_signing_key.txt
+simkl_mps/utils/av_submission_helper.py
+build_nosign.bat
+simkl_mps/utils/av_submission/av_submission_info.txt

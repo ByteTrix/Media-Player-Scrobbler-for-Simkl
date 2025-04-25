@@ -253,6 +253,52 @@ def get_movie_details(simkl_id, client_id, access_token):
         logger.error(f"Simkl API: Error getting movie details for ID {simkl_id}: {e}", exc_info=True)
         return None
 
+def get_user_settings(client_id, access_token):
+    """
+    Retrieves user settings from Simkl, which includes the user ID.
+
+    Args:
+        client_id (str): Simkl API client ID.
+        access_token (str): Simkl API access token.
+
+    Returns:
+        dict | None: A dictionary containing user settings, or None if an error occurs.
+                      The user ID is typically found under ['user']['ids']['simkl'].
+    """
+    if not client_id or not access_token:
+        logger.error("Simkl API: Missing required parameters for get_user_settings.")
+        return None
+    if not is_internet_connected():
+        logger.warning("Simkl API: Cannot get user settings, no internet connection.")
+        return None
+
+    headers = {
+        'Content-Type': 'application/json',
+        'simkl-api-key': client_id,
+        'Authorization': f'Bearer {access_token}'
+    }
+    headers = _add_user_agent(headers)
+    url = f'{SIMKL_API_BASE_URL}/users/settings'
+
+    try:
+        logger.info("Simkl API: Fetching user settings...")
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+        settings = response.json()
+        logger.info("Simkl API: User settings retrieved successfully.")
+        # Extract and log the user ID if found
+        try:
+            user_id = settings.get('user', {}).get('ids', {}).get('simkl')
+            if user_id:
+                logger.info(f"Simkl API: Found User ID: {user_id}")
+            else:
+                 logger.warning("Simkl API: User ID not found within user settings response.")
+        except Exception:
+            logger.warning("Simkl API: Error accessing user ID in settings response structure.")
+        return settings
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Simkl API: Error getting user settings: {e}", exc_info=True)
+        return None
 def get_device_code(client_id):
     """
     Initiates the Simkl OAuth device authentication flow.

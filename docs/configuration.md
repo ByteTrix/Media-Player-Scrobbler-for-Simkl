@@ -1,116 +1,234 @@
 # ⚙️ Advanced Configuration
 
-This document describes advanced configuration options for Media Player Scrobbler for SIMKL.
+This document provides detailed configuration options for MPS for SIMKL to customize your experience.
 
-## 📁 Configuration Files
+## 📁 Configuration Overview
 
-The primary configuration is stored in `.simkl_mps.env` in the application data directory:
+MPS for SIMKL uses a flexible configuration system with multiple layers in the following priority order:
 
-- Windows: `%APPDATA%\kavinthangavel\media-player-scrobbler-for-simkl\.simkl_mps.env`
-- macOS: `~/Library/Application Support/kavinthangavel/media-player-scrobbler-for-simkl/.simkl_mps.env`
-- Linux: `~/.local/share/kavinthangavel/media-player-scrobbler-for-simkl/.simkl_mps.env`
+1. Command-line arguments (highest priority)
+2. Configuration file settings
+3. Environment variables 
+4. Default settings (lowest priority)
 
-## 🔧 Environment Variables
+```mermaid
+graph TD
+    A[Configuration Sources] --> B[Command-line Arguments]
+    A --> C[Configuration File]
+    A --> D[Environment Variables]
+    A --> E[Default Settings]
+    
+    B --> F[Configuration Manager]
+    C --> F
+    D --> F
+    E --> F
+    
+    F --> G[Application Settings]
+    
+    G --> H[Tracking Options]
+    G --> I[Network Settings]
+    G --> J[UI Preferences]
+    G --> K[Logging Configuration]
+    
+    style A fill:#4285f4,stroke:#333,stroke-width:2px,color:#fff
+    style F fill:#34a853,stroke:#333,stroke-width:2px,color:#fff
+```
 
-You can customize behavior by setting these environment variables:
+## 🔧 Configuration Locations
 
-| Variable | Purpose | Default |
-|----------|---------|---------|
-| `SIMKL_CLIENT_ID` | Custom API client ID | Built-in ID |
-| `SIMKL_ACCESS_TOKEN` | Manual access token | Auto-generated |
-| `SIMKL_LOG_LEVEL` | Logging verbosity (DEBUG, INFO, etc.) | INFO |
-| `SIMKL_POLL_INTERVAL` | Window check frequency (seconds) | 10 |
-| `SIMKL_COMPLETION_THRESHOLD` | % to mark as watched | 80 |
+### Main Configuration File
 
-## 📊 Application Data
+The application stores its primary configuration in `.simkl_mps.env`:
 
-Key files and their locations:
+| Platform | Default Location |
+|----------|------------------|
+| Windows | `%APPDATA%\kavinthangavel\simkl-mps\.simkl_mps.env` |
+| macOS | `~/Library/Application Support/kavinthangavel/simkl-mps/.simkl_mps.env` |
+| Linux | `~/.local/share/kavinthangavel/simkl-mps/.simkl_mps.env` |
+
+### Important Data Files
 
 | File | Purpose | Location |
 |------|---------|----------|
-| `simkl_mps.log` | Main application log | APP_DATA_DIR/kavinthangavel/media-player-scrobbler-for-simkl |
-| `playback_log.jsonl` | Detailed event log | APP_DATA_DIR/kavinthangavel/media-player-scrobbler-for-simkl |
-| `media_cache.json` | Movie info cache | APP_DATA_DIR/kavinthangavel/media-player-scrobbler-for-simkl |
-| `backlog.json` | Offline queue | APP_DATA_DIR/kavinthangavel/media-player-scrobbler-for-simkl |
-| `.simkl_mps.env` | Configuration | APP_DATA_DIR/kavinthangavel/media-player-scrobbler-for-simkl |
+| `simkl_mps.log` | Main application log | Same directory as config |
+| `playback_log.jsonl` | Detailed media events | Same directory as config |
+| `media_cache.json` | Media metadata cache | Same directory as config |
+| `backlog.json` | Offline queue | Same directory as config |
 
-Where `APP_DATA_DIR` is platform-specific:
-- Windows: `%APPDATA%`
-- macOS: `~/Library/Application Support`
-- Linux: `~/.local/share`
+## ⚙️ Configuration Options
 
-## 🛠️ Advanced Settings
+### Core Settings
 
-### ⏱️ Customizing the Completion Threshold
+| Setting | Command Line | Env Variable | Default | Description |
+|---------|--------------|--------------|---------|-------------|
+| Auth Token | `--token TOKEN` | `SIMKL_ACCESS_TOKEN` | Auto-generated | Your Simkl authentication token |
+| Client ID | `--client-id ID` | `SIMKL_CLIENT_ID` | Built-in ID | Simkl API client ID |
+| Data Directory | `--data-dir PATH` | `SIMKL_DATA_DIR` | Platform default | Custom location for data files |
 
-By default, movies are marked as watched after reaching 80% completion. To change this:
+### Media Tracking
 
-1. Create or edit `.simkl_mps.env` in the application data directory
-2. Add: `SIMKL_COMPLETION_THRESHOLD=85` (or your preferred percentage)
+| Setting | Command Line | Env Variable | Default | Description |
+|---------|--------------|--------------|---------|-------------|
+| Poll Interval | `--interval SECONDS` | `SIMKL_POLL_INTERVAL` | `10` | Window check frequency in seconds |
+| Completion % | `--threshold PERCENT` | `SIMKL_COMPLETION_THRESHOLD` | `80` | Percentage to mark as watched |
+| Offline Mode | `--offline` | `SIMKL_OFFLINE_MODE` | `false` | Force offline operation |
+| Auto Process | `--auto-process` | `SIMKL_AUTO_PROCESS_BACKLOG` | `true` | Process backlog after reconnecting |
 
-### ⏲️ Custom Polling Interval
+### Notifications
 
-Adjust how frequently the application checks for active movie windows:
+| Setting | Command Line | Env Variable | Default | Description |
+|---------|--------------|--------------|---------|-------------|
+| Disable Notifications | `--no-notify` | `SIMKL_NO_NOTIFICATIONS` | `false` | Turn off desktop notifications |
+| Notification Level | `--notify-level LEVEL` | `SIMKL_NOTIFY_LEVEL` | `normal` | Set verbosity (`minimal`, `normal`, `verbose`) |
 
-```
-SIMKL_POLL_INTERVAL=5  # Check every 5 seconds (default is 10)
-```
+### Logging
 
-Lower values provide more responsive detection but use slightly more resources.
+| Setting | Command Line | Env Variable | Default | Description |
+|---------|--------------|--------------|---------|-------------|
+| Log Level | `--log-level LEVEL` | `SIMKL_LOG_LEVEL` | `INFO` | Set verbosity (`DEBUG`, `INFO`, `WARNING`, `ERROR`) |
+| Log File | `--log-file PATH` | `SIMKL_LOG_FILE` | Auto-generated | Custom log file location |
 
-### 📝 Logging Levels
+## 📝 Example Configuration File
 
-Control the verbosity of logging:
+Here's a sample `.simkl_mps.env` file with common customizations:
 
-```
-SIMKL_LOG_LEVEL=DEBUG  # Verbose logging for troubleshooting
-```
+```ini
+# Authentication (do not edit manually unless you know what you're doing)
+SIMKL_ACCESS_TOKEN=your_access_token_here
 
-Available levels (from most to least verbose):
-- `DEBUG`: All messages, including detailed debugging information
-- `INFO`: General operational events (default)
-- `WARNING`: Potential issues that don't prevent operation
-- `ERROR`: Errors that prevent specific operations
-- `CRITICAL`: Critical errors that prevent application function
+# Tracking settings
+SIMKL_POLL_INTERVAL=5
+SIMKL_COMPLETION_THRESHOLD=85
 
-### 🔑 Custom Simkl API Client
+# Logging
+SIMKL_LOG_LEVEL=INFO
 
-To use your own Simkl API client:
-
-1. Register a new client at https://simkl.com/settings/developer/
-2. Set the redirect URL to `urn:ietf:wg:oauth:2.0:oob`
-3. Add to configuration:
-   ```
-   SIMKL_CLIENT_ID=your_client_id_here
-   ```
-
-### 📂 Overriding Cache Directory
-
-To store application data in a custom location:
-
-```
-SIMKL_APP_DATA_DIR=/path/to/custom/directory
+# Notification settings
+SIMKL_NO_NOTIFICATIONS=false
+SIMKL_NOTIFY_LEVEL=normal
 ```
 
-## 🧪 Configuration for Development
+## 🔍 Advanced Customization
 
-When developing or testing:
+### Media Player Settings
 
+Fine-tune how MPS for SIMKL interacts with specific media players:
+
+```ini
+# VLC specific settings
+SIMKL_VLC_PORT=8080
+SIMKL_VLC_PASSWORD=simkl
+
+# MPV specific settings
+SIMKL_MPV_SOCKET_PATH=/custom/path/to/mpvsocket
+
+# MPC-HC specific settings
+SIMKL_MPC_PORT=13579
 ```
-# Enable debug logging
-SIMKL_LOG_LEVEL=DEBUG
 
-# Faster polling for testing
-SIMKL_POLL_INTERVAL=2
+### Title Detection
 
-# Testing mode (prevents actual API calls)
-SIMKL_TESTING_MODE=True
+Customize how media titles are extracted from filenames:
+
+```ini
+# Custom regex pattern for title extraction
+SIMKL_TITLE_REGEX=(?i)(.+?)(?:\W\d{4}\W|\W\(\d{4}\)|\W\d{4}$|$)
+
+# Minimum match confidence threshold (0.0-1.0)
+SIMKL_MATCH_CONFIDENCE=0.7
 ```
 
-## 🔄 Manual Configuration Reset
+### Network Configuration
 
-To completely reset the configuration:
+If you need to use a proxy for connecting to the SIMKL API:
 
-1. Close all instances of the application
-2. Delete the application data directory
-3. Reinitialize with `media-player-scrobbler-for-simkl init`
+```ini
+# HTTP/HTTPS proxy settings
+SIMKL_HTTP_PROXY=http://your-proxy-server:port
+SIMKL_HTTPS_PROXY=https://your-proxy-server:port
+
+# Connection timeout in seconds
+SIMKL_CONNECTION_TIMEOUT=10
+```
+
+## 🔄 Configuration Methods
+
+### Command Line
+
+Apply settings for a single session:
+
+```bash
+simkl-mps start --interval 5 --threshold 85 --log-level DEBUG
+```
+
+### Configuration File
+
+For persistent settings, edit `.simkl_mps.env` in your application data directory.
+
+### Environment Variables
+
+Set environment variables before running the application:
+
+```bash
+# Linux/macOS
+export SIMKL_POLL_INTERVAL=5
+export SIMKL_LOG_LEVEL=DEBUG
+simkl-mps start
+
+# Windows (CMD)
+set SIMKL_POLL_INTERVAL=5
+set SIMKL_LOG_LEVEL=DEBUG
+simkl-mps start
+
+# Windows (PowerShell)
+$env:SIMKL_POLL_INTERVAL=5
+$env:SIMKL_LOG_LEVEL=DEBUG
+simkl-mps start
+```
+
+## 🛠️ Optimization Tips
+
+### Debugging Issues
+
+For troubleshooting:
+
+```bash
+# Enable verbose logging
+simkl-mps start --log-level DEBUG
+
+# Set custom log file location
+simkl-mps start --log-file ~/simkl-debug.log
+```
+
+### Improving Media Detection
+
+For better recognition:
+
+1. Configure advanced tracking for your media players (see [Media Players](media-players.md))
+2. Use descriptive filenames: `Movie Title (2023).mp4`
+3. Lower the poll interval: `--interval 5`
+
+### Performance Optimization
+
+For reduced resource usage:
+
+1. Increase poll interval: `--interval 20`
+2. Enable minimal cache: `--minimal-cache`
+3. Clean old data regularly: `simkl-mps clean`
+
+## 🔄 Resetting Configuration
+
+If you need to start fresh:
+
+```bash
+# Complete reset
+simkl-mps reset
+
+# Manual deletion (alternative method)
+# Windows:
+# Delete %APPDATA%\kavinthangavel\simkl-mps\
+# macOS/Linux:
+# Delete ~/.local/share/kavinthangavel/simkl-mps/
+```
+
+After resetting, run `simkl-mps init` to reconfigure.

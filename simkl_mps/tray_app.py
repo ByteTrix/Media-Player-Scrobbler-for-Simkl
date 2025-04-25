@@ -15,8 +15,12 @@ from PIL import Image, ImageDraw, ImageFont
 import pystray
 from plyer import notification
 
+# Import API and credential functions
+from .simkl_api import get_user_settings
+from .credentials import get_credentials
 # Import constants only, not the whole module
 from simkl_mps.main import APP_DATA_DIR, APP_NAME
+from .utils.verification import get_verification_info, get_executable_checksum
 
 logger = logging.getLogger(__name__)
 
@@ -216,6 +220,7 @@ class TrayApp:
             pystray.MenuItem("Open Logs", self.open_logs),
             pystray.MenuItem("Open Config Directory", self.open_config_dir),
             pystray.MenuItem("Process Backlog Now", self.process_backlog),
+            pystray.MenuItem("Verify Build", self.verify_build),
         )))
 
         # Add Online Services submenu
@@ -438,8 +443,29 @@ Tips:
 
     def open_simkl_history(self, _=None):
         """Open the SIMKL history page"""
-        webbrowser.open("https://simkl.com/movies/history/")
-        return 0
+        logger.info("Attempting to open SIMKL history page...")
+        try:
+            creds = get_credentials()
+            client_id = creds.get("client_id")
+            access_token = creds.get("access_token")
+
+            if not client_id or not access_token:
+                logger.error("Cannot open history: Missing credentials.")
+                self.show_notification("Error", "Missing credentials to fetch user history.")
+                return
+
+            settings = get_user_settings(client_id, access_token)
+            if settings and 'user' in settings and 'ids' in settings['user'] and 'simkl' in settings['user']['ids']:
+                user_id = settings['user']['ids']['simkl']
+                history_url = f"https://simkl.com/{user_id}/stats/seen/"
+                logger.info(f"Opening SIMKL history URL: {history_url}")
+                webbrowser.open(history_url)
+            else:
+                logger.error("Could not retrieve user ID from Simkl settings.")
+                self.show_notification("Error", "Could not retrieve user ID to open history.")
+        except Exception as e:
+            logger.error(f"Error opening SIMKL history: {e}", exc_info=True)
+            self.show_notification("Error", f"Failed to open SIMKL history: {e}")
 
     def check_updates_thread(self, _=None):
         """Wrapper to run the update check logic in a separate thread"""
@@ -1142,6 +1168,139 @@ Tips:
         except Exception as e:
             logger.error(f"Unexpected error in first run check: {e}")
             self.is_first_run = False  # Default to not showing the notification on error
+
+    def verify_build(self, _=None):
+        """Display build verification information to help users verify authenticity"""
+        logger.info("Displaying build verification information")
+        
+        try:
+            # Get verification info
+            verification_info = get_verification_info()
+            exe_checksum = get_executable_checksum()
+            
+            # Create formatted message with verification details
+            verification_text = "Build Verification Information\n\n"
+            
+            for key, value in verification_info.items():
+                verification_text += f"{key}: {value}\n"
+            
+            verification_text += f"\nExecutable SHA256 Checksum:\n{exe_checksum}\n\n"
+            
+            # Add verification instructions
+            verification_text += "To verify this build:\n"
+            verification_text += "1. Visit the GitHub release page\n"
+            verification_text += "2. Compare the checksum with SHA256SUMS.txt in the release\n"
+            verification_text += "3. Check that the build was created by GitHub Actions\n"
+            
+            # Show verification dialog using appropriate method for platform
+            if sys.platform == 'win32':
+                import tkinter as tk
+                from tkinter import messagebox
+                
+                def show_dialog():
+                    dialog_root = tk.Tk()
+                    dialog_root.withdraw()
+                    dialog_root.attributes("-topmost", True)  # Keep dialog on top
+                    dialog_root.title("Build Verification")
+                    
+                    # Create a text widget in a new window to display the verification info
+                    verify_window = tk.Toplevel(dialog_root)
+                    verify_window.title("Build Verification")
+                    verify_window.geometry("600x500")
+                    verify_window.resizable(True, True)
+                    
+                    # Create text widget with scrollbar
+                    frame = tk.Frame(verify_window)
+                    frame.pack(fill="both", expand=True, padx=10, pady=10)
+                    
+                    scrollbar = tk.Scrollbar(frame)
+                    scrollbar.pack(side="right", fill="y")
+                    
+                    text_widget = tk.Text(frame, wrap="word", yscrollcommand=scrollbar.set)
+                    text_widget.pack(side="left", fill="both", expand=True)
+                    
+                    scrollbar.config(command=text_widget.yview)
+                    
+                    # Insert verification text
+                    text_widget.insert("1.0", verification_text)
+                    text_widget.config(state="disabled")  # Make read-only
+                    
+                    # Add buttons
+                    button_frame = tk.Frame(verify_window)
+                    button_frame.pack(fill="x", padx=10, pady=10)
+                    
+                    # Copy to clipboard button
+                    def copy_to_clipboard():
+                        verify_window.clipboard_clear()
+                        verify_window.clipboard_append(verification_text)
+                        messagebox.showinfo("Copied", "Verification info copied to clipboard", parent=verify_window)
+                    
+                    copy_button = tk.Button(button_frame, text="Copy to Clipboard", command=copy_to_clipboard)
+                    copy_button.pack(side="left", padx=5)
+                    
+                    # View on GitHub button
+                    def open_github():
+                        if verification_info["GitHub Run ID"] != "local":
+                            webbrowser.open(verification_info["GitHub Run URL"])
+                        else:
+                            messagebox.showinfo("Local Build", "This appears to be a local build, not from GitHub Actions.", parent=verify_window)
+                    
+                    github_button = tk.Button(button_frame, text="View GitHub Build", command=open_github)
+                    github_button.pack(side="left", padx=5)
+                    
+                    # Close button
+                    close_button = tk.Button(button_frame, text="Close", command=verify_window.destroy)
+                    close_button.pack(side="right", padx=5)
+                    
+                    # Handle window close properly
+                    verify_window.protocol("WM_DELETE_WINDOW", verify_window.destroy)
+                    verify_window.transient(dialog_root)
+                    verify_window.wait_window()
+                    
+                    # Clean up
+                    dialog_root.destroy()
+                
+                # Run in a separate thread to avoid blocking the main thread
+                threading.Thread(target=show_dialog, daemon=True).start()
+                
+            elif sys.platform == 'darwin':  # macOS
+                # Use a notification and then open a more detailed view in the browser or a text file
+                self.show_notification("Build Verification", "Generating verification information...")
+                
+                # Write to a temporary file and open it
+                import tempfile
+                with tempfile.NamedTemporaryFile(delete=False, suffix='.txt', mode='w') as f:
+                    f.write(verification_text)
+                    temp_path = f.name
+                
+                # Open the file with the default text editor
+                os.system(f'open "{temp_path}"')
+                
+            else:  # Linux
+                # Try using zenity or a similar tool
+                try:
+                    import subprocess
+                    temp_file = "/tmp/simkl_mps_verification.txt"
+                    with open(temp_file, 'w') as f:
+                        f.write(verification_text)
+                    
+                    # Try to open with zenity text info
+                    try:
+                        subprocess.run(['zenity', '--text-info', '--filename=' + temp_file, 
+                                        '--title=Build Verification', '--width=600', '--height=500'])
+                    except (subprocess.SubprocessError, FileNotFoundError):
+                        # Fall back to opening with default text editor
+                        os.system(f'xdg-open "{temp_file}"')
+                except Exception as e:
+                    logger.error(f"Error displaying verification on Linux: {e}")
+                    # Fall back to notification
+                    self.show_notification("Build Verification", verification_text[:100] + "...")
+        
+        except Exception as e:
+            logger.error(f"Error displaying build verification: {e}", exc_info=True)
+            self.show_notification("Verification Error", f"Failed to display build verification: {e}")
+        
+        return 0
 
 def run_tray_app():
     """Run the application in tray mode"""
