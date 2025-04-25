@@ -75,7 +75,8 @@ if len(sys.argv) > 1 and sys.argv[1] in ["--version", "-v", "version"]:
     print(f"Platform: {sys.platform}")
     sys.exit(0)
 
-from simkl_mps.simkl_api import authenticate
+# from simkl_mps.simkl_api import authenticate
+from simkl_mps.simkl_api import pin_auth_flow
 from simkl_mps.credentials import get_credentials, get_env_file_path
 from simkl_mps.main import SimklScrobbler, APP_DATA_DIR # Import APP_DATA_DIR for log path display
 from simkl_mps.tray_app import run_tray_app
@@ -125,76 +126,37 @@ def _check_prerequisites(check_token=True, check_client_id=True):
 def init_command(args):
     """
     Handles the 'init' command.
-
     Checks existing credentials, performs OAuth device flow if necessary,
     and saves the access token. Verifies the final configuration.
     """
     print(f"{Fore.CYAN}=== Media Player Scrobbler for SIMKL Initialization ==={Style.RESET_ALL}")
     env_path = get_env_file_path()
-    print(f"[*] Using Access Token file: {env_path}")
-    logger.info("Initiating initialization process.")
-
-    print("[*] Loading credentials...")
+    print(f"Access token file: {env_path}")
     creds = get_credentials()
     client_id = creds.get("client_id")
     access_token = creds.get("access_token")
-
     if not client_id or not creds.get("client_secret"):
-        logger.critical("Initialization failed: Client ID or Secret missing (build issue).")
-        print(f"{Fore.RED}CRITICAL ERROR: Client ID or Secret not found. Build may be corrupted. Please reinstall.{Style.RESET_ALL}", file=sys.stderr)
+        print(f"{Fore.RED}ERROR: Client ID or Secret not found. Please reinstall the application.{Style.RESET_ALL}", file=sys.stderr)
         return 1
-    else:
-        logger.debug("Client ID and Secret loaded successfully (from build).")
-        print(f"{Fore.GREEN}[✓] Client ID/Secret loaded successfully.{Style.RESET_ALL}")
-
+    print(f"{Fore.GREEN}✓ Client ID/Secret loaded.{Style.RESET_ALL}")
     if access_token:
-        logger.info("Existing access token found.")
-        print(f"{Fore.GREEN}[✓] Access Token found.{Style.RESET_ALL}")
-        print(f"{Fore.YELLOW}[!] Skipping authentication process.{Style.RESET_ALL}")
+        print(f"{Fore.GREEN}✓ Access Token found. Skipping authentication.{Style.RESET_ALL}")
     else:
-        logger.warning("Access token not found, initiating authentication.")
-        print(f"{Fore.YELLOW}[!] Access Token not found. Starting authentication...{Style.RESET_ALL}")
-
-        new_access_token = authenticate(client_id)
-
+        print(f"{Fore.YELLOW}No Access Token found. Starting authentication...{Style.RESET_ALL}")
+        new_access_token = pin_auth_flow(client_id)
         if not new_access_token:
-            logger.error("Authentication process failed or was cancelled.")
             print(f"{Fore.RED}ERROR: Authentication failed or was cancelled.{Style.RESET_ALL}", file=sys.stderr)
             return 1
-
-        logger.info("Authentication successful, saving new access token.")
-        print(f"\n[*] Saving new access token to: {env_path}")
-        try:
-
-            env_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(env_path, "w", encoding='utf-8') as env_file:
-
-                env_file.write("# Simkl Access Token obtained via 'simkl-mps init'\n")
-                env_file.write(f"SIMKL_ACCESS_TOKEN={new_access_token}\n")
-            logger.info(f"Access token successfully saved to {env_path}.")
-            print(f"{Fore.GREEN}[✓] Access token saved successfully.{Style.RESET_ALL}")
-
-            access_token = new_access_token
-        except IOError as e:
-            logger.exception(f"Failed to save access token to {env_path}: {e}")
-            print(f"{Fore.RED}ERROR: Failed to save access token: {e}{Style.RESET_ALL}", file=sys.stderr)
-            return 1
-
-    print(f"\n[*] Verifying application configuration...")
-    logger.info("Verifying configuration by initializing SimklScrobbler instance.")
+        print(f"{Fore.GREEN}✓ Access token saved successfully.{Style.RESET_ALL}")
+        access_token = new_access_token
+    print(f"Verifying application configuration...")
     verifier_scrobbler = SimklScrobbler()
     if not verifier_scrobbler.initialize():
-         logger.error("Configuration verification failed after initialization attempt.")
-         print(f"{Fore.RED}ERROR: Configuration verification failed. Check logs for details: {APP_DATA_DIR / 'simkl_mps.log'}{Style.RESET_ALL}", file=sys.stderr)
-         print(f"{Fore.YELLOW}Hint: If the token seems valid but verification fails, check Simkl API status or report a bug.{Style.RESET_ALL}")
-         return 1
-
-    logger.info("Initialization and verification successful.")
-    print(f"\n{Fore.GREEN}========================================={Style.RESET_ALL}")
-    print(f"{Fore.GREEN}✓ Initialization Complete!{Style.RESET_ALL}")
-    print(f"{Fore.GREEN}========================================={Style.RESET_ALL}")
-    print(f"\n[*] To start monitoring and scrobbling, run:")
-    print(f"    {Fore.WHITE}simkl-mps start{Style.RESET_ALL}")
+        print(f"{Fore.RED}ERROR: Configuration verification failed. Check logs for details: {APP_DATA_DIR / 'simkl_mps.log'}{Style.RESET_ALL}", file=sys.stderr)
+        print(f"{Fore.YELLOW}Hint: If the token seems valid but verification fails, check Simkl API status or report a bug.{Style.RESET_ALL}")
+        return 1
+    print(f"{Fore.GREEN}Initialization Complete!{Style.RESET_ALL}")
+    print(f"To start monitoring and scrobbling, run: {Fore.WHITE}simkl-mps start{Style.RESET_ALL}")
     return 0
 
 def start_command(args):
