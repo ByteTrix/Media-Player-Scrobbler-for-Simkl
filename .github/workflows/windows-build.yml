@@ -94,11 +94,13 @@ jobs:
       - name: Build Installer with Inno Setup
         run: |
           $version = "${{ inputs.version }}"
+          # Replace version in setup.iss
           (Get-Content setup.iss) -replace '#define MyAppVersion "[^"]*"', "#define MyAppVersion `"$version`"" | Set-Content setup_temp.iss
           
-          # Modify Inno Setup script to include build verification info
-          Add-Content setup_temp.iss "`n; Include build verification information`nSource: `"build-info\build_info.json`"; DestDir: `"{app}`"; Flags: ignoreversion"
+          # Add build_info.json to the [Files] section instead of appending at the end
+          (Get-Content setup_temp.iss) -replace '(\[Files\][^\[]*)', "$1`r`n; Include build verification information`r`nSource: `"build-info\build_info.json`"; DestDir: `"{app}`"; Flags: ignoreversion`r`n" | Set-Content setup_temp.iss
           
+          # Compile the setup
           & 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe' /Q setup_temp.iss
           
       - name: Rename and move installer
