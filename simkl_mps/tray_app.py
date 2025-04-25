@@ -40,7 +40,6 @@ class TrayApp:
         self.last_scrobbled = None
         self.config_path = APP_DATA_DIR / ".simkl_mps.env"
         self.log_path = APP_DATA_DIR / "simkl_mps.log"
-        self.update_info = None # To store available update version and URL
         
         # Track whether this is a first run (for notifications)
         self.is_first_run = False
@@ -228,21 +227,13 @@ class TrayApp:
         )))
         menu_items.append(pystray.Menu.SEPARATOR)
 
-        # Add dynamic update menu item
-        if self.update_info:
-            menu_items.append(
-                pystray.MenuItem(
-                    f"Install Update {self.update_info['version']}",
-                    self.install_update_thread # Link to install method
-                )
+        # Always show "Check for Updates"
+        menu_items.append(
+            pystray.MenuItem(
+                "Check for Updates",
+                self.check_updates_thread # Link to check method
             )
-        else:
-             menu_items.append(
-                pystray.MenuItem(
-                    "Check for Updates",
-                    self.check_updates_thread # Link to check method
-                )
-            )
+        )
 
         # Add final items
         menu_items.append(pystray.MenuItem("About", self.show_about))
@@ -486,7 +477,6 @@ Tips:
         if not updater_path or not updater_path.exists():
             logger.error(f"Updater script not found: {updater_path}")
             self.show_notification("Update Error", "Updater script not found.")
-            self.update_info = None
             self.update_icon() # Refresh menu
             self._update_check_running = False
             return
@@ -534,7 +524,6 @@ Tips:
                     # General script execution error
                     logger.error(f"Update check script failed with exit code {exit_code}. Stderr: {stderr}")
                     self.show_notification("Update Error", f"Failed to run update check script (Code: {exit_code}).")
-                self.update_info = None
 
             # Process stdout if exit code was 0
             elif stdout.startswith("UPDATE_AVAILABLE:"):
@@ -542,134 +531,33 @@ Tips:
                     parts = stdout.split(" ", 2) # UPDATE_AVAILABLE: <version> <url>
                     version = parts[1]
                     url = parts[2]
-                    self.update_info = {'version': version, 'url': url}
                     logger.info(f"Update found: Version {version}")
-                    self.show_notification("Update Available", f"Version {version} is available. Click 'Install Update' in the menu.")
+                    self.show_notification("Update Available", f"Version {version} is available. Please visit {url} to download the update.")
                 except IndexError:
                     logger.error(f"Could not parse UPDATE_AVAILABLE string: {stdout}")
                     self.show_notification("Update Error", "Failed to parse update information.")
-                    self.update_info = None
             elif stdout.startswith("NO_UPDATE:"):
                 try:
                     version = stdout.split(" ", 1)[1]
                     logger.info(f"No update available. Current version: {version}")
                     self.show_notification("No Updates Available", f"You are already running the latest version ({version}).")
-                    self.update_info = None
                 except IndexError:
                      logger.error(f"Could not parse NO_UPDATE string: {stdout}")
                      self.show_notification("No Updates Available", "You are already running the latest version.")
-                     self.update_info = None
             else:
                 # Unexpected output
                 logger.warning(f"Unexpected output from update check script: {stdout}")
                 self.show_notification("Update Check Info", "Update check completed with unclear results. Check logs.")
-                self.update_info = None
 
         except FileNotFoundError:
              logger.error(f"Error running update check: Command not found (powershell/bash?).")
              self.show_notification("Update Error", "Required command (powershell/bash) not found.")
-             self.update_info = None
         except Exception as e:
             logger.error(f"Error during update check: {e}", exc_info=True)
             self.show_notification("Update Error", f"An error occurred during update check: {e}")
-            self.update_info = None
         finally:
             self.update_icon() # Refresh menu state
             self._update_check_running = False
-
-
-    def install_update_thread(self, _=None):
-        """Wrapper to run the update installation logic in a separate thread"""
-         # Prevent multiple installs running simultaneously
-        if hasattr(self, '_update_install_running') and self._update_install_running:
-            logger.warning("Update installation already in progress.")
-            return
-        self._update_install_running = True
-        threading.Thread(target=self._install_update_logic, daemon=True).start()
-
-    def _install_update_logic(self):
-        """Install the update using the PowerShell script"""
-        if not self.update_info:
-            logger.error("Install update called but no update info available.")
-            self._update_install_running = False
-            return
-
-        version_to_install = self.update_info.get('version', 'Unknown')
-        logger.info(f"Starting installation for version {version_to_install}...")
-
-        # Clear update info and update menu immediately to prevent re-clicks
-        self.update_info = None
-        self.update_icon()
-
-        self.show_notification("Installing Update", f"Installing MPS for SIMKL version {version_to_install}...")
-
-        system = sys.platform.lower()
-        updater_script = 'updater.ps1' if system == 'win32' else 'updater.sh' # Adapt for other OS
-        updater_path = self._get_updater_path(updater_script)
-
-        if not updater_path or not updater_path.exists():
-            logger.error(f"Updater script not found for installation: {updater_path}")
-            self.show_notification("Update Error", "Updater script not found for installation.")
-            self._update_install_running = False
-            return
-
-        exit_code = -1 # Default to error
-        try:
-            if system == 'win32':
-                command = ["powershell", "-ExecutionPolicy", "Bypass", "-File", str(updater_path), "-SilentInstall"]
-                # Hide PowerShell window
-                startupinfo = subprocess.STARTUPINFO()
-                startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-                startupinfo.wShowWindow = 0 # SW_HIDE
-                creationflags = subprocess.CREATE_NO_WINDOW
-            else:
-                 # Basic command for sh script (adapt if needed)
-                command = ["bash", str(updater_path), "--silent-install"] # Assuming sh script supports --silent-install
-                startupinfo = None
-                creationflags = 0
-
-            process = subprocess.run(
-                command,
-                capture_output=True, # Capture output for logging
-                text=True,
-                check=False,
-                startupinfo=startupinfo,
-                creationflags=creationflags,
-                encoding='utf-8'
-            )
-
-            exit_code = process.returncode
-            stdout = process.stdout.strip()
-            stderr = process.stderr.strip()
-
-            logger.info(f"Update install script exited with code: {exit_code}")
-            if stdout: logger.debug(f"Install stdout: {stdout}")
-            if stderr: logger.error(f"Install stderr: {stderr}")
-
-            # Show notification based on exit code
-            if exit_code == 0:
-                self.show_notification("Update Successful", f"MPS for SIMKL version {version_to_install} installed successfully.")
-            elif exit_code == 1:
-                self.show_notification("Update Failed", "Installation failed: Could not check for updates.")
-            elif exit_code == 2:
-                self.show_notification("Update Failed", "Installation failed: Could not download the installer.")
-            elif exit_code == 4:
-                self.show_notification("Update Failed", "Installation process failed. Check updater logs.")
-            elif exit_code == 5:
-                 self.show_notification("Update Failed", "An unexpected error occurred during installation.")
-            else:
-                self.show_notification("Update Failed", f"Installation failed with unknown error code: {exit_code}.")
-
-        except FileNotFoundError:
-             logger.error(f"Error running update install: Command not found (powershell/bash?).")
-             self.show_notification("Update Error", "Required command (powershell/bash) not found.")
-        except Exception as e:
-            logger.error(f"Error during update installation: {e}", exc_info=True)
-            self.show_notification("Update Error", f"An error occurred during installation: {e}")
-        finally:
-            # No need to update menu here, already done at the start
-             self._update_install_running = False
-
 
     def _get_updater_path(self, filename):
         """Get the path to the updater script (ps1 or sh)"""

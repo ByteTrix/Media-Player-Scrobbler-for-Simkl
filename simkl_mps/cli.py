@@ -84,6 +84,31 @@ from simkl_mps.utils.verification import get_verification_info, get_executable_c
 colorama.init()
 logger = logging.getLogger(__name__)
 
+def _setup_logging():
+    """Configure logging for the application."""
+    log_file = APP_DATA_DIR / "simkl_mps.log"
+    APP_DATA_DIR.mkdir(parents=True, exist_ok=True) # Ensure directory exists
+    
+    # Basic config for file logging
+    logging.basicConfig(
+        level=logging.DEBUG, # Log everything to file
+        format='%(asctime)s [%(levelname)-8s] %(name)s: %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S',
+        filename=log_file,
+        filemode='a' # Append to log file
+    )
+    
+    # Configure console logging (only for INFO level and above)
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setLevel(logging.INFO)
+    formatter = logging.Formatter('%(message)s') # Simple format for console
+    console_handler.setFormatter(formatter)
+    
+    # Add console handler to the root logger
+    logging.getLogger('').addHandler(console_handler)
+    
+    logger.info(f"Logging initialized. Log file: {log_file}")
+
 def _check_prerequisites(check_token=True, check_client_id=True):
     """Helper function to check if credentials exist before running a command."""
     env_path = get_env_file_path()
@@ -472,6 +497,9 @@ def main():
     Returns:
         int: Exit code (0 for success, 1 for errors).
     """
+    # Setup logging FIRST
+    _setup_logging()
+    
     parser = create_parser()
     args = parser.parse_args()
 
@@ -482,8 +510,8 @@ def main():
         parser.print_help()
         return 0
         
-    # Check for updates when starting the app (except for the tray subprocess)
-    if os.environ.get("SIMKL_TRAY_SUBPROCESS") != "1" and args.command in ["start", "tray"]:
+    # Check for updates only when starting the full background service
+    if os.environ.get("SIMKL_TRAY_SUBPROCESS") != "1" and args.command == "start":
         # Check if user has enabled update checks
         import winreg
         try:

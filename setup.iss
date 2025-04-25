@@ -193,10 +193,15 @@ begin
   TaskName := TASK_NAME;
   AppPath := ExpandConstant('{app}\updater.ps1');
   PowerShellPath := ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe');
-  Params := '-ExecutionPolicy Bypass -NoProfile -WindowStyle Hidden -File "' + AppPath + '" -Silent';
+
+  // Updated parameters for silent operation (no -CheckOnly since the new script handles notifications)
+  Params := '-ExecutionPolicy Bypass -NoProfile -WindowStyle Hidden -File "' + AppPath + '"';
+  
   try
     // First delete any existing task with the same name to avoid duplicates
     Exec('schtasks.exe', '/Delete /TN "' + TaskName + '" /F', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    
+    // Create a weekly task that runs every Saturday at 12:00
     if Exec('schtasks.exe',
       '/Create /TN "' + TaskName + '" /TR "\"' + PowerShellPath + '\" ' + Params + '" /SC WEEKLY /D SAT /ST 12:00 /F',
       '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
