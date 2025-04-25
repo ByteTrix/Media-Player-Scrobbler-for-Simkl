@@ -370,15 +370,6 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#notifications" class="md-nav__link">
-    <span class="md-ellipsis">
-      Notifications
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
   <a href="#logging" class="md-nav__link">
     <span class="md-ellipsis">
       Logging
@@ -456,15 +447,6 @@
   <a href="#optimization-debugging" class="md-nav__link">
     <span class="md-ellipsis">
       🚀 Optimization &amp; Debugging
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#resetting-configuration" class="md-nav__link">
-    <span class="md-ellipsis">
-      🔄 Resetting Configuration
     </span>
   </a>
   
@@ -661,15 +643,6 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#notifications" class="md-nav__link">
-    <span class="md-ellipsis">
-      Notifications
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
   <a href="#logging" class="md-nav__link">
     <span class="md-ellipsis">
       Logging
@@ -747,15 +720,6 @@
   <a href="#optimization-debugging" class="md-nav__link">
     <span class="md-ellipsis">
       🚀 Optimization &amp; Debugging
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#resetting-configuration" class="md-nav__link">
-    <span class="md-ellipsis">
-      🔄 Resetting Configuration
     </span>
   </a>
   
@@ -908,34 +872,6 @@
 </tr>
 </tbody>
 </table>
-<h3 id="notifications">Notifications<a class="headerlink" href="#notifications" title="Permanent link">&para;</a></h3>
-<table>
-<thead>
-<tr>
-<th>Setting</th>
-<th>CLI Option</th>
-<th>Env Var</th>
-<th>Default</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Disable Notifications</td>
-<td><code>--no-notify</code></td>
-<td><code>SIMKL_NO_NOTIFICATIONS</code></td>
-<td>false</td>
-<td>Turn off desktop notifications</td>
-</tr>
-<tr>
-<td>Notification Level</td>
-<td><code>--notify-level</code></td>
-<td><code>SIMKL_NOTIFY_LEVEL</code></td>
-<td>normal</td>
-<td><code>minimal</code>, <code>normal</code>, <code>verbose</code></td>
-</tr>
-</tbody>
-</table>
 <h3 id="logging">Logging<a class="headerlink" href="#logging" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
@@ -968,11 +904,6 @@
 <h2 id="example-configuration-file">📝 Example Configuration File<a class="headerlink" href="#example-configuration-file" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># .simkl_mps.env</span>
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="na">SIMKL_ACCESS_TOKEN</span><span class="o">=</span><span class="s">your_access_token_here</span>
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="na">SIMKL_POLL_INTERVAL</span><span class="o">=</span><span class="s">5</span>
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="na">SIMKL_COMPLETION_THRESHOLD</span><span class="o">=</span><span class="s">85</span>
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="na">SIMKL_LOG_LEVEL</span><span class="o">=</span><span class="s">INFO</span>
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="na">SIMKL_NO_NOTIFICATIONS</span><span class="o">=</span><span class="s">false</span>
-<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="na">SIMKL_NOTIFY_LEVEL</span><span class="o">=</span><span class="s">normal</span>
 </code></pre></div>
 <hr />
 <h2 id="advanced-customization">🛠️ Advanced Customization<a class="headerlink" href="#advanced-customization" title="Permanent link">&para;</a></h2>
@@ -1001,11 +932,6 @@
   <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>simkl-mps<span class="w"> </span>start<span class="w"> </span>--interval<span class="w"> </span><span class="m">5</span><span class="w"> </span>--threshold<span class="w"> </span><span class="m">85</span><span class="w"> </span>--log-level<span class="w"> </span>DEBUG
 </code></pre></div></li>
 <li><strong>Config File:</strong> Edit <code>.simkl_mps.env</code> in your data directory</li>
-<li><strong>Environment Variables:</strong>
-  <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">SIMKL_POLL_INTERVAL</span><span class="o">=</span><span class="m">5</span>
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="nb">export</span><span class="w"> </span><span class="nv">SIMKL_LOG_LEVEL</span><span class="o">=</span>DEBUG
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>simkl-mps<span class="w"> </span>start
-</code></pre></div></li>
 </ul>
 <hr />
 <h2 id="optimization-debugging">🚀 Optimization &amp; Debugging<a class="headerlink" href="#optimization-debugging" title="Permanent link">&para;</a></h2>
@@ -1014,17 +940,8 @@
 <li>Set custom log file: <code>simkl-mps start --log-file ~/simkl-debug.log</code></li>
 <li>Use descriptive filenames for best detection</li>
 <li>Increase poll interval for lower resource use</li>
-<li>Clean old data: <code>simkl-mps clean</code></li>
 </ul>
 <hr />
-<h2 id="resetting-configuration">🔄 Resetting Configuration<a class="headerlink" href="#resetting-configuration" title="Permanent link">&para;</a></h2>
-<ul>
-<li>Full reset:
-  <div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>simkl-mps<span class="w"> </span>reset
-</code></pre></div></li>
-<li>Manual: delete the config/data directory for your OS</li>
-<li>After reset, run <code>simkl-mps init</code> to reconfigure</li>
-</ul>
 
 
 
@@ -1047,7 +964,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="April 25, 2025 15:21:32">April 25, 2025</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="April 25, 2025 19:24:44">April 25, 2025</span>
   </span>
 
     
