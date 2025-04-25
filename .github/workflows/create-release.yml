@@ -26,12 +26,16 @@ jobs:
         run: |
           echo "Verifying tag signature for v${{ inputs.version }}..."
           
-          # Fetch all tags
-          git fetch --tags
-          
-          # Verify that the tag exists
+          # Check if tag exists in local repository
           if ! git tag -l "v${{ inputs.version }}" | grep -q "v${{ inputs.version }}"; then
-            echo "::error::Tag v${{ inputs.version }} not found!"
+            echo "Tag not found in local repository, attempting to fetch from remote..."
+            # Fetch the specific tag without overwriting existing ones
+            git fetch origin tag "v${{ inputs.version }}" --no-tags
+          fi
+          
+          # Verify that the tag exists now
+          if ! git tag -l "v${{ inputs.version }}" | grep -q "v${{ inputs.version }}"; then
+            echo "::error::Tag v${{ inputs.version }} not found in both local and remote repositories!"
             exit 1
           fi
           
@@ -129,10 +133,14 @@ jobs:
           
           echo "Windows installer to upload: $WINDOWS_INSTALLER"
           
-          # Create release with provenance
-          gh release create "v$VERSION" \
-            --title "Release $VERSION" \
-            --notes "# MPSS Release $VERSION
+          # Check if release already exists
+          if gh release view "v$VERSION" &>/dev/null; then
+            echo "Release v$VERSION already exists. Skipping creation but will upload artifacts."
+          else
+            # Create release with provenance
+            gh release create "v$VERSION" \
+              --title "Release $VERSION" \
+              --notes "# MPSS Release $VERSION
 
           ## Verification
           
@@ -140,8 +148,9 @@ jobs:
           You can verify the authenticity of this build by checking the SHA256 checksums and signature files included with this release.
           
           View the build: https://github.com/kavinthangavel/Media-Player-Scrobbler-for-Simkl/actions/runs/${{ github.run_id }}" \
-            --generate-notes \
-            --discussion-category "Releases"
+              --generate-notes \
+              --discussion-category "Releases"
+          fi
           
           # Upload verification info
           find verification-info -type f | while read file; do
