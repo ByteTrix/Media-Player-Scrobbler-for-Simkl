@@ -60,6 +60,12 @@ graph LR
     style E fill:#d5f5e3,stroke:#333,stroke-width:2px
 ```
 
+## 🚦 Performance Notes
+
+- **Movie identification:** 15–30 seconds (typical)
+- **Mark as watched (online):** 2–8 seconds (best connection)
+- **Offline scrobble:** 4–10 seconds to process title, 1–3 seconds to add to backlog after threshold
+
 ## 📝 License
 
 See the [LICENSE](LICENSE) file for details.
@@ -67,6 +73,11 @@ See the [LICENSE](LICENSE) file for details.
 ## 🤝 Contributing
 
 Contributions are welcome! Please submit a Pull Request.
+
+## ☕ Support & Donate
+
+If you find this project useful, consider supporting development:
+[Donate via CoinDrop](https://coindrop.to/kavinthangavel)
 
 ## 🙏 Acknowledgments
 

@@ -57,6 +57,12 @@ graph TD
 4. **Completion:** Marks as watched when threshold is reached
 5. **Sync:** Updates your SIMKL profile automatically
 
+## 🚦 Performance Notes
+
+- **Movie identification:** 15–30 seconds (typical)
+- **Mark as watched (online):** 2–8 seconds (best connection)
+- **Offline scrobble:** 4–10 seconds to process title, 1–3 seconds to add to backlog after threshold
+
 ## 📝 License
 
 MPS for SIMKL is licensed under the GNU GPL v3 License. See the [LICENSE](https://github.com/kavinthangavel/media-player-scrobbler-for-simkl/blob/main/LICENSE) file for details.

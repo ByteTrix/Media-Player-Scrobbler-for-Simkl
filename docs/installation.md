@@ -106,3 +106,9 @@ simkl-mps --version
 You should see the installed version number.
 
 For more, see the [Usage Guide](usage.md).
+
+## 🚦 Performance Notes
+
+- **Movie identification:** 15–30 seconds (typical)
+- **Mark as watched (online):** 2–8 seconds (best connection)
+- **Offline scrobble:** 4–10 seconds to process title, 1–3 seconds to add to backlog after threshold

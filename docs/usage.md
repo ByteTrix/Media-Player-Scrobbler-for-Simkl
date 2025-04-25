@@ -17,6 +17,14 @@ This guide explains how to use MPS for SIMKL to automatically track your media w
 
 ---
 
+## 🚦 Performance Notes
+
+- **Movie identification:** 15–30 seconds (typical)
+- **Mark as watched (online):** 2–8 seconds (best connection)
+- **Offline scrobble:** 4–10 seconds to process title, 1–3 seconds to add to backlog after threshold
+
+---
+
 ## 🚦 Getting Started
 
 ```mermaid
