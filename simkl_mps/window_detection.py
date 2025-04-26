@@ -182,10 +182,11 @@ def _get_active_window_info_macos():
 def _get_active_window_info_linux():
     """Linux-specific implementation to get active window info."""
     try:
+        # Method 1: Using xdotool (most reliable)
         try:
-            window_id = subprocess.check_output(['xdotool', 'getactivewindow'], text=True).strip()
-            window_name = subprocess.check_output(['xdotool', 'getwindowname', window_id], text=True).strip()
-            window_pid = subprocess.check_output(['xdotool', 'getwindowpid', window_id], text=True).strip()
+            window_id = subprocess.check_output(['xdotool', 'getactivewindow'], text=True, stderr=subprocess.PIPE).strip()
+            window_name = subprocess.check_output(['xdotool', 'getwindowname', window_id], text=True, stderr=subprocess.PIPE).strip()
+            window_pid = subprocess.check_output(['xdotool', 'getwindowpid', window_id], text=True, stderr=subprocess.PIPE).strip()
             
             process = psutil.Process(int(window_pid))
             process_name = process.name()
@@ -195,52 +196,76 @@ def _get_active_window_info_linux():
                 'process_name': process_name,
                 'pid': window_pid
             }
-        except (subprocess.SubprocessError, FileNotFoundError):
-            pass
+        except (subprocess.SubprocessError, subprocess.CalledProcessError, FileNotFoundError) as e:
+            error_output = str(e.stderr) if hasattr(e, 'stderr') and e.stderr else str(e)
+            if "Cannot get client list properties" in error_output:
+                logger.debug("xdotool cannot get client list - possibly running in WSL or without proper X server")
+            else:
+                logger.debug(f"xdotool method failed: {e}")
         
+        # Method 2: Using wmctrl
         try:
-            active_window = subprocess.check_output(['wmctrl', '-a', ':ACTIVE:'], text=True).strip()
-            for line in active_window.split('\n'):
-                if line.strip():
-                    parts = line.split(None, 1)
-                    if len(parts) > 1:
-                        window_id = parts[0]
-                        window_title = parts[1]
-                        
-                        try:
-                            xprop_output = subprocess.check_output(['xprop', '-id', window_id, '_NET_WM_PID'], text=True)
-                            pid_match = re.search(r'_NET_WM_PID\(CARDINAL\) = (\d+)', xprop_output)
-                            if pid_match:
-                                pid = int(pid_match.group(1))
-                                process = psutil.Process(pid)
-                                process_name = process.name()
+            wmctrl_output = subprocess.check_output(['wmctrl', '-a', ':ACTIVE:', '-v'], text=True, stderr=subprocess.PIPE)
+            for line in wmctrl_output.split('\n'):
+                if "Using window" in line and "0x" in line:
+                    window_id = line.split()[-1]
+                    
+                    # Get window title
+                    output = subprocess.check_output(['wmctrl', '-l'], text=True)
+                    for window_line in output.splitlines():
+                        if window_id in window_line:
+                            parts = window_line.split(None, 3)
+                            if len(parts) >= 4:
+                                window_title = parts[3]
                                 
-                                return {
-                                    'title': window_title,
-                                    'process_name': process_name,
-                                    'pid': pid
-                                }
-                        except:
-                            pass
-        except (subprocess.SubprocessError, FileNotFoundError):
-            pass
+                                # Get window PID
+                                try:
+                                    xprop_output = subprocess.check_output(['xprop', '-id', window_id, '_NET_WM_PID'], text=True)
+                                    pid_match = re.search(r'_NET_WM_PID\(CARDINAL\) = (\d+)', xprop_output)
+                                    if pid_match:
+                                        pid = int(pid_match.group(1))
+                                        process = psutil.Process(pid)
+                                        process_name = process.name()
+                                        
+                                        return {
+                                            'title': window_title,
+                                            'process_name': process_name,
+                                            'pid': pid
+                                        }
+                                except:
+                                    pass
+        except (subprocess.SubprocessError, subprocess.CalledProcessError, FileNotFoundError) as e:
+            error_output = str(e.stderr) if hasattr(e, 'stderr') and e.stderr else str(e)
+            logger.debug(f"wmctrl method failed: {e}")
+        
+        # Method 3: If running under Wayland or WSL, try to detect using ps
+        if os.environ.get('WAYLAND_DISPLAY') or 'WSL' in os.uname().release:
+            logger.debug("Wayland or WSL detected, using process-based detection")
             
-        if os.environ.get('WAYLAND_DISPLAY'):
-            logger.debug("Wayland detected, window detection might be limited")
-            
-            for proc in psutil.process_iter(['name']):
+            # Find running media players
+            for proc in psutil.process_iter(['name', 'cmdline']):
                 try:
                     proc_name = proc.info['name']
                     if any(player.lower() in proc_name.lower() for player in VIDEO_PLAYER_EXECUTABLES['linux']):
+                        # Try to get the media file name from command line
+                        cmdline = proc.info.get('cmdline', [])
+                        title = f"Unknown - {proc_name}"
+                        
+                        # Check if any command line arg is a media file
+                        for arg in reversed(cmdline):
+                            if arg and os.path.isfile(arg) and '.' in arg:
+                                title = os.path.basename(arg)
+                                break
+                        
                         return {
-                            'title': f"Unknown title - {proc_name}",
+                            'title': title,
                             'process_name': proc_name,
                             'pid': proc.pid
                         }
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
                     continue
     except Exception as e:
-        logger.error(f"Error getting Linux active window info: {e}")
+        logger.warning(f"Error getting Linux active window info: {e}")
     
     return None
 
@@ -341,9 +366,12 @@ def _get_all_windows_info_macos():
 def _get_all_windows_info_linux():
     """Linux-specific implementation to get all windows info."""
     windows_info = []
+    
+    # Standard Linux detection using window management tools
     try:
+        # First try using wmctrl which is more reliable
         try:
-            output = subprocess.check_output(['wmctrl', '-l', '-p'], text=True)
+            output = subprocess.check_output(['wmctrl', '-l', '-p'], text=True, stderr=subprocess.PIPE)
             for line in output.strip().split('\n'):
                 if line.strip():
                     parts = line.split(None, 4)
@@ -370,12 +398,14 @@ def _get_all_windows_info_linux():
                                 'pid': pid
                             })
                             
-        except (subprocess.SubprocessError, FileNotFoundError):
-            logger.debug("wmctrl not available for window listing")
+        except (subprocess.SubprocessError, FileNotFoundError) as e:
+            logger.debug(f"wmctrl not available for window listing: {e}")
         
+        # If wmctrl failed or didn't find any windows, try using process detection
         if not windows_info:
-            logger.debug("Using fallback process-based window detection")
+            logger.debug("Using process-based window detection (fallback)")
             
+            # Detect all running media player processes
             for proc in psutil.process_iter(['name', 'cmdline']):
                 try:
                     proc_name = proc.info['name']
@@ -396,7 +426,25 @@ def _get_all_windows_info_linux():
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
                     continue
     except Exception as e:
-        logger.error(f"Error getting all Linux windows info: {e}")
+        logger.warning(f"Error getting Linux windows info: {e}")
+        logger.info("Falling back to media player process detection")
+        
+        # Last resort - just look for media player processes
+        try:
+            for player_name in VIDEO_PLAYER_EXECUTABLES['linux']:
+                for proc in psutil.process_iter(['name']):
+                    try:
+                        proc_name = proc.info['name']
+                        if player_name.lower() in proc_name.lower():
+                            windows_info.append({
+                                'title': f"Media Player: {proc_name}",
+                                'process_name': proc_name,
+                                'pid': proc.pid
+                            })
+                    except (psutil.NoSuchProcess, psutil.AccessDenied):
+                        continue
+        except Exception as e:
+            logger.error(f"Process-based fallback also failed: {e}")
     
     return windows_info
 
