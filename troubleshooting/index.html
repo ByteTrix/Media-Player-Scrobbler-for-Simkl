@@ -1110,17 +1110,78 @@
 - For some distributions, you may need additional packages for GTK integration
 </details>
 
+<details>
+<summary><b>Linux system tray icon missing</b></summary>
+
+**For Ubuntu/GNOME users:**
+- Install AppIndicator extension: `sudo apt install gnome-shell-extension-appindicator`
+- Enable the extension via GNOME Extensions app or at https://extensions.gnome.org/extension/615/appindicator-support/
+- Restart GNOME Shell: Press Alt+F2, type "r" and press Enter
+- Run the diagnostic script: `python3 -m simkl_mps.utils.linux_tray_diagnostics`
+
+**For KDE Plasma users:**
+- Right-click on system tray → Configure System Tray
+- Ensure "Legacy Tray" is enabled
+- Try restarting the application: `simkl-mps exit` then `simkl-mps start`
+
+**For Xfce, MATE, or Cinnamon users:**
+- Right-click on panel → Panel settings/preferences
+- Ensure "Notification Area" or "System Tray" is added to the panel
+- Try running in foreground to see errors: `simkl-mps tray`
+
+**Missing dependencies:**
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># For Ubuntu/Debian</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>sudo<span class="w"> </span>apt<span class="w"> </span>install<span class="w"> </span>python3-gi<span class="w"> </span>python3-gi-cairo<span class="w"> </span>gir1.2-gtk-3.0<span class="w"> </span>gir1.2-appindicator3-0.1
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="c1"># For Fedora</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>sudo<span class="w"> </span>dnf<span class="w"> </span>install<span class="w"> </span>python3-gobject<span class="w"> </span>gtk3<span class="w"> </span>libappindicator-gtk3
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="c1"># For Arch Linux</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>sudo<span class="w"> </span>pacman<span class="w"> </span>-S<span class="w"> </span>python-gobject<span class="w"> </span>gtk3<span class="w"> </span>libappindicator-gtk3
+</code></pre></div>
+
+See the full [Linux Guide](linux-guide.md) for more details.
+</details>
+
+<details>
+<summary><b>Linux autostart configuration</b></summary>
+
+**Setup autostart with a desktop entry (recommended):**
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>mkdir<span class="w"> </span>-p<span class="w"> </span>~/.config/autostart
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>cat<span class="w"> </span>&gt;<span class="w"> </span>~/.config/autostart/simkl-mps.desktop<span class="w"> </span><span class="s">&lt;&lt; EOF</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="s">[Desktop Entry]</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="s">Type=Application</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="s">Name=Media Player Scrobbler for SIMKL</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="s">Exec=simkl-mps start</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="s">Icon=media-player</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="s">Comment=Automatically track media playback and scrobble to SIMKL</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="s">Categories=Utility;</span>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="s">Terminal=false</span>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="s">StartupNotify=false</span>
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="s">EOF</span>
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>chmod<span class="w"> </span>+x<span class="w"> </span>~/.config/autostart/simkl-mps.desktop
+</code></pre></div>
+
+**Desktop-specific methods:**
+
+- **GNOME**: Open "Startup Applications" → Add → Command: `simkl-mps start`
+- **KDE Plasma**: System Settings → Startup and Shutdown → Autostart → Add Program → Command: `simkl-mps start`
+- **Xfce**: Settings → Session and Startup → Application Autostart → Add → Command: `simkl-mps start`
+
+See the full [Linux Guide](linux-guide.md) for more details.
+</details>
+
 <h2 id="advanced-diagnostics">🧑‍💻 Advanced Diagnostics<a class="headerlink" href="#advanced-diagnostics" title="Permanent link">&para;</a></h2>
 <h3 id="debug-logging">Debug Logging<a class="headerlink" href="#debug-logging" title="Permanent link">&para;</a></h3>
 <p>For detailed logging that helps identify issues:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># Run with debug logging</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>simkl-mps<span class="w"> </span>tray<span class="w"> </span>--log-level<span class="w"> </span>DEBUG
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="c1"># For Windows installer version</span>
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="s2">&quot;C:\Program Files\Media Player Scrobbler for Simkl\simkl-mps.exe&quot;</span><span class="w"> </span>--debug
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># Run with debug logging</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>simkl-mps<span class="w"> </span>tray<span class="w"> </span>--log-level<span class="w"> </span>DEBUG
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="c1"># For Windows installer version</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="s2">&quot;C:\Program Files\Media Player Scrobbler for Simkl\simkl-mps.exe&quot;</span><span class="w"> </span>--debug
 </code></pre></div>
 <p>Set persistent debug logging by adding to your config file:
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>SIMKL_LOG_LEVEL=DEBUG
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>SIMKL_LOG_LEVEL=DEBUG
 </code></pre></div></p>
 <h3 id="key-log-locations">Key Log Locations<a class="headerlink" href="#key-log-locations" title="Permanent link">&para;</a></h3>
 <ul>
@@ -1138,14 +1199,14 @@
 </ul>
 <h3 id="network-diagnostics">Network Diagnostics<a class="headerlink" href="#network-diagnostics" title="Permanent link">&para;</a></h3>
 <p>Test connectivity to required services:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># Test SIMKL API</span>
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>curl<span class="w"> </span>-I<span class="w"> </span>https://api.simkl.com/
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="c1"># Test VLC web interface</span>
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>curl<span class="w"> </span>-I<span class="w"> </span>http://localhost:8080/
-<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>
-<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="c1"># Test MPC web interface</span>
-<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>curl<span class="w"> </span>-I<span class="w"> </span>http://localhost:13579/
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># Test SIMKL API</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>curl<span class="w"> </span>-I<span class="w"> </span>https://api.simkl.com/
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="c1"># Test VLC web interface</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>curl<span class="w"> </span>-I<span class="w"> </span>http://localhost:8080/
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="c1"># Test MPC web interface</span>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>curl<span class="w"> </span>-I<span class="w"> </span>http://localhost:13579/
 </code></pre></div>
 <p>Check for port conflicts:
 - Windows: <code>netstat -ano | findstr "8080 13579"</code>
@@ -1178,11 +1239,11 @@
 <h2 id="diagnostic-tests">📊 Diagnostic Tests<a class="headerlink" href="#diagnostic-tests" title="Permanent link">&para;</a></h2>
 <h3 id="media-player-connection-test">Media Player Connection Test<a class="headerlink" href="#media-player-connection-test" title="Permanent link">&para;</a></h3>
 <p>Testing if your media player is properly configured:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># Test VLC configuration (Windows Command Prompt)</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>curl<span class="w"> </span>-I<span class="w"> </span>http://localhost:8080/
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="c1"># Test MPV socket (Windows PowerShell)</span>
-<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>Test-Path<span class="w"> </span>-Path<span class="w"> </span><span class="se">\\</span>.<span class="se">\p</span>ipe<span class="se">\m</span>pvsocket
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># Test VLC configuration (Windows Command Prompt)</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>curl<span class="w"> </span>-I<span class="w"> </span>http://localhost:8080/
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="c1"># Test MPV socket (Windows PowerShell)</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>Test-Path<span class="w"> </span>-Path<span class="w"> </span><span class="se">\\</span>.<span class="se">\p</span>ipe<span class="se">\m</span>pvsocket
 </code></pre></div>
 <h2 id="getting-help">🆘 Getting Help<a class="headerlink" href="#getting-help" title="Permanent link">&para;</a></h2>
 <p>If you still can't resolve your issue:</p>
@@ -1275,7 +1336,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="April 25, 2025 19:24:44">April 25, 2025</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="April 26, 2025 12:29:34">April 26, 2025</span>
   </span>
 
     
