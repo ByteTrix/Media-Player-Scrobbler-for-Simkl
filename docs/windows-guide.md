@@ -56,7 +56,7 @@ After installation completes:
 ## ⚙️ Media Player Configuration on Windows (recommended)
 
 For the best movie tracking experience, configure your preferred media players:
-[Media Players](media_players.md)
+[Media Players](media-players.md)
 
 
 ## 🖥️ Windows System Integration
