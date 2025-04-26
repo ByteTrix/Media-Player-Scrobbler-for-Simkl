@@ -20,8 +20,7 @@ Settings can be customized via config files, environment variables, or command-l
 ```ini
 # .simkl_mps.env
 SIMKL_ACCESS_TOKEN=your_access_token_here
-SIMKL_POLL_INTERVAL=10
-SIMKL_COMPLETION_THRESHOLD=80
+USER_ID=your_user_id
 ```
 
 See [Media Players Guide](media-players.md) for player-specific environment variables.
@@ -46,8 +45,8 @@ simkl-movie-tracker/
 ### Setup & Environment
 
 ```bash
-git clone https://github.com/kavinthangavel/simkl-movie-tracker.git
-cd simkl-movie-tracker
+git clone https://github.com/kavinthangavel/Media-Player-Scrobbler-for-Simkl.git
+cd Media-Player-Scrobbler-for-Simkl
 poetry install --with dev
 # or
 pip install -e ".[dev]"
