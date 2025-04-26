@@ -7,24 +7,25 @@ Tracks completed features and planned improvements for MPS for SIMKL.
 - For advanced/dev info, see [Advanced & Developer Guide](configuration.md).
 
 ## ✅ Completed
-- [x] Cross-platform support (Windows, macOS, Linux)
-- [x] System tray app
-- [x] Offline mode with backlog
-- [x] Smart movie detection
-- [x] PyPI package
-- [x] New icon/logo
-- [x] Enhanced tray controls
-- [x] Improved notifications
-- [x] Enhanced authentication
+- [x] 👨🏻‍💻 Cross-platform support (Windows, macOS, Linux)
+- [x] 📥 System tray app
+- [x] ⛔ Offline mode with backlog
+- [x] 🧠 Smart movie detection
+- [x] 📦 PyPI package
+- [x] 😍 New icon/logo
+- [x] 🎛️ Enhanced tray controls
+- [x] 🔔 Improved notifications
+- [x] ⛓️ Enhanced authentication
 
 ## 🚧 In Progress
-- Cross-platform testing
-- Option to set/edit completion percentage
+- 💻 Cross-platform testing
+- 💾 Option to set/edit completion percentage
 
 ## 📝 Planned Features
 
 ### Short Term
 
+- [ ] 😈 Auto download and install latest Update
 - [ ] 🧪 Create comprehensive automated test suite
 - [ ] 🔎 Add option to manually correct misidentified movies
 
