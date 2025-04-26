@@ -7,31 +7,29 @@ Tracks completed features and planned improvements for MPS for SIMKL.
 - For advanced/dev info, see [Advanced & Developer Guide](configuration.md).
 
 ## ✅ Completed
-- Cross-platform support (Windows, macOS, Linux)
-- System tray app
-- Offline mode with backlog
-- Smart movie detection
-- PyPI package
-- New icon/logo
-- Enhanced tray controls
-- Improved notifications
-- Enhanced authentication
+- [x] Cross-platform support (Windows, macOS, Linux)
+- [x] System tray app
+- [x] Offline mode with backlog
+- [x] Smart movie detection
+- [x] PyPI package
+- [x] New icon/logo
+- [x] Enhanced tray controls
+- [x] Improved notifications
+- [x] Enhanced authentication
 
 ## 🚧 In Progress
-- Cross-platform installer (Windows tested)
-- Option to set/edit completion percentage
 - Cross-platform testing
+- Option to set/edit completion percentage
 
 ## 📝 Planned Features
-- Automated test suite
-- Manual correction for misidentified movies
-- Two-way sync with SIMKL
-- TV show/anime tracking
-- More streaming platform integrations
-- Multi-user support
-- Advanced search/filtering
-- More documentation/examples
-- Translations
-- Performance optimizations
+- [ ] Automated test suite
+- [ ] Manual correction for misidentified movies
+- [ ] TV show/anime tracking
+- [ ] More streaming platform integrations
+- [ ] Two-way sync with SIMKL
+- [ ] Multi-user support
+- [ ] More documentation/examples
+- [ ] Translations
+- [ ] Performance optimizations
 
 _Note: Timeline is approximate and subject to change._
