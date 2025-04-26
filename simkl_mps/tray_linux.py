@@ -16,20 +16,76 @@ from PIL import Image
 
 from simkl_mps.tray_base import TrayAppBase, get_simkl_scrobbler, logger
 
+# Enhance detection for Ubuntu GNOME environment
+def detect_environment():
+    """Detect Linux desktop environment and capabilities"""
+    desktop_env = os.environ.get('XDG_CURRENT_DESKTOP', '')
+    session_type = os.environ.get('XDG_SESSION_TYPE', '')
+    
+    # Check for GNOME AppIndicator extension
+    has_appindicator_extension = False
+    try:
+        if 'GNOME' in desktop_env:
+            # Try to check if the AppIndicator extension is enabled
+            output = subprocess.check_output(
+                ["gsettings", "get", "org.gnome.shell", "enabled-extensions"],
+                stderr=subprocess.DEVNULL
+            ).decode('utf-8')
+            
+            # Common AppIndicator extension IDs
+            extension_ids = [
+                "appindicatorsupport@rgcjonas.gmail.com",  # Standard GNOME extension
+                "ubuntu-appindicators@ubuntu.com",         # Ubuntu specific extension
+                "appindicator@vroad.xyz"                   # Alternative extension
+            ]
+            
+            has_appindicator_extension = any(ext_id in output for ext_id in extension_ids)
+            
+            if has_appindicator_extension:
+                logger.info(f"Detected GNOME AppIndicator extension: {output}")
+    except Exception as e:
+        logger.debug(f"Error checking GNOME extensions: {e}")
+    
+    return {
+        'desktop': desktop_env,
+        'session': session_type,
+        'has_appindicator': has_appindicator_extension
+    }
+
 # Determine if we can use AppIndicator
 USE_APP_INDICATOR = False
+env_info = detect_environment()
 try:
     import gi
     gi.require_version('Gtk', '3.0')
+    
+    # First check if we have the extension enabled for GNOME
+    if 'GNOME' in env_info['desktop'] and not env_info['has_appindicator']:
+        logger.warning("GNOME detected but AppIndicator extension is not enabled.")
+        logger.warning("Using fallback system tray implementation.")
+        raise ImportError("AppIndicator extension not enabled in GNOME")
+    
+    # Try to load AppIndicator3
     gi.require_version('AppIndicator3', '0.1')
     from gi.repository import Gtk, AppIndicator3, GLib
     USE_APP_INDICATOR = True
-    logger.info("Using AppIndicator for Linux system tray")
+    logger.info(f"Using AppIndicator for Linux system tray ({env_info['desktop']})")
 except (ImportError, ValueError) as e:
     logger.warning(f"AppIndicator not available: {e}, falling back to pystray")
-    import pystray
-    from plyer import notification
+    try:
+        import pystray
+        from plyer import notification
+        logger.info("Successfully loaded pystray as fallback")
+    except ImportError as e2:
+        logger.error(f"Failed to load pystray: {e2}. System tray functionality may be limited.")
     USE_APP_INDICATOR = False
+
+# Special handling for Ubuntu Unity/GNOME without AppIndicator
+if not USE_APP_INDICATOR and ('Unity' in env_info['desktop'] or 'GNOME' in env_info['desktop']):
+    logger.warning("Ubuntu GNOME/Unity detected without AppIndicator support.")
+    logger.warning("You may need to install 'gnome-shell-extension-appindicator' and enable it.")
+    logger.warning("Install with: sudo apt install gnome-shell-extension-appindicator")
+    logger.warning("Then enable in GNOME Extensions app or at https://extensions.gnome.org/")
 
 class AppIndicatorTray:
     """AppIndicator implementation for Linux system tray"""
