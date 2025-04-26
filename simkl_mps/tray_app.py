@@ -477,6 +477,26 @@ Tips:
         logger.info("Checking for updates...")
         self.show_notification("Checking for Updates", "Looking for updates to MPS for SIMKL...")
 
+        # Get current version first
+        current_version = "Unknown"
+        try:
+            # 1. Try to get from pkg_resources
+            try:
+                import pkg_resources
+                current_version = pkg_resources.get_distribution("simkl-mps").version
+            except (pkg_resources.DistributionNotFound, ImportError):
+                # 2. Try to get from registry (Windows)
+                if sys.platform == 'win32':
+                    try:
+                        import winreg
+                        key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\kavinthangavel\Media Player Scrobbler for SIMKL")
+                        current_version = winreg.QueryValueEx(key, "Version")[0]
+                        winreg.CloseKey(key)
+                    except:
+                        pass
+        except Exception as e:
+            logger.error(f"Error getting current version: {e}")
+
         system = sys.platform.lower()
         updater_script = 'updater.ps1' if system == 'win32' else 'updater.sh' # Adapt for other OS if needed
         updater_path = self._get_updater_path(updater_script)
@@ -490,7 +510,8 @@ Tips:
 
         try:
             if system == 'win32':
-                command = ["powershell", "-ExecutionPolicy", "Bypass", "-File", str(updater_path), "-CheckOnly"]
+                # Add -Silent parameter to prevent the updater from showing its own notifications
+                command = ["powershell", "-ExecutionPolicy", "Bypass", "-File", str(updater_path), "-CheckOnly", "-Silent"]
                 # Hide PowerShell window
                 startupinfo = subprocess.STARTUPINFO()
                 startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
@@ -498,7 +519,7 @@ Tips:
                 creationflags = subprocess.CREATE_NO_WINDOW
             else:
                 # Basic command for sh script (adapt if needed)
-                command = ["bash", str(updater_path), "--check-only"] # Assuming sh script supports --check-only
+                command = ["bash", str(updater_path), "--check-only", "--silent"] # Assuming sh script supports --silent
                 startupinfo = None
                 creationflags = 0
 
@@ -536,10 +557,20 @@ Tips:
             elif stdout.startswith("UPDATE_AVAILABLE:"):
                 try:
                     parts = stdout.split(" ", 2) # UPDATE_AVAILABLE: <version> <url>
-                    version = parts[1]
+                    new_version = parts[1]
                     url = parts[2]
-                    logger.info(f"Update found: Version {version}")
-                    self.show_notification("Update Available", f"Version {version} is available. Please visit {url} to download the update.")
+                    logger.info(f"Update found: Version {new_version}")
+                    
+                    # First show notification that update is available with both versions
+                    self.show_notification("Update Available", 
+                        f"New version available!\nCurrent: {current_version}\nNew: {new_version}\n\nOpening download page...")
+                    
+                    # Short delay to ensure notification appears before browser opens
+                    time.sleep(1)
+                    
+                    # Then open the release page automatically
+                    webbrowser.open(url)
+                    
                 except IndexError:
                     logger.error(f"Could not parse UPDATE_AVAILABLE string: {stdout}")
                     self.show_notification("Update Error", "Failed to parse update information.")
