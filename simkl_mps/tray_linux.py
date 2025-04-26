@@ -651,7 +651,15 @@ Automatically track and scrobble your media to SIMKL."""
             return
 
         try:
-            command = ["bash", str(updater_path), "--check-only"]
+            # Use --CheckOnly flag for the new script to just check without installing
+            command = ["bash", str(updater_path), "--CheckOnly"]
+            
+            # Make sure the script is executable
+            try:
+                os.chmod(str(updater_path), 0o755)
+                logger.debug(f"Made updater script executable: {updater_path}")
+            except Exception as e:
+                logger.warning(f"Could not set executable permission on updater script: {e}")
 
             process = subprocess.run(
                 command,
@@ -667,7 +675,7 @@ Automatically track and scrobble your media to SIMKL."""
             logger.info(f"Update check script exited with code: {exit_code}")
             logger.debug(f"Update check stdout: {stdout}")
             if stderr:
-                logger.error(f"Update check stderr: {stderr}")
+                logger.debug(f"Update check stderr: {stderr}")
 
             # Process based on exit code first
             if exit_code != 0:
@@ -679,30 +687,44 @@ Automatically track and scrobble your media to SIMKL."""
                     # General script execution error
                     logger.error(f"Update check script failed with exit code {exit_code}. Stderr: {stderr}")
                     self.show_notification("Update Error", f"Failed to run update check script (Code: {exit_code}).")
-
-            # Process stdout if exit code was 0
-            elif stdout.startswith("UPDATE_AVAILABLE:"):
-                try:
-                    parts = stdout.split(" ", 2) # UPDATE_AVAILABLE: <version> <url>
-                    version = parts[1]
-                    url = parts[2]
-                    logger.info(f"Update found: Version {version}")
-                    self.show_notification("Update Available", f"Version {version} is available. Please visit {url} to download the update.")
-                except IndexError:
-                    logger.error(f"Could not parse UPDATE_AVAILABLE string: {stdout}")
-                    self.show_notification("Update Error", "Failed to parse update information.")
-            elif stdout.startswith("NO_UPDATE:"):
-                try:
-                    version = stdout.split(" ", 1)[1]
-                    logger.info(f"No update available. Current version: {version}")
-                    self.show_notification("No Updates Available", f"You are already running the latest version ({version}).")
-                except IndexError:
-                    logger.error(f"Could not parse NO_UPDATE string: {stdout}")
-                    self.show_notification("No Updates Available", "You are already running the latest version.")
             else:
-                # Unexpected output
-                logger.warning(f"Unexpected output from update check script: {stdout}")
-                self.show_notification("Update Check Info", "Update check completed with unclear results. Check logs.")
+                # Look for specific output patterns from the new script
+                if "UPDATE_AVAILABLE:" in stdout:
+                    # Extract version and URL using regex to be more robust
+                    import re
+                    version_match = re.search(r"UPDATE_AVAILABLE: ([0-9.]+) (https?://[^\s]+)", stdout)
+                    if version_match:
+                        version = version_match.group(1)
+                        url = version_match.group(2)
+                        logger.info(f"Update found: Version {version}")
+                        
+                        # Ask if the user wants to install the update
+                        self.show_notification("Update Available", f"Version {version} is available.")
+                        
+                        # Use zenity if available for a better dialog
+                        if self._ask_user_to_update(version):
+                            # User wants to update - run the updater again without --CheckOnly
+                            logger.info("User confirmed update, installing...")
+                            self._run_update_installation()
+                        else:
+                            logger.info("User declined update")
+                    else:
+                        logger.error(f"Could not parse UPDATE_AVAILABLE string: {stdout}")
+                        self.show_notification("Update Available", "An update is available. Use pip to update: pip install --upgrade simkl-mps[linux]")
+                elif "NO_UPDATE:" in stdout:
+                    # Extract current version
+                    version_match = re.search(r"NO_UPDATE: ([0-9.]+)", stdout)
+                    if version_match:
+                        version = version_match.group(1)
+                        logger.info(f"No update available. Current version: {version}")
+                        self.show_notification("No Updates Available", f"You are already running the latest version ({version}).")
+                    else:
+                        logger.debug(f"Could not parse NO_UPDATE string: {stdout}")
+                        self.show_notification("No Updates Available", "You are already running the latest version.")
+                else:
+                    # Unexpected output
+                    logger.warning(f"Unexpected output from update check script: {stdout}")
+                    self.show_notification("Update Check Info", "Update check completed with unclear results. Check logs.")
 
         except FileNotFoundError:
             logger.error(f"Error running update check: bash not found.")
@@ -713,6 +735,64 @@ Automatically track and scrobble your media to SIMKL."""
         finally:
             self.update_icon() # Refresh menu state
             self._update_check_running = False
+    
+    def _ask_user_to_update(self, version):
+        """Ask the user if they want to update to the new version"""
+        try:
+            # Try using zenity for a nice dialog (most Linux distros with GUI)
+            if subprocess.run(['which', 'zenity'], stdout=subprocess.PIPE, stderr=subprocess.PIPE).returncode == 0:
+                result = subprocess.run([
+                    'zenity', '--question',
+                    '--title=Update Available',
+                    f'--text=Version {version} is available. Do you want to update now?',
+                    '--no-wrap'
+                ], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                return result.returncode == 0
+            else:
+                # Fallback to notification + timer approach
+                self.show_notification("Update Available", f"Version {version} is available. Updating in 10 seconds. Close this app to cancel.")
+                # Wait 10 seconds to give user chance to cancel
+                for i in range(10, 0, -1):
+                    logger.debug(f"Update countdown: {i} seconds remaining")
+                    time.sleep(1)
+                return True
+        except Exception as e:
+            logger.error(f"Error asking for update confirmation: {e}")
+            # Default to not updating in case of error
+            return False
+    
+    def _run_update_installation(self):
+        """Run the actual update installation"""
+        try:
+            updater_script = 'updater.sh'
+            updater_path = self._get_updater_path(updater_script)
+            
+            if not updater_path or not updater_path.exists():
+                logger.error(f"Updater script not found for installation: {updater_path}")
+                self.show_notification("Update Error", "Updater script not found.")
+                return False
+            
+            # Show notification
+            self.show_notification("Installing Update", "Installing update. The application will restart when complete.")
+            
+            # Run the update script without --CheckOnly to perform the actual update
+            subprocess.Popen(
+                ["bash", str(updater_path)],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                start_new_session=True
+            )
+            
+            # Exit the application to allow the update to complete
+            logger.info("Exiting application for update to complete")
+            time.sleep(1)
+            self.exit_app()
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error running update installation: {e}")
+            self.show_notification("Update Error", f"Failed to start update installation: {e}")
+            return False
 
 def run_tray_app():
     """Run the application in tray mode"""

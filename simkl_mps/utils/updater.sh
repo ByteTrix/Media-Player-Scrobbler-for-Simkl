@@ -1,17 +1,56 @@
 #!/bin/bash
 
-# updater.sh - Update script for macOS and Linux
-# Checks for updates and manages installation of Media Player Scrobbler for SIMKL
+# updater.sh - Update script for Mac and Linux
+# Checks for updates to the simkl-mps package on PyPI and installs them
 
 # Configuration
-APP_NAME="MPS for SIMKL"
-REPO="kavinthangavel/simkl-movie-tracker"
-USER_AGENT="MPSS-Updater/1.0"
-CONFIG_DIR="${HOME}/.config/simkl-mps"
-LOG_FILE="${CONFIG_DIR}/updater.log"
+APP_NAME="Media Player Scrobbler for SIMKL"
+PACKAGE_NAME="simkl-mps"
+PYPI_URL="https://pypi.org/pypi/${PACKAGE_NAME}/json"
+USER_AGENT="MPSS-Updater/2.1"
 SILENT=false
+CHECK_ONLY=false  # Flag to only check, don't install
 FORCE=false
-FIRST_RUN_FILE="${CONFIG_DIR}/first_run"
+
+# Detect OS
+OS="unknown"
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    OS="macos"
+    # macOS-specific paths
+    CONFIG_DIR="${HOME}/Library/Application Support/kavinthangavel/simkl-mps"
+    PACKAGE_EXTRAS="macos"
+elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
+    OS="linux"
+    # Linux-specific paths
+    CONFIG_DIR="${HOME}/.local/share/kavinthangavel/simkl-mps"
+    PACKAGE_EXTRAS="linux"
+else
+    echo "Unsupported operating system: $OSTYPE"
+    exit 1
+fi
+
+LOG_FILE="${CONFIG_DIR}/updater.log"
+
+# Command line arguments
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --Silent|-s)
+            SILENT=true
+            shift
+            ;;
+        --CheckOnly)
+            CHECK_ONLY=true
+            shift
+            ;;
+        --Force|-f)
+            FORCE=true
+            shift
+            ;;
+        *)
+            shift
+            ;;
+    esac
+done
 
 # Ensure config directory exists
 mkdir -p "${CONFIG_DIR}"
@@ -21,17 +60,19 @@ log_message() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "${LOG_FILE}"
 }
 
+log_message "========== Update Check Started =========="
+log_message "OS detected: $OS"
+
 # Function to show a desktop notification
 show_notification() {
     TITLE="$1"
     MESSAGE="$2"
     
-    # Determine OS
-    if [[ "$(uname)" == "Darwin" ]]; then
-        # macOS
+    if [[ "$OS" == "macos" ]]; then
+        # macOS notifications using osascript
         osascript -e "display notification \"$MESSAGE\" with title \"$TITLE\""
     else
-        # Linux - use various notification methods
+        # Linux notifications
         if command -v notify-send &> /dev/null; then
             # Use notify-send if available (most Linux distros)
             ICON_PATH=""
@@ -39,10 +80,8 @@ show_notification() {
                 ICON_PATH="${HOME}/.local/share/icons/simkl-mps.png"
             elif [ -f "/usr/share/icons/simkl-mps.png" ]; then
                 ICON_PATH="/usr/share/icons/simkl-mps.png"
-            elif [ -f "/usr/share/pixmaps/simkl-mps.png" ]; then
-                ICON_PATH="/usr/share/pixmaps/simkl-mps.png"
             fi
-            
+                
             if [ -n "$ICON_PATH" ]; then
                 notify-send -i "$ICON_PATH" "$TITLE" "$MESSAGE"
             else
@@ -56,313 +95,417 @@ show_notification() {
             echo "$TITLE: $MESSAGE" >&2
         fi
     fi
-}
-
-# Show first run message if applicable
-check_first_run() {
-    if [ -f "$FIRST_RUN_FILE" ]; then
-        log_message "First run detected"
-        
-        # Determine the platform
-        if [[ "$(uname)" == "Darwin" ]]; then
-            # macOS - use dialog
-            osascript -e 'display dialog "Welcome to Media Player Scrobbler for SIMKL!\n\nThis app will automatically check for updates once a week.\n\nYou can manually check for updates from the app menu." buttons {"OK"} default button "OK" with title "MPSS Auto-Update"'
-        else
-            # Linux - use zenity if available
-            if command -v zenity &> /dev/null; then
-                zenity --info --title="MPSS Auto-Update" --text="Welcome to Media Player Scrobbler for SIMKL!\n\nThis app will automatically check for updates once a week.\n\nYou can manually check for updates from the app menu."
-            else
-                # Fall back to notification
-                show_notification "MPSS Auto-Update" "Weekly update checks are enabled. You can manually check from the app menu."
-            fi
-        fi
-        
-        # Remove first run file
-        rm -f "$FIRST_RUN_FILE"
-    fi
-}
-
-# Get current version
-get_current_version() {
-    if [ -f "${CONFIG_DIR}/version.txt" ]; then
-        cat "${CONFIG_DIR}/version.txt"
-    else
-        echo "0.0.0"  # Default if version file doesn't exist
-    fi
-}
-
-# Get latest release info from GitHub
-get_latest_release() {
-    local api_url="https://api.github.com/repos/${REPO}/releases/latest"
     
+    log_message "Notification: $TITLE - $MESSAGE"
+}
+
+# Get the installed simkl-mps version
+get_installed_version() {
+    local version=""
+    
+    # Try different methods to get the version
+    
+    # Method 1: Check if simkl-mps is installed in the current Python environment
+    if command -v simkl-mps &> /dev/null; then
+        version=$(simkl-mps --version 2>/dev/null | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+        if [ -n "$version" ]; then
+            log_message "Found version using simkl-mps command: $version"
+            echo "$version"
+            return
+        fi
+    fi
+    
+    # Method 2: Try using pip show
+    if command -v pip3 &> /dev/null; then
+        version=$(pip3 show simkl-mps 2>/dev/null | grep -E "^Version:" | cut -d " " -f 2)
+        if [ -n "$version" ]; then
+            log_message "Found version using pip3 show: $version"
+            echo "$version"
+            return
+        fi
+    fi
+
+    if command -v pip &> /dev/null; then
+        version=$(pip show simkl-mps 2>/dev/null | grep -E "^Version:" | cut -d " " -f 2)
+        if [ -n "$version" ]; then
+            log_message "Found version using pip show: $version"
+            echo "$version"
+            return
+        fi
+    fi
+    
+    # Method 3: Try using pipx list if installed with pipx
+    if command -v pipx &> /dev/null; then
+        version=$(pipx list | grep "simkl-mps" | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+        if [ -n "$version" ]; then
+            log_message "Found version using pipx list: $version"
+            echo "$version"
+            return
+        fi
+    fi
+    
+    # Method 4: Try to extract version from Python package
+    version=$(python3 -c "
+try:
+    import importlib.metadata
+    try:
+        print(importlib.metadata.version('simkl-mps'))
+    except importlib.metadata.PackageNotFoundError:
+        pass
+except ImportError:
+    try:
+        import pkg_resources
+        print(pkg_resources.get_distribution('simkl-mps').version)
+    except (ImportError, pkg_resources.DistributionNotFound):
+        pass
+" 2>/dev/null)
+    
+    if [ -n "$version" ]; then
+        log_message "Found version using Python importlib.metadata/pkg_resources: $version"
+        echo "$version"
+        return
+    fi
+    
+    # If we still don't have a version, check stored version file
+    if [ -f "${CONFIG_DIR}/version.txt" ]; then
+        version=$(cat "${CONFIG_DIR}/version.txt")
+        if [ -n "$version" ]; then
+            log_message "Found version in version.txt: $version"
+            echo "$version"
+            return
+        fi
+    fi
+    
+    # Still no version? Return a default
+    log_message "Could not determine installed version, using default: 0.0.0"
+    echo "0.0.0"
+}
+
+# Get the latest version from PyPI
+get_latest_version() {
+    local pypi_response=""
+    
+    # Try curl first, then wget as fallback
     if command -v curl &> /dev/null; then
-        curl -s -A "${USER_AGENT}" "${api_url}"
+        pypi_response=$(curl -s -L -A "${USER_AGENT}" "${PYPI_URL}")
     elif command -v wget &> /dev/null; then
-        wget -q -O- --header="User-Agent: ${USER_AGENT}" "${api_url}"
+        pypi_response=$(wget -q -O- --header="User-Agent: ${USER_AGENT}" "${PYPI_URL}")
     else
         log_message "Error: Neither curl nor wget is installed"
-        return 1
+        show_notification "Update Error" "Update check failed: curl or wget is required"
+        return ""
+    fi
+    
+    # Check if we got a valid response
+    if [ -z "$pypi_response" ]; then
+        log_message "Error: Empty response from PyPI"
+        return ""
+    fi
+    
+    # Extract version from JSON response
+    if command -v jq &> /dev/null; then
+        # Use jq if available for reliable JSON parsing
+        local latest_version=$(echo "$pypi_response" | jq -r .info.version)
+        log_message "Latest version from PyPI (using jq): $latest_version"
+        echo "$latest_version"
+    else
+        # Fallback to Python for JSON parsing
+        latest_version=$(python3 -c "
+import sys, json
+try:
+    data = json.loads(sys.stdin.read())
+    print(data['info']['version'])
+except Exception as e:
+    print(f'Error parsing JSON: {e}', file=sys.stderr)
+    exit(1)
+" <<< "$pypi_response" 2>/dev/null)
+
+        # If Python method failed, try with grep/sed
+        if [ -z "$latest_version" ]; then
+            latest_version=$(echo "$pypi_response" | grep -o '"version":"[^"]*"' | grep -o '[0-9][0-9.]*' | head -1)
+        fi
+        
+        log_message "Latest version from PyPI: $latest_version"
+        echo "$latest_version"
     fi
 }
 
-# Parse version from semantic version string (e.g., "v1.2.3" -> "1.2.3")
-parse_version() {
-    echo "$1" | sed 's/^v//'
-}
-
-# Compare versions (returns 1 if version1 > version2, 0 otherwise)
+# Compare version strings (returns 1 if version1 > version2, 0 if equal, -1 if version1 < version2)
 compare_versions() {
     local version1="$1"
     local version2="$2"
     
-    # Use sort for version comparison
-    if [ "$(echo -e "${version1}\n${version2}" | sort -V | head -n1)" = "${version2}" ]; then
-        echo 1
-    else
+    # Ensure we have non-empty versions to compare
+    if [ -z "$version1" ] || [ -z "$version2" ]; then
+        log_message "Warning: Empty version in comparison '$version1' vs '$version2'"
+        # If either version is empty, assume we need an update
+        if [ -z "$version1" ]; then
+            echo -1  # version1 is empty, so version2 is "greater"
+        else
+            echo 1   # version2 is empty, so version1 is "greater"
+        fi
+        return
+    fi
+    
+    # Normalize versions to strip any leading 'v'
+    version1=$(echo "$version1" | sed 's/^v//')
+    version2=$(echo "$version2" | sed 's/^v//')
+    
+    # If versions are identical, return 0
+    if [ "$version1" = "$version2" ]; then
         echo 0
+        return
+    fi
+    
+    # Use Python for reliable version comparison if available
+    local result=$(python3 -c "
+from packaging import version
+try:
+    v1 = version.parse('$version1')
+    v2 = version.parse('$version2')
+    print(1 if v1 > v2 else -1)
+except:
+    # Fallback if packaging module isn't available
+    import sys
+    print(-1 if '$version1' < '$version2' else 1)
+" 2>/dev/null)
+    
+    if [ -n "$result" ]; then
+        echo "$result"
+        return
+    fi
+    
+    # Fallback to sort if Python approach fails
+    local sort_result=$(echo -e "${version1}\n${version2}" | sort -V | head -n1)
+    if [ "$sort_result" = "$version1" ]; then
+        # version1 is lower (older)
+        echo -1
+    else
+        # version1 is higher (newer)
+        echo 1
     fi
 }
 
-# Download and install the update
-install_update() {
-    local download_url="$1"
-    local version="$2"
-    local temp_dir
+# Update the package
+update_package() {
+    local new_version="$1"
+    local installed_with_pipx=false
     
-    # Create temporary directory
-    temp_dir=$(mktemp -d)
-    log_message "Created temporary directory: ${temp_dir}"
-    
-    # Download the file
-    local filename
-    
-    if [[ "$(uname)" == "Darwin" ]]; then
-        filename="MPSS_macOS.dmg"
+    # Check if installed with pipx
+    if command -v pipx &> /dev/null && pipx list | grep -q "simkl-mps"; then
+        installed_with_pipx=true
+        log_message "Package installed with pipx"
     else
-        filename="MPSS_Linux.tar.gz"
+        log_message "Package installed with pip or other method"
     fi
     
-    local download_path="${temp_dir}/${filename}"
-    
-    log_message "Downloading update from: ${download_url}"
-    
-    if command -v curl &> /dev/null; then
-        curl -L -A "${USER_AGENT}" -o "${download_path}" "${download_url}"
-    elif command -v wget &> /dev/null; then
-        wget -q --header="User-Agent: ${USER_AGENT}" -O "${download_path}" "${download_url}"
+    # Stop all running instances of the app
+    log_message "Stopping any running instances of simkl-mps..."
+    if [[ "$OS" == "macos" ]]; then
+        pkill -f "simkl-mps" || true
     else
-        log_message "Error: Neither curl nor wget is installed"
-        return 1
+        pkill -f "simkl-mps" || true
     fi
+    sleep 1
     
-    if [ ! -f "${download_path}" ]; then
-        log_message "Download failed"
-        show_notification "Update Error" "Failed to download the update"
-        return 1
-    fi
+    # Install update
+    log_message "Installing update to version $new_version..."
     
-    log_message "Download completed: ${download_path}"
+    # Show notification
+    show_notification "Updating..." "Installing simkl-mps version $new_version. Please wait..."
     
-    # Stop running applications
-    pkill -f "MPSS" || true
-    pkill -f "MPS for SIMKL" || true
+    local update_output=""
+    local exit_code=1
     
-    # Install based on platform
-    if [[ "$(uname)" == "Darwin" ]]; then
-        # macOS - mount DMG and copy app
-        local mount_point="/Volumes/MPSS"
-        log_message "Mounting DMG: ${download_path}"
-        hdiutil attach "${download_path}" -mountpoint "${mount_point}"
-        
-        if [ -d "${mount_point}/MPSS.app" ]; then
-            log_message "Installing application to /Applications"
-            cp -R "${mount_point}/MPSS.app" "/Applications/"
-            # Update version file
-            echo "${version}" > "${CONFIG_DIR}/version.txt"
-            show_notification "Update Successful" "Media Player Scrobbler for SIMKL has been updated to version ${version}"
-        else
-            log_message "Error: Application not found in DMG"
-            show_notification "Update Failed" "Could not find the application in the downloaded package"
-        fi
-        
-        # Unmount DMG
-        hdiutil detach "${mount_point}" -force
+    if [ "$installed_with_pipx" = true ]; then
+        # Update with pipx
+        log_message "Updating with pipx..."
+        update_output=$(pipx upgrade --include-injected "simkl-mps[$PACKAGE_EXTRAS]" 2>&1)
+        exit_code=$?
     else
-        # Linux - extract tar.gz
-        local extract_dir="${temp_dir}/extract"
-        mkdir -p "${extract_dir}"
-        
-        log_message "Extracting archive: ${download_path}"
-        tar -xzf "${download_path}" -C "${extract_dir}"
-        
-        # Find the executable
-        if [ -f "${extract_dir}/MPSS" ]; then
-            log_message "Installing to ${HOME}/.local/bin"
-            mkdir -p "${HOME}/.local/bin"
-            cp "${extract_dir}/MPSS" "${HOME}/.local/bin/"
-            cp "${extract_dir}/MPS for SIMKL" "${HOME}/.local/bin/"
-            
-            # Copy other required files
-            if [ -d "${extract_dir}/lib" ]; then
-                mkdir -p "${HOME}/.local/lib/simkl-mps"
-                cp -R "${extract_dir}/lib/" "${HOME}/.local/lib/simkl-mps/"
+        # Try with pip3 first, then pip as fallback
+        if command -v pip3 &> /dev/null; then
+            log_message "Updating with pip3..."
+            if [[ "$OS" == "macos" ]]; then
+                update_output=$(pip3 install --upgrade "simkl-mps[$PACKAGE_EXTRAS]" 2>&1)
+            else
+                update_output=$(pip3 install --upgrade --user "simkl-mps[$PACKAGE_EXTRAS]" 2>&1)
             fi
-            
-            # Copy icons if present
-            if [ -d "${extract_dir}/icons" ]; then
-                mkdir -p "${HOME}/.local/share/icons"
-                cp -R "${extract_dir}/icons/" "${HOME}/.local/share/icons/"
+            exit_code=$?
+        elif command -v pip &> /dev/null; then
+            log_message "Updating with pip..."
+            if [[ "$OS" == "macos" ]]; then
+                update_output=$(pip install --upgrade "simkl-mps[$PACKAGE_EXTRAS]" 2>&1)
+            else
+                update_output=$(pip install --upgrade --user "simkl-mps[$PACKAGE_EXTRAS]" 2>&1)
             fi
-            
-            # Make executables... executable
-            chmod +x "${HOME}/.local/bin/MPSS"
-            chmod +x "${HOME}/.local/bin/MPS for SIMKL"
-            
-            # Update version file
-            echo "${version}" > "${CONFIG_DIR}/version.txt"
-            show_notification "Update Successful" "Media Player Scrobbler for SIMKL has been updated to version ${version}"
+            exit_code=$?
         else
-            log_message "Error: Executable not found in archive"
-            show_notification "Update Failed" "Could not find the application in the downloaded package"
+            log_message "No pip or pipx command found"
+            exit_code=1
         fi
     fi
     
-    # Clean up
-    rm -rf "${temp_dir}"
-    log_message "Cleanup completed"
+    log_message "Update command output: $update_output"
+    
+    if [ $exit_code -eq 0 ]; then
+        # Update was successful
+        log_message "Update successful!"
+        # Save the new version to version.txt
+        echo "$new_version" > "${CONFIG_DIR}/version.txt"
+        
+        # Try to restart the application if it was running
+        if [[ "$OS" == "macos" ]]; then
+            # On macOS, check if simkl-mps is in Applications folder
+            log_message "Attempting to restart application on macOS..."
+            if [ -d "/Applications/MPS for SIMKL.app" ]; then
+                open "/Applications/MPS for SIMKL.app"
+                log_message "Restarted app from /Applications folder"
+            elif [ -f "/usr/local/bin/simkl-mps" ]; then
+                /usr/local/bin/simkl-mps &
+                log_message "Restarted app using simkl-mps command"
+            fi
+        else
+            # On Linux, try to start from command or .desktop file
+            log_message "Attempting to restart application on Linux..."
+            if command -v simkl-mps &> /dev/null; then
+                nohup simkl-mps > /dev/null 2>&1 &
+                log_message "Restarted app using simkl-mps command"
+            fi
+        fi
+        
+        show_notification "Update Complete" "Media Player Scrobbler for SIMKL has been updated to version $new_version."
+        return 0
+    else
+        # Update failed
+        log_message "Update failed with exit code $exit_code"
+        show_notification "Update Failed" "Failed to update to version $new_version. Please check the logs or try updating manually."
+        return 1
+    fi
 }
 
-# Main update function
-check_and_install_update() {
-    log_message "Checking for updates..."
+# Function to ask for user confirmation
+ask_for_confirmation() {
+    local installed_version="$1"
+    local latest_version="$2"
     
-    # Get current version
-    local current_version
-    current_version=$(get_current_version)
-    log_message "Current version: ${current_version}"
+    if [[ "$OS" == "macos" ]]; then
+        # macOS dialog
+        local response=$(osascript -e "display dialog \"A new version of Media Player Scrobbler for SIMKL is available.
+
+Current version: $installed_version
+New version: $latest_version
+
+Do you want to update now?\" buttons {\"Later\", \"Update Now\"} default button \"Update Now\"")
+        
+        if [[ "$response" == *"Update Now"* ]]; then
+            return 0  # User chose to update
+        else
+            return 1  # User chose not to update
+        fi
+    else
+        # Linux dialog
+        if command -v zenity &> /dev/null; then
+            # Use zenity for GUI prompt
+            zenity --question \
+                --title="Update Available" \
+                --text="A new version of Media Player Scrobbler for SIMKL is available.\n\nCurrent version: $installed_version\nNew version: $latest_version\n\nDo you want to update now?" \
+                --no-wrap
+            
+            return $?  # zenity returns 0 for yes, 1 for no
+        else
+            # Use terminal prompt
+            read -p "A new version of SIMKL-MPS is available ($latest_version). Update now? (y/N) " response
+            case "$response" in
+                [yY][eE][sS]|[yY]) 
+                    return 0
+                    ;;
+                *)
+                    return 1
+                    ;;
+            esac
+        fi
+    fi
+}
+
+# Main function to check for updates
+check_for_updates() {
+    log_message "Checking for updates to $PACKAGE_NAME..."
     
-    # Get latest release info from GitHub
-    local release_info
-    release_info=$(get_latest_release)
+    # Get current installed version
+    local installed_version=$(get_installed_version)
+    log_message "Installed version: $installed_version"
     
-    if [ -z "${release_info}" ]; then
-        log_message "Failed to get latest release info"
-        show_notification "Update Check Failed" "Could not check for updates. Please try again later."
+    if [ -z "$installed_version" ]; then
+        log_message "Error: Could not determine installed version"
+        show_notification "Update Error" "Could not determine installed version"
         return 1
     fi
     
-    # Extract version and download URL from release info
-    local latest_version
-    latest_version=$(echo "${release_info}" | grep '"tag_name":' | sed -E 's/.*"tag_name": *"([^"]+)".*/\1/')
-    latest_version=$(parse_version "${latest_version}")
+    # Get latest version from PyPI
+    local latest_version=$(get_latest_version)
+    log_message "Latest version: $latest_version"
     
-    log_message "Latest version: ${latest_version}"
+    if [ -z "$latest_version" ]; then
+        log_message "Error: Could not determine latest version from PyPI"
+        if [ "$SILENT" != "true" ]; then
+            show_notification "Update Error" "Could not check for updates. Please try again later."
+        fi
+        return 1
+    fi
     
     # Compare versions
-    if [ "$(compare_versions "${latest_version}" "${current_version}")" -eq 0 ] && [ "${FORCE}" != "true" ]; then
-        log_message "Already running the latest version"
-        if [ "${SILENT}" != "true" ]; then
-            show_notification "No Updates Available" "You are already running the latest version (${current_version})."
+    local comparison=$(compare_versions "$latest_version" "$installed_version")
+    
+    if [ "$FORCE" = "true" ] || [ "$comparison" -gt 0 ]; then
+        # Update available
+        log_message "Update available: $installed_version -> $latest_version"
+        
+        if [ "$CHECK_ONLY" = "true" ]; then
+            # Just notify about the update
+            if [ "$SILENT" != "true" ]; then
+                show_notification "Update Available" "Version $latest_version is available. Current version: $installed_version"
+                echo "UPDATE_AVAILABLE: $latest_version https://pypi.org/project/simkl-mps/$latest_version/"
+            fi
+            return 0
         fi
-        return 0
-    fi
-    
-    log_message "Update available: ${latest_version}"
-    
-    # If silent, just notify about the update
-    if [ "${SILENT}" = "true" ]; then
-        show_notification "Update Available" "Version ${latest_version} is available. Current version: ${current_version}"
-        return 0
-    fi
-    
-    # Get the appropriate download URL based on the platform
-    local download_url
-    
-    if [[ "$(uname)" == "Darwin" ]]; then
-        # macOS
-        download_url=$(echo "${release_info}" | grep -o '"browser_download_url": *"[^"]*\.dmg"' | head -n 1 | sed -E 's/.*"browser_download_url": *"([^"]+)".*/\1/')
-    else
-        # Linux
-        download_url=$(echo "${release_info}" | grep -o '"browser_download_url": *"[^"]*\.tar\.gz"' | head -n 1 | sed -E 's/.*"browser_download_url": *"([^"]+)".*/\1/')
-    fi
-    
-    if [ -z "${download_url}" ]; then
-        log_message "Could not find download URL for the latest version"
-        show_notification "Update Error" "Could not find the download URL for the latest version"
-        return 1
-    fi
-    
-    log_message "Download URL: ${download_url}"
-    
-    # Ask for confirmation if not forced
-    if [ "${FORCE}" != "true" ]; then
-        if [[ "$(uname)" == "Darwin" ]]; then
-            # macOS dialog
-            osascript -e "display dialog \"A new version (${latest_version}) of Media Player Scrobbler for SIMKL is available.\n\nCurrent version: ${current_version}\n\nDo you want to update now?\" buttons {\"Later\", \"Update Now\"} default button \"Update Now\" with title \"Update Available\""
-            if [ $? -ne 0 ]; then
-                log_message "Update canceled by user"
+        
+        # Prompt user for confirmation if not silent
+        if [ "$SILENT" != "true" ] && [ "$FORCE" != "true" ]; then
+            log_message "Asking user for update confirmation..."
+            
+            if ask_for_confirmation "$installed_version" "$latest_version"; then
+                update_package "$latest_version"
+                return $?
+            else
+                log_message "Update cancelled by user"
                 return 0
             fi
-        else
-            # Linux dialog
-            if command -v zenity &> /dev/null; then
-                zenity --question --title="Update Available" --text="A new version (${latest_version}) of Media Player Scrobbler for SIMKL is available.\n\nCurrent version: ${current_version}\n\nDo you want to update now?"
-                if [ $? -ne 0 ]; then
-                    log_message "Update canceled by user"
-                    return 0
-                fi
-            else
-                # Use terminal if GUI is not available
-                read -p "A new version (${latest_version}) is available. Do you want to update now? (y/N) " response
-                case "$response" in
-                    [yY][eE][sS]|[yY]) 
-                        # Continue with update
-                        ;;
-                    *)
-                        log_message "Update canceled by user"
-                        return 0
-                        ;;
-                esac
-            fi
+        elif [ "$FORCE" = "true" ] || [ "$SILENT" = "true" ]; then
+            # Forced update or silent update (from script)
+            update_package "$latest_version"
+            return $?
         fi
+    else
+        # No update available
+        log_message "No update available. Current version ($installed_version) is the latest."
+        if [ "$SILENT" != "true" ] && [ "$CHECK_ONLY" = "true" ]; then
+            show_notification "No Updates Available" "You are already running the latest version ($installed_version)."
+            echo "NO_UPDATE: $installed_version"
+        fi
+        return 0
     fi
-    
-    # Download and install the update
-    install_update "${download_url}" "${latest_version}"
 }
 
-# Parse command line arguments
-while [[ $# -gt 0 ]]; do
-    case "$1" in
-        -s|--silent)
-            SILENT=true
-            shift
-            ;;
-        -f|--force)
-            FORCE=true
-            shift
-            ;;
-        --check-first-run)
-            check_first_run
-            exit 0
-            ;;
-        *)
-            log_message "Unknown option: $1"
-            shift
-            ;;
-    esac
-done
-
-# Update the "last check" timestamp
-mkdir -p "${CONFIG_DIR}"
-date +%s > "${CONFIG_DIR}/last_update_check"
-
-# Check for first run
-check_first_run
+# Check dependencies
+if ! command -v python3 &> /dev/null; then
+    log_message "Error: python3 is not installed"
+    show_notification "Update Error" "Python 3 is required but not installed"
+    exit 1
+fi
 
 # Run the update check
-log_message "MPSS Updater started"
-check_and_install_update
-
-log_message "Update check completed"
-exit 0
+check_for_updates
+exit_code=$?
+log_message "Update check completed with exit code $exit_code"
+exit $exit_code

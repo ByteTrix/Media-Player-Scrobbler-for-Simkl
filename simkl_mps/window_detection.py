@@ -386,6 +386,18 @@ def _get_all_windows_info_linux():
                             process = psutil.Process(int(pid))
                             process_name = process.name()
                             
+                            # Skip generic titles from media players
+                            if process_name in VIDEO_PLAYER_EXECUTABLES['linux'] and window_title.lower() in ["audio", "video", "media"]:
+                                # Try to get the actual file being played from commandline
+                                cmdline = process.cmdline()
+                                if cmdline and len(cmdline) > 1:
+                                    for arg in reversed(cmdline):
+                                        if arg and os.path.isfile(arg) and '.' in arg:
+                                            # Replace the generic title with the actual filename
+                                            window_title = os.path.basename(arg)
+                                            logger.debug(f"Replaced generic '{window_title}' with filename: {window_title}")
+                                            break
+                            
                             windows_info.append({
                                 'title': window_title,
                                 'process_name': process_name,
@@ -414,9 +426,13 @@ def _get_all_windows_info_linux():
                     if any(player.lower() in proc_name.lower() for player in VIDEO_PLAYER_EXECUTABLES['linux']):
                         title = "Unknown"
                         if cmdline and len(cmdline) > 1:
-                            possible_file = cmdline[-1]
-                            if os.path.isfile(possible_file) and '.' in possible_file:
-                                title = os.path.basename(possible_file)
+                            # Look for media files in the command line arguments
+                            for arg in reversed(cmdline):
+                                if arg and os.path.isfile(arg) and '.' in arg:
+                                    # Use the filename as the title
+                                    title = os.path.basename(arg)
+                                    logger.debug(f"Found movie filename in cmdline: {title}")
+                                    break
                         
                         windows_info.append({
                             'title': title,
@@ -432,12 +448,25 @@ def _get_all_windows_info_linux():
         # Last resort - just look for media player processes
         try:
             for player_name in VIDEO_PLAYER_EXECUTABLES['linux']:
-                for proc in psutil.process_iter(['name']):
+                for proc in psutil.process_iter(['name', 'cmdline']):
                     try:
                         proc_name = proc.info['name']
                         if player_name.lower() in proc_name.lower():
+                            # Try to get the actual media file from cmdline
+                            title = f"Media Player: {proc_name}"
+                            cmdline = proc.info.get('cmdline', [])
+                            
+                            if cmdline and len(cmdline) > 1:
+                                for arg in reversed(cmdline):
+                                    if arg and os.path.isfile(arg) and '.' in os.path.basename(arg):
+                                        ext = os.path.splitext(arg)[1].lower()
+                                        # Common video file extensions
+                                        if ext in ['.mp4', '.mkv', '.avi', '.mov', '.wmv', '.flv', '.webm', '.m4v', '.mpg', '.mpeg']:
+                                            title = os.path.basename(arg)
+                                            break
+                            
                             windows_info.append({
-                                'title': f"Media Player: {proc_name}",
+                                'title': title,
                                 'process_name': proc_name,
                                 'pid': proc.pid
                             })
@@ -485,6 +514,11 @@ def is_video_player(window_info):
 def is_movie(window_title):
     """Determine if the media is likely a movie using guessit."""
     if not window_title:
+        return False
+
+    # Skip titles that are just "Audio" or similar generic names
+    if window_title.lower() in ["audio", "video", "media"]:
+        logger.debug(f"Ignoring generic media title: '{window_title}'")
         return False
 
     try:
