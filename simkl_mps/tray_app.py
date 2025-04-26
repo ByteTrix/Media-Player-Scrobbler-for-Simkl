@@ -368,7 +368,7 @@ Automatically track and scrobble your media to SIMKL."""
         """Show help information"""
         try:
             # Open documentation or show help dialog
-            help_url = "https://github.com/kavinthangavel/simkl-movie-tracker#readme"
+            help_url = "https://github.com/kavinthangavel/Media-Player-Scrobbler-for-Simkl#readme"
             webbrowser.open(help_url)
         except Exception as e:
             logger.error(f"Error showing help: {e}")

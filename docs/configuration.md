@@ -32,7 +32,7 @@ See [Media Players Guide](media-players.md) for player-specific environment vari
 ### Project Structure
 
 ```
-simkl-movie-tracker/
+Media-Player-Scrobbler-for-Simkl/
   docs/                # Documentation
   simkl_mps/           # Main package
     players/           # Media player integrations
