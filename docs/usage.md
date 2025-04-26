@@ -13,7 +13,7 @@ This guide explains how to use MPS for SIMKL to track your movies and sync with 
 4. Play movies in your configured player. The app tracks and syncs progress automatically.
 
 ## 🖥️ Windows (EXE)
-- Just install and launch. The app runs in the tray—no commands needed.
+- Just install and launch. The app runs in the tray —no commands needed.
 - Use the tray icon for status and controls.
 
 ## 🐧 Linux (pipx)
@@ -25,7 +25,8 @@ This guide explains how to use MPS for SIMKL to track your movies and sync with 
 - Install with pip (see [Mac Guide](mac-guide.md)).
 - Start with `simkl-mps tray` or `simkl-mps start`.
 - Tray icon provides controls and status.
-- Note: Mac support is experimental and untested.
+- 
+> Note: Mac support is experimental and untested.
 
 ## 🛠️ Common Operations
 
@@ -36,7 +37,6 @@ This guide explains how to use MPS for SIMKL to track your movies and sync with 
   simkl-mps tray         # Start with tray UI
   simkl-mps status       # Check status
   simkl-mps stop         # Stop the app
-  simkl-mps backlog      # Manage offline backlog
   simkl-mps --help       # Help
   ```
 
