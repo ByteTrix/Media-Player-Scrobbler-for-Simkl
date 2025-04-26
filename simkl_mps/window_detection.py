@@ -517,7 +517,7 @@ def is_movie(window_title):
         return False
 
     # Skip titles that are just "Audio" or similar generic names
-    if window_title.lower() in ["audio", "video", "media"]:
+    if window_title.lower() in ["audio", "video", "media", "no file"]:
         logger.debug(f"Ignoring generic media title: '{window_title}'")
         return False
 
@@ -616,12 +616,51 @@ def parse_movie_title(window_title_or_info):
     for pattern in player_patterns:
         cleaned_title = re.sub(pattern, '', cleaned_title, flags=re.IGNORECASE).strip()
 
-    if len(cleaned_title) < 3:
-        logger.debug(f"Title too short after cleanup: '{cleaned_title}' from '{window_title}'")
+    # --- Pre-process title for separators and release info ---
+    title_to_guess = cleaned_title
+    separators = ['|', ' - ']
+    release_info_pattern = re.compile(
+        r'\b(psarips|rarbg|yts|yify|evo|mkvcage|\[.*?\]|\(.*?\)|(www\.)?\w+\.(com|org|net|info))\b',
+        re.IGNORECASE
+    )
+    processed_split = False
+
+    for sep in separators:
+        if sep in cleaned_title:
+            processed_split = True
+            parts = [p.strip() for p in cleaned_title.split(sep) if p.strip()]
+            
+            # Filter out parts that look like release info
+            potential_title_parts = []
+            for part in parts:
+                 if not release_info_pattern.search(part):
+                      potential_title_parts.append(part)
+                 else:
+                      logger.debug(f"Part '{part}' identified as release info, filtering out.")
+            
+            # If exactly one part remains after filtering, assume it's the title
+            if len(potential_title_parts) == 1:
+                title_to_guess = potential_title_parts[0]
+                logger.debug(f"Split by '{sep}', filtered release info, using single remaining part: '{title_to_guess}'")
+                break # Use this part and stop processing separators
+            else:
+                # If 0 or >1 parts remain, the split is ambiguous or filtered everything.
+                # Fall back to the original cleaned title before splitting.
+                logger.debug(f"Split by '{sep}', but {len(potential_title_parts)} parts remain after filtering. Falling back to pre-split title: '{cleaned_title}'")
+                title_to_guess = cleaned_title
+                break # Stop processing separators after first ambiguous split
+
+    # If no separator was found, title_to_guess remains the original cleaned_title
+
+    # --- End Pre-processing ---
+
+    if len(title_to_guess) < 3:
+        logger.debug(f"Title too short after cleanup: '{title_to_guess}' from '{window_title}'")
         return None
 
     try:
-        guess = guessit(cleaned_title)
+        # Final guessit call on the chosen title string
+        guess = guessit(title_to_guess)
         if 'title' in guess:
              if len(guess['title']) > 2:
                   if 'year' in guess:

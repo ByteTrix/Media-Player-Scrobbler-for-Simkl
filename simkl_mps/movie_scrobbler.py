@@ -185,9 +185,26 @@ class MovieScrobbler:
                     logger.debug("MPC integration couldn't get position/duration data")
             # --- End MPC-HC/BE Integration ---
 
+            # --- MPV Integration ---
             elif 'mpv' in process_name_lower:
-                logger.debug(f"MPV detection - socket communication not fully implemented yet")
+                logger.debug(f"MPV detected: {process_name}")
+                from simkl_mps.players.mpv import MPVIntegration # Import the new class
 
+                # Lazily instantiate the MPV integration
+                if not hasattr(self, '_mpv_integration'):
+                    self._mpv_integration = MPVIntegration()
+
+                position, duration = self._mpv_integration.get_position_duration(process_name)
+
+                if position is not None and duration is not None:
+                    logger.debug(f"Retrieved position data from MPV: position={position}s, duration={duration}s")
+                    # Return directly if successful
+                    return position, duration # Already validated and rounded in MPVIntegration
+                else:
+                    logger.debug("MPV integration couldn't get position/duration data")
+            # --- End MPV Integration ---
+
+            # General validation (redundant for MPV, kept for safety/other players)
             if position is not None and duration is not None:
                 if isinstance(position, (int, float)) and isinstance(duration, (int, float)) and duration > 0 and position >= 0:
                     position = min(position, duration)
@@ -243,6 +260,11 @@ class MovieScrobbler:
 
     def _start_new_movie(self, movie_title):
         """Start tracking a new movie"""
+        # Additional validation to make sure we don't track generic titles
+        if not movie_title or movie_title.lower() in ["audio", "video", "media", "no file"]:
+            logger.info(f"Ignoring generic title for tracking: '{movie_title}'")
+            return
+
         logger.info(f"Starting media tracking: '{movie_title}'")
         self.currently_tracking = movie_title
         self.start_time = time.time()
