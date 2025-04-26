@@ -178,19 +178,6 @@ For the best movie tracking experience, configure your preferred media players:
 
 ### VLC Media Player
 
-```mermaid
-flowchart TD
-    A[Open VLC] --> B[Tools → Preferences]
-    B --> C[Show Settings: All]
-    C --> D[Interface → Main interfaces]
-    D --> E[Check 'Web' option]
-    E --> F[Interface → Main interfaces → Lua]
-    F --> G[Set HTTP Password]
-    G --> H[Save & Restart VLC]
-    style A fill:#d4f1f9,stroke:#333,stroke-width:2px
-    style H fill:#d5f5e3,stroke:#333,stroke-width:2px
-```
-
 **Step-by-Step Configuration:**
 1. Open VLC Media Player
 2. Navigate to **Tools → Preferences**
@@ -232,12 +219,15 @@ flowchart TD
     B --> C[Status Information]
     B --> D[Start/Pause Tracking]
     B --> E[Tools Submenu]
+    B --> F[Online Services]
     E --> E1[Open Logs]
     E --> E2[Config Directory]
     E --> E3[Process Backlog]
-    B --> F[Check for Updates]
-    B --> G[Help/About]
-    B --> H[Exit]
+    F --> F1[Simkl Website]
+    F --> F2[Watch History]
+    B --> G[Check for Updates]
+    B --> H[Help/About]
+    B --> I[Exit]
     style A fill:#4285f4,stroke:#333,stroke-width:2px,color:#fff
     style D fill:#34a853,stroke:#333,stroke-width:2px,color:#fff
     style F fill:#fbbc05,stroke:#333,stroke-width:2px
