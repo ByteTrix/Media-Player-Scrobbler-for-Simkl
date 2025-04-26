@@ -441,13 +441,31 @@ def main():
     Returns:
         int: Exit code (0 for success, 1 for errors).
     """
-    # Setup logging FIRST
+    # Check for common Linux dependency issues before setting up logging
+    if sys.platform == 'linux':
+        try:
+            # Try to import PyGObject - this will fail if system dependencies are missing
+            import gi
+        except ImportError as e:
+            # Provide helpful guidance for Linux users with missing dependencies
+            if "gi" in str(e) or "gobject" in str(e).lower():
+                print(f"{Fore.RED}ERROR: Missing required Linux system dependencies for PyGObject/GTK.{Style.RESET_ALL}")
+                print(f"{Fore.YELLOW}Please install the required system packages before installing simkl-mps:{Style.RESET_ALL}")
+                print("\nFor Ubuntu/Debian:")
+                print("  sudo apt install python3-pip python3-dev python3-setuptools wmctrl xdotool python3-gi python3-gi-cairo gir1.2-gtk-3.0 libgirepository1.0-dev libcairo2-dev pkg-config libnotify-bin python3-venv")
+                print("\nFor Fedora/RHEL/CentOS:")
+                print("  sudo dnf install python3-pip python3-devel gobject-introspection-devel cairo-devel pkg-config python3-gobject gtk3 wmctrl xdotool libnotify")
+                print("\nFor Arch Linux:")
+                print("  sudo pacman -S python-pip python-setuptools python-gobject gtk3 gobject-introspection cairo pkg-config wmctrl xdotool libnotify")
+                print("\nThen reinstall with: pip install --no-binary=:all: \"simkl-mps[linux]\"")
+                print("Or with pipx: pipx install --system-site-packages \"simkl-mps[linux]\"")
+                return 1
+    
+    # Setup logging AFTER the dependency check
     _setup_logging()
     
     parser = create_parser()
     args = parser.parse_args()
-
-    # Removed redundant version check here - argparse handles it via the 'version' action/command.
 
     # If no command was provided (e.g., just 'simkl-mps'), print help.
     # Note: 'required=True' in add_subparsers makes this less likely, but good practice.
@@ -457,18 +475,22 @@ def main():
         
     # Check for updates only when starting the full background service
     if os.environ.get("SIMKL_TRAY_SUBPROCESS") != "1" and args.command == "start":
-        # Check if user has enabled update checks
-        import winreg
-        try:
-            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\kavinthangavel\Media Player Scrobbler for SIMKL") as key:
-                check_updates = winreg.QueryValueEx(key, "CheckUpdates")[0]
-                if check_updates == 1:
-                    logger.info("Auto-update check enabled, checking for updates...")
-                    check_for_updates(silent=True)
-        except (OSError, ImportError, Exception) as e:
-            # If registry key doesn't exist or other error, default to checking for updates
-            logger.debug(f"Error checking update preferences, defaulting to check: {e}")
-            check_for_updates(silent=True)
+        # Check if user has enabled update checks - Windows only feature
+        if sys.platform == 'win32':
+            try:
+                import winreg
+                with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\kavinthangavel\Media Player Scrobbler for SIMKL") as key:
+                    check_updates = winreg.QueryValueEx(key, "CheckUpdates")[0]
+                    if check_updates == 1:
+                        logger.info("Auto-update check enabled, checking for updates...")
+                        check_for_updates(silent=True)
+            except (OSError, ImportError, Exception) as e:
+                # If registry key doesn't exist or other error, default to checking for updates
+                logger.debug(f"Error checking update preferences, defaulting to check: {e}")
+                check_for_updates(silent=True)
+        # For other platforms, we don't check for updates automatically yet
+        else:
+            logger.debug("Auto-update checking is currently only available on Windows")
 
     command_map = {
         "init": init_command,

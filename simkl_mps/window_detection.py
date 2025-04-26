@@ -11,12 +11,16 @@ from datetime import datetime
 
 PLATFORM = platform.system().lower()
 
+# Platform-specific imports
 if PLATFORM == 'windows':
     import pygetwindow as gw
-    import win32gui
-    import win32process
-    import psutil
-    from guessit import guessit
+    try:
+        import win32gui
+        import win32process
+        import psutil
+        from guessit import guessit
+    except ImportError as e:
+        logging.warning(f"Windows-specific module import error: {e}")
 elif PLATFORM == 'darwin':  # macOS
     import subprocess
     import psutil
