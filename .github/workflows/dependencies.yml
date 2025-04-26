@@ -2,7 +2,7 @@ name: Dependency Management
 
 on:
   schedule:
-    - cron: '0 0 * * 1'  # Run weekly on Monday at midnight
+    - cron: '0 0 * * 1'  
   workflow_dispatch:
   pull_request:
     paths:

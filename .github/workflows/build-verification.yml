@@ -7,9 +7,9 @@ on:
         required: true
         type: string
 
-permissions: # Default permissions for all jobs
+permissions: 
   contents: read
-  id-token: write # Required for Sigstore OIDC attestation
+  id-token: write 
 
 jobs:
   generate-build-info:
@@ -76,9 +76,6 @@ jobs:
         run: |
           cosign sign-blob --yes SHA256SUMS.txt --output-signature SHA256SUMS.txt.sig
           echo "Signed checksums file with Sigstore/cosign"
-
-      # The custom provenance step below is removed as GitHub's built-in
-      # provenance via 'gh release create' is used in the create-release workflow.
 
       - name: Upload verification artifacts
         uses: actions/upload-artifact@v4

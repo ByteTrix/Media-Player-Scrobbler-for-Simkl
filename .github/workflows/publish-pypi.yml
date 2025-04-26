@@ -18,8 +18,8 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     permissions:
-      id-token: write  # Required for PyPI trusted publishing
-      contents: write  # Required for creating releases
+      id-token: write  
+      contents: write  
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -41,7 +41,7 @@ jobs:
       - name: Set version in pyproject.toml
         run: poetry version ${{ inputs.version }}
 
-      # This step injects the secrets directly into the credentials.py file
+      
       - name: Inject Simkl Credentials into Code
         env:
           SIMKL_CLIENT_ID: ${{ secrets.SIMKL_CLIENT_ID }}
@@ -78,7 +78,7 @@ jobs:
         with:
           name: python-package
           path: dist/
-          retention-days: 3
+          retention-days: 1
 
       - name: Publish to PyPI (skip existing)
         run: poetry publish --skip-existing
