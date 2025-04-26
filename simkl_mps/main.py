@@ -13,6 +13,18 @@ import logging
 from simkl_mps.monitor import Monitor
 from simkl_mps.simkl_api import search_movie, get_movie_details, is_internet_connected
 from simkl_mps.credentials import get_credentials
+
+# Import platform-specific tray implementation
+def get_tray_app():
+    """Get the correct tray app implementation based on platform"""
+    if sys.platform == 'win32':
+        from simkl_mps.tray_app import TrayApp, run_tray_app
+    elif sys.platform == 'darwin':
+        from simkl_mps.tray_mac import TrayApp, run_tray_app
+    else:  # Linux and other platforms
+        from simkl_mps.tray_linux import TrayApp, run_tray_app
+    return TrayApp, run_tray_app
+
 class ConfigurationError(Exception):
     """Custom exception for configuration loading errors."""
     pass

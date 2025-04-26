@@ -53,9 +53,7 @@ VERSION = get_version()
 
 from simkl_mps.simkl_api import pin_auth_flow, get_user_settings # Added get_user_settings
 from simkl_mps.credentials import get_credentials, get_env_file_path
-from simkl_mps.main import SimklScrobbler, APP_DATA_DIR # Import APP_DATA_DIR for log path display
-from simkl_mps.tray_app import run_tray_app
-from simkl_mps.utils.verification import get_verification_info, get_executable_checksum
+from simkl_mps.main import SimklScrobbler, APP_DATA_DIR, get_tray_app # Import APP_DATA_DIR for log path display and get_tray_app
 
 colorama.init()
 logger = logging.getLogger(__name__)
@@ -166,7 +164,8 @@ def start_command(args):
     if os.environ.get("SIMKL_TRAY_SUBPROCESS") == "1":
         logger.info("Detected we're in the tray subprocess - running tray app directly")
         print("Running tray application directly...")
-        from simkl_mps.tray_app import run_tray_app
+        # Get the platform-specific tray app implementation
+        _, run_tray_app = get_tray_app()
         sys.exit(run_tray_app())
 
     print("[*] Launching application with tray icon in background...")
@@ -257,9 +256,8 @@ def tray_command(args):
     print("[*] Launching tray application in foreground...")
     print("[*] Logs will be printed below. Press Ctrl+C to exit.")
     try:
-
-
-        from simkl_mps.tray_app import run_tray_app
+        # Get the platform-specific tray app implementation
+        _, run_tray_app = get_tray_app()
         return run_tray_app() # Run directly and return its exit code
     except KeyboardInterrupt:
         logger.info("Tray application stopped by user (Ctrl+C).")
@@ -269,7 +267,6 @@ def tray_command(args):
         logger.exception(f"Failed to run tray application in foreground: {e}")
         print(f"{Fore.RED}ERROR: Failed to run tray application: {e}{Style.RESET_ALL}", file=sys.stderr)
         return 1
-
 
 def version_command(args):
     """

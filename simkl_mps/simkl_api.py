@@ -276,20 +276,18 @@ def get_user_settings(client_id, access_token):
         logger.warning("Simkl API: Cannot get user settings, no internet connection.")
         return None
 
+    # Simplified headers to avoid potential issues with 412 Precondition Failed
     headers = {
-        'Content-Type': 'application/json',
         'simkl-api-key': client_id,
         'Authorization': f'Bearer {access_token}',
-        'Accept': 'application/json',
-        'Accept-Encoding': 'gzip, deflate, br',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive'
+        'Accept': 'application/json'
     }
     headers = _add_user_agent(headers)
     
     # Try account endpoint first (most direct way to get user ID)
     account_url = f'{SIMKL_API_BASE_URL}/users/account'
     try:
+        logger.info("Simkl API: Requesting user account information...")
         account_response = requests.get(account_url, headers=headers, timeout=15)
         
         if account_response.status_code == 200:
@@ -305,18 +303,31 @@ def get_user_settings(client_id, access_token):
                         'user': {'ids': {'simkl': user_id}},
                         'user_id': user_id
                     }
+                    
+                    # Save user ID to env file for future use
+                    from simkl_mps.credentials import get_env_file_path
+                    env_path = get_env_file_path()
+                    _save_access_token(env_path, access_token, user_id)
+                    
                     return settings
             else:
                 logger.warning("Simkl API: Account info is None despite 200 status code")
+        else:
+            logger.warning(f"Simkl API: Account endpoint returned status code {account_response.status_code}")
+            
     except requests.exceptions.RequestException as e:
         logger.warning(f"Simkl API: Error accessing account endpoint: {e}")
     
-    # If account endpoint failed, try settings endpoint
+    # If account endpoint failed, try settings endpoint with simplified headers
     settings_url = f'{SIMKL_API_BASE_URL}/users/settings'
     try:
+        logger.info("Simkl API: Requesting user settings information...")
         settings_response = requests.get(settings_url, headers=headers, timeout=15)
-        settings_response.raise_for_status()
         
+        if settings_response.status_code != 200:
+            logger.error(f"Simkl API: Error getting user settings: {settings_response.status_code} {settings_response.text}")
+            return None
+            
         settings = settings_response.json()
         logger.info("Simkl API: User settings retrieved successfully.")
         
