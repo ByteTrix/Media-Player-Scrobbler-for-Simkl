@@ -64,17 +64,17 @@ flowchart TD
 
 ---
 
-## 🐍 Pip Installation (All Platforms)
+## 🐍 Pip Installation
 
 For users who prefer Python package management or need platform-specific installations:
-
+<!-- 
 ```bash
-# Simple installation
+# Linux installation
 pip install simkl-mps
 
 # Start the application
 simkl-mps start
-```
+``` -->
 
 **Important Notes**:
 - Requires Python 3.9 or higher
@@ -99,7 +99,7 @@ simkl-mps start
 - pip package manager
 </details>
 
-<details>
+<!-- <details>
 <summary><b>macOS</b></summary>
 
 Install with macOS-specific dependencies:
@@ -111,25 +111,48 @@ Requirements:
 - macOS 10.14 or higher
 - Python 3.9 or higher
 - For system tray functionality: `rumps` package (included in extras)
-</details>
+</details> -->
 
 <details>
 <summary><b>Linux</b></summary>
 
-Install required system dependencies first (example for Ubuntu/Debian):
+Before installing with pipx, you must install required system dependencies:
+
+**For Ubuntu/Debian:**
 ```bash
-sudo apt install python3-pip wmctrl xdotool python3-gi gir1.2-gtk-3.0 libnotify-bin
+# Install GObject Introspection and other required system packages
+sudo apt install python3-pip python3-dev python3-setuptools wmctrl xdotool python3-gi python3-gi-cairo gir1.2-gtk-3.0 libgirepository1.0-dev libcairo2-dev pkg-config libnotify-bin python3-venv pipx
+```
+
+**For Fedora/RHEL/CentOS:**
+```bash
+# Install GObject Introspection and other required packages
+sudo dnf install python3-pip python3-devel gobject-introspection-devel cairo-devel pkg-config python3-gobject gtk3 wmctrl xdotool libnotify pipx
+```
+
+**For Arch Linux:**
+```bash
+# Install GObject Introspection and other required packages
+sudo pacman -S python-pip python-setuptools python-gobject gtk3 gobject-introspection cairo pkg-config wmctrl xdotool libnotify python-pipx
 ```
 
 Then install with Linux extras:
 ```bash
-pip install "simkl-mps[linux]"
+# Install with pipx using system packages (recommended)
+pipx install --system-site-packages "simkl-mps[linux]"
+# The --system-site-packages flag allows pipx to use the system's PyGObject
 ```
 
-For other distributions, install equivalent packages for:
-- Window management (wmctrl, xdotool)
-- Notifications (libnotify)
-- GTK integration (if using desktop environment)
+If you encounter PyGObject/GObject Introspection errors:
+1. Make sure you've installed the system packages first
+2. Try using `--system-site-packages` with pipx to use the system's PyGObject
+3. As a last resort, install the system Python package: `sudo apt install python3-gi-cairo python3-gi`
+
+For all distributions, ensure you have:
+- GObject Introspection (`gobject-introspection` or `gir1.2-gtk-3.0`)
+- Window management utilities (`wmctrl`, `xdotool`)
+- Notifications (`libnotify`)
+- GTK3 integration for desktop environment
 </details>
 
 ---

@@ -5,34 +5,41 @@ This module provides utilities for verifying that the application
 was built from source via GitHub Actions.
 """
 
+import sys
 import os
 import json
-import hashlib
-import datetime
-from pathlib import Path
-import sys
+import time
 import logging
+import platform
+import hashlib
+from pathlib import Path
+
+# Import platform-specific dependencies
+PLATFORM = platform.system().lower()
+if PLATFORM == 'windows':
+    try:
+        import win32api
+    except ImportError:
+        pass
 
 logger = logging.getLogger(__name__)
 
-# These values will be populated by the GitHub Actions workflow
+# Default build metadata (used if build_info.json is not found)
 BUILD_METADATA = {
-    "version": "dev",
+    "version": "2.0.0", 
+    "build_time": time.strftime("%Y-%m-%d %H:%M:%S"),
     "git_commit": "local",
-    "build_time": datetime.datetime.now().isoformat(),
-    "build_number": "local",
     "github_workflow": "local",
-    "github_run_id": "local",
-    "github_run_number": "local"
+    "github_run_id": "local"
 }
 
-# Try to load build info from file if running in packaged mode
-try:
-    if getattr(sys, 'frozen', False):
-        # Running as compiled executable
-        exe_dir = Path(sys.executable).parent
-        build_info_path = exe_dir / "build_info.json"
-        
+# Try to load build metadata from file
+if getattr(sys, 'frozen', False):
+    # Running from frozen/bundled app
+    app_dir = Path(sys.executable).parent
+    build_info_path = app_dir / "build_info.json"
+    
+    try:
         if build_info_path.exists():
             try:
                 with open(build_info_path, 'r') as f:
@@ -40,8 +47,8 @@ try:
                 logger.info(f"Loaded build information from {build_info_path}")
             except Exception as e:
                 logger.error(f"Error loading build info: {e}")
-except Exception as e:
-    logger.error(f"Error checking for build info: {e}")
+    except Exception as e:
+        logger.error(f"Error checking for build info: {e}")
 
 def get_verification_info():
     """Get formatted verification information for display."""

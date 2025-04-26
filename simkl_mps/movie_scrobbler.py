@@ -34,20 +34,19 @@ class MovieScrobbler:
         self.testing_mode = testing_mode
         self.currently_tracking = None
         self.track_start_time = None
-        self.last_progress = 0
-        self.movie_cache = {}
-        self.lock = threading.RLock()
+        # self.last_progress = 0 # Unused attribute removed
+        # self.movie_cache = {} # Unused attribute removed (using self.media_cache instead)
+        # self.lock = threading.RLock() # Unused lock removed
         self.notification_callback = None
-        
+
         self.playback_log_path = self.app_data_dir / "playback_log.jsonl"
-        
+
         self.backlog_cleaner = BacklogCleaner(
-            app_data_dir=self.app_data_dir, 
-            backlog_file="backlog.json",
-            threshold_days=30
+            app_data_dir=self.app_data_dir,
+            backlog_file="backlog.json" # threshold_days removed in backlog_cleaner.py
         )
-        
-        self.recent_windows = deque(maxlen=10)
+
+        # self.recent_windows = deque(maxlen=10) # Unused attribute removed
 
         self.start_time = None
         self.last_update_time = None
@@ -167,33 +166,25 @@ class MovieScrobbler:
                 else:
                     logger.debug("VLC integration couldn't get position/duration data")
 
+            # --- MPC-HC/BE Integration ---
             elif any(player in process_name_lower for player in ['mpc-hc.exe', 'mpc-hc64.exe', 'mpc-be.exe', 'mpc-be64.exe']):
-                mpc_ports = [13579, 13580, 13581, 13582]
-                for port in mpc_ports:
-                    player_interface_url = f'http://localhost:{port}/variables.html'
-                    try:
-                        response = requests.get(player_interface_url, timeout=0.5)
-                        if response.status_code == 200:
-                            html_content = response.text
-                            pos_match = re.search(r'<p id="position">(\d+)</p>', html_content)
-                            dur_match = re.search(r'<p id="duration">(\d+)</p>', html_content)
-                            file_match = re.search(r'<p id="file">(.*?)</p>', html_content)
-                            
-                            if file_match:
-                                logger.debug(f"MPC is playing file: {file_match.group(1)}")
-                            
-                            if pos_match and dur_match:
-                                position = int(pos_match.group(1)) / 1000.0
-                                duration = int(dur_match.group(1)) / 1000.0
-                                logger.info(f"Successfully connected to MPC web interface on port {port}")
-                                logger.debug(f"Retrieved position data from MPC: position={position}s, duration={duration}s")
-                                break
-                            else:
-                                logger.debug(f"MPC web interface on port {port} responded but position/duration not found")
-                    except requests.RequestException:
-                        logger.debug(f"MPC web interface not responding on port {port}")
-                        continue
-            
+                logger.debug(f"MPC-HC/BE detected: {process_name}")
+                from simkl_mps.players.mpc import MPCIntegration # Import the new class
+
+                # Lazily instantiate the integration helper
+                if not hasattr(self, '_mpc_integration'):
+                    self._mpc_integration = MPCIntegration()
+
+                position, duration = self._mpc_integration.get_position_duration(process_name)
+
+                if position is not None and duration is not None:
+                    logger.debug(f"Retrieved position data from MPC: position={position}s, duration={duration}s")
+                    # Return directly if successful
+                    return position, duration
+                else:
+                    logger.debug("MPC integration couldn't get position/duration data")
+            # --- End MPC-HC/BE Integration ---
+
             elif any(player in process_name_lower for player in ['potplayer.exe', 'potplayermini.exe', 'potplayermini64.exe']):
                 logger.debug(f"PotPlayer detected: {process_name}")
                 from simkl_mps.players import PotPlayerIntegration
@@ -349,30 +340,69 @@ class MovieScrobbler:
         if log_progress:
              self._log_playback_event("progress_update")
 
+        # Check for completion threshold every 5 seconds if not already marked complete
         if not self.completed and (current_time - self.last_progress_check > 5):
             completion_pct = self._calculate_percentage(use_position=position_updated)
-            
+
             if completion_pct and completion_pct >= self.completion_threshold:
                  logger.info(f"Completion threshold ({self.completion_threshold}%) met for '{self.movie_name or self.currently_tracking}'")
+                 self._log_playback_event("completion_threshold_reached")
+
                  # Send notification exactly once when threshold is first met (Offline Only)
+                 # Do this *before* attempting to mark as watched
                  self._send_notification(
                      f"Completion Threshold Reached ({self.completion_threshold}%)",
                      f"Movie: '{self.movie_name or self.currently_tracking}'",
-                     offline_only=True
+                     offline_only=True # Only notify locally if offline when threshold is hit
                  )
 
-                 self._log_playback_event("completion_threshold_reached")
-                 
+                 # Only attempt to mark as watched if we have the Simkl ID
                  if self.simkl_id:
-                     self.mark_as_watched(self.simkl_id, self.movie_name or self.currently_tracking)
+                     logger.info(f"Attempting to mark '{self.movie_name or self.currently_tracking}' (ID: {self.simkl_id}) as watched...")
+                     # mark_as_watched handles API call, backlog addition on failure/offline, and sets self.completed
+                     self.mark_as_watched(self.simkl_id, self.currently_tracking, self.movie_name)
                  else:
-                     temp_id = f"temp_{self.currently_tracking}_{int(time.time())}"
-                     logger.warning(f"No Simkl ID for '{self.currently_tracking}'. Adding to backlog with temp ID.")
-                     self.backlog_cleaner.add(temp_id, self.currently_tracking)
-                     self.completed = True
-            
-            self.last_progress_check = current_time 
+                     # Check if we can get the ID from our cache
+                     cached_info = self.media_cache.get(self.currently_tracking)
+                     if cached_info and cached_info.get('simkl_id'):
+                         cached_simkl_id = cached_info.get('simkl_id')
+                         cached_movie_name = cached_info.get('movie_name')
+                         logger.info(f"Found Simkl ID {cached_simkl_id} for '{self.currently_tracking}' in cache")
+                         
+                         # Update the current tracking with the cached info
+                         self.simkl_id = cached_simkl_id
+                         if cached_movie_name:
+                             self.movie_name = cached_movie_name
+                             
+                         # Now try to mark as watched with the cached ID
+                         logger.info(f"Attempting to mark '{self.movie_name or self.currently_tracking}' (ID: {self.simkl_id}) as watched using cached ID...")
+                         self.mark_as_watched(self.simkl_id, self.currently_tracking, self.movie_name)
+                     else:
+                         # If no cached ID and no internet, generate a temporary ID and add to backlog
+                         if not is_internet_connected():
+                             import uuid
+                             temp_id = f"temp_{str(uuid.uuid4())[:8]}"
+                             logger.info(f"Offline: Adding '{self.currently_tracking}' to backlog with temporary ID {temp_id}")
+                             # Add to backlog for future syncing
+                             self.backlog_cleaner.add(temp_id, self.currently_tracking)
+                             self.completed = True  # Mark as completed locally
+                             
+                             # Notify user about offline completion and backlog addition
+                             self._send_notification(
+                                 "Offline: Added to Backlog",
+                                 f"'{self.currently_tracking}' will be identified and marked as watched when back online."
+                             )
+                             
+                             self._log_playback_event("marked_for_backlog_with_temp_id", {"temp_id": temp_id})
+                         else:
+                             # If online but no ID, just log and wait for identification
+                             logger.info(f"Completion threshold met for '{self.currently_tracking}', but Simkl ID not yet known. Deferring mark as watched.")
+                             # We don't set self.completed = True here, allowing mark_as_watched to be called later if the ID arrives.
 
+            # Update the time of the last progress check regardless of outcome
+            self.last_progress_check = current_time
+
+        # Determine if a scrobble update should be logged/returned
         should_scrobble = state_changed or (current_time - self.last_scrobble_time > DEFAULT_POLL_INTERVAL)
         if should_scrobble:
             self.last_scrobble_time = current_time

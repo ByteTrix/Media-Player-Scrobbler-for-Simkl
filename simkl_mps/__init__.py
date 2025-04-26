@@ -16,5 +16,5 @@ __all__ = [
     'run_as_background_service',
     'main',
     'run_tray_app',
-    'run_service'
+    # 'run_service' # Removed as it's not defined/imported here
 ]

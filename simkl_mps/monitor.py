@@ -87,7 +87,7 @@ class Monitor:
     def _monitor_loop(self):
         """Main monitoring loop"""
         logger.info("Media monitoring service initialized and running")
-        check_count = 0
+        # Removed unused check_count variable
 
         while self.running:
             try:
@@ -128,7 +128,7 @@ class Monitor:
                     with self._lock:
                         self.scrobbler.stop_tracking()
 
-                check_count += 1
+                # check_count was incremented here but removed as unused
                 current_time = time.time()
                 if current_time - self.last_backlog_check > self.backlog_check_interval:
                     logger.debug("Performing backlog synchronization...")

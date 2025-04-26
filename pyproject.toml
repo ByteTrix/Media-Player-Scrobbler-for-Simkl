@@ -58,6 +58,11 @@ version = ">=3.42.0"
 optional = true
 markers = "sys_platform == 'linux' and python_version >= '3.9' and python_version < '4.0'"
 
+[tool.poetry.urls]
+"Linux System Dependencies" = "https://github.com/kavinthangavel/media-player-scrobbler-for-simkl/wiki/Installation#linux-installation"
+"Bug Reports" = "https://github.com/kavinthangavel/media-player-scrobbler-for-simkl/issues"
+"Documentation" = "https://github.com/kavinthangavel/media-player-scrobbler-for-simkl/wiki"
+
 [tool.poetry.group.dev.dependencies]
 pytest = ">=6.2.5"
 flake8 = ">=5,<8"
@@ -72,10 +77,13 @@ simkl-mps = "simkl_mps.cli:main"
 [tool.poetry.extras]
 linux = [
     "python-xlib",
-    "PyGObject",
 ]
 macos = [
     "pyobjc",
+]
+linux-full = [
+    "python-xlib",
+    "PyGObject",
 ]
 
 [build-system]

@@ -7,8 +7,16 @@ import re
 import logging
 import requests
 import platform
-import winreg
+import os
 from pathlib import Path
+
+# Only import Windows-specific modules on Windows
+PLATFORM = platform.system().lower()
+if PLATFORM == 'windows':
+    try:
+        import winreg
+    except ImportError:
+        winreg = None
 
 # Configure module logging
 logger = logging.getLogger(__name__)

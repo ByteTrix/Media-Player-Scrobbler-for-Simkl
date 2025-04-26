@@ -17,11 +17,11 @@ This concise guide provides essential information to quickly set up and use Medi
 ### macOS/Linux ⚠️(Testing in Progress)
 ```bash
 # macOS
-pip install "simkl-mps[macos]"
+pipx install "simkl-mps[macos]"
 
 # Linux (Ubuntu/Debian example)
-sudo apt install python3-pip wmctrl xdotool python3-gi gir1.2-gtk-3.0 libnotify-bin
-pip install "simkl-mps[linux]"
+sudo apt install pipx wmctrl xdotool python3-gi python3-gi-cairo libnotify-bin
+pipx install --system-site-packages "simkl-mps[linux]"
 
 # Start the application
 simkl-mps start

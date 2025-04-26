@@ -55,12 +55,12 @@ def get_credentials():
     Retrieves the Simkl API credentials.
 
     Client ID/Secret are read from module-level variables (injected at build).
-    Access Token is read directly from the .env file *each time* this function
-    is called to ensure the latest value is used.
+    Access Token and User ID are read directly from the .env file *each time* this function
+    is called to ensure the latest values are used.
 
     Returns:
         dict: A dictionary containing 'client_id', 'client_secret',
-              and 'access_token'. Values might be None if not configured
+              'access_token', and 'user_id'. Values might be None if not configured
               or if the build/init process failed.
     """
 
@@ -81,11 +81,19 @@ def get_credentials():
 
  
     access_token = None
+    user_id = None
     env_file_path = get_env_file_path() 
     if env_file_path.exists():
-        logger.debug(f"Reading access token from {env_file_path} inside get_credentials()")
+        logger.debug(f"Reading credentials from {env_file_path} inside get_credentials()")
         config = dotenv_values(env_file_path)
         access_token = config.get("SIMKL_ACCESS_TOKEN")
+        user_id = config.get("SIMKL_USER_ID")
+        
+        if user_id:
+            logger.debug(f"Found user ID in env file: {user_id}")
+        else:
+            logger.debug("User ID not found in env file")
+            
         if not access_token:
              logger.warning(f"Found env file at {env_file_path}, but SIMKL_ACCESS_TOKEN key is missing or empty.")
     else:
@@ -97,7 +105,8 @@ def get_credentials():
     return {
         "client_id": client_id,
         "client_secret": client_secret,
-        "access_token": access_token, # Use the freshly read value
+        "access_token": access_token,
+        "user_id": user_id
     }
 
 def get_env_file_path():

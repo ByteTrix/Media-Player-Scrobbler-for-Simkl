@@ -1,12 +1,16 @@
 # PowerShell Updater Script for simkl-mps
 # Checks for updates, notifies user, and opens the installer download URL in browser if update is found
 
-# No parameters needed for this simplified version
+# Parameters
+param (
+    [switch]$CheckOnly,
+    [switch]$Silent
+)
 
 $AppName = "Media Player Scrobbler for SIMKL"
 $Publisher = "kavinthangavel"
 $ApiURL = "https://api.github.com/repos/kavinthangavel/simkl-movie-tracker/releases/latest"
-$UserAgent = "MPSS-Updater/2.0"
+$UserAgent = "MPSS-Updater/2.1"
 $LogFile = Join-Path $env:LOCALAPPDATA "SIMKL-MPS\updater.log"
 
 # Ensure log directory exists
@@ -15,7 +19,7 @@ if (-not (Test-Path $LogDir)) {
     New-Item -ItemType Directory -Path $LogDir -Force | Out-Null
 }
 
-# Helper function to log messages (optional, script runs hidden)
+# Helper function to log messages
 function Write-Log {
     param([string]$Message)
     $Timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
@@ -30,6 +34,11 @@ function Show-Notification {
         [string]$Message
     )
     Write-Log "Showing notification: $Title - $Message"
+    if ($Silent) {
+        Write-Log "Silent mode enabled, skipping notification."
+        return
+    }
+    
     try {
         Add-Type -AssemblyName System.Windows.Forms
         $notification = New-Object System.Windows.Forms.NotifyIcon
@@ -236,7 +245,7 @@ function Get-LatestReleaseInfo {
 # --- Main Logic ---
 try {
     Write-Log "========================================"
-    Write-Log "MPSS Updater (Check Only) started"
+    Write-Log "MPSS Updater started - CheckOnly: $CheckOnly, Silent: $Silent"
 
     # Get current version
     $CurrentVersion = Get-CurrentVersion
@@ -278,18 +287,31 @@ try {
 
     if ($CompareResult -gt 0) {
         Write-Log "Update available: $($LatestRelease.Version)"
-        if ($LatestRelease.DownloadUrl) {
-            Write-Log "Opening download URL: $($LatestRelease.DownloadUrl)"
-            Show-Notification "Update Available" "Version $($LatestRelease.Version) is available! Opening download page..."
-            # Open the specific installer download URL in the default browser
-            Start-Process $LatestRelease.DownloadUrl
+        
+        # Output in the expected format for parsing by the application
+        $DownloadUrl = if ($LatestRelease.DownloadUrl) { $LatestRelease.DownloadUrl } else { "https://github.com/kavinthangavel/simkl-movie-tracker/releases/latest" }
+        Write-Output "UPDATE_AVAILABLE: $($LatestRelease.Version) $DownloadUrl"
+        
+        if ($CheckOnly -eq $false) {
+            if ($LatestRelease.DownloadUrl) {
+                Show-Notification "Update Available" "Version $($LatestRelease.Version) is available! Opening download page..."
+                # Open the specific installer download URL in the default browser
+                Start-Process $LatestRelease.DownloadUrl
+            } else {
+                Write-Log "Error: Download URL not found in release info."
+                Show-Notification "Update Error" "Version $($LatestRelease.Version) is available, but the download link could not be found."
+            }
         } else {
-            Write-Log "Error: Download URL not found in release info."
-            Show-Notification "Update Error" "Version $($LatestRelease.Version) is available, but the download link could not be found."
+            Show-Notification "Update Available" "Version $($LatestRelease.Version) is available! Current version: $CurrentVersion"
         }
     } else {
         Write-Log "No update available. Already running the latest version ($CurrentVersion)."
-        Show-Notification "No Updates Found" "You are already running the latest version ($CurrentVersion)."
+        # Output in the expected format for parsing by the application
+        Write-Output "NO_UPDATE: $CurrentVersion"
+        
+        if ($CheckOnly -and -not $Silent) {
+            Show-Notification "No Updates Found" "You are already running the latest version ($CurrentVersion)."
+        }
     }
 
     Write-Log "Updater check finished."

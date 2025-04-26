@@ -89,13 +89,17 @@ def search_movie(title, client_id, access_token):
         response = requests.get(f'{SIMKL_API_BASE_URL}/search/movie', headers=headers, params=params)
 
         if response.status_code != 200:
-            logger.error(f"Simkl API: Movie search failed for '{title}' with status {response.status_code}.")
-            try: 
-                logger.error(f"Simkl API Error details: {response.json()}")
-            except: 
-                logger.error(f"Simkl API Error response text: {response.text}")
+            error_details = ""
+            try:
+                # Try to get JSON details first
+                error_details = response.json()
+            except requests.exceptions.JSONDecodeError:
+                # Fallback to raw text if JSON parsing fails
+                error_details = response.text
+            logger.error(f"Simkl API: Movie search failed for '{title}'. Status: {response.status_code}. Response: {error_details}")
             return None
 
+        # Proceed only if status code was 200
         results = response.json()
         logger.info(f"Simkl API: Found {len(results) if results else 0} results for '{title}'.")
         
@@ -263,7 +267,7 @@ def get_user_settings(client_id, access_token):
 
     Returns:
         dict | None: A dictionary containing user settings, or None if an error occurs.
-                      The user ID is typically found under ['user']['ids']['simkl'].
+                      The user ID is found under ['user_id'] for easy access.
     """
     if not client_id or not access_token:
         logger.error("Simkl API: Missing required parameters for get_user_settings.")
@@ -272,32 +276,102 @@ def get_user_settings(client_id, access_token):
         logger.warning("Simkl API: Cannot get user settings, no internet connection.")
         return None
 
+    # Simplified headers to avoid potential issues with 412 Precondition Failed
     headers = {
-        'Content-Type': 'application/json',
         'simkl-api-key': client_id,
-        'Authorization': f'Bearer {access_token}'
+        'Authorization': f'Bearer {access_token}',
+        'Accept': 'application/json'
     }
     headers = _add_user_agent(headers)
-    url = f'{SIMKL_API_BASE_URL}/users/settings'
-
+    
+    # Try account endpoint first (most direct way to get user ID)
+    account_url = f'{SIMKL_API_BASE_URL}/users/account'
     try:
-        logger.info("Simkl API: Fetching user settings...")
-        response = requests.get(url, headers=headers)
-        response.raise_for_status()
-        settings = response.json()
-        logger.info("Simkl API: User settings retrieved successfully.")
-        # Extract and log the user ID if found
-        try:
-            user_id = settings.get('user', {}).get('ids', {}).get('simkl')
-            if user_id:
-                logger.info(f"Simkl API: Found User ID: {user_id}")
+        logger.info("Simkl API: Requesting user account information...")
+        account_response = requests.get(account_url, headers=headers, timeout=15)
+        
+        if account_response.status_code == 200:
+            account_info = account_response.json()
+            # Check if account_info is not None before accessing it
+            if account_info is not None:
+                user_id = account_info.get('id')
+                
+                if user_id:
+                    logger.info(f"Simkl API: Found User ID from account endpoint: {user_id}")
+                    settings = {
+                        'account': account_info,
+                        'user': {'ids': {'simkl': user_id}},
+                        'user_id': user_id
+                    }
+                    
+                    # Save user ID to env file for future use
+                    from simkl_mps.credentials import get_env_file_path
+                    env_path = get_env_file_path()
+                    _save_access_token(env_path, access_token, user_id)
+                    
+                    return settings
             else:
-                 logger.warning("Simkl API: User ID not found within user settings response.")
-        except Exception:
-            logger.warning("Simkl API: Error accessing user ID in settings response structure.")
-        return settings
+                logger.warning("Simkl API: Account info is None despite 200 status code")
+        else:
+            logger.warning(f"Simkl API: Account endpoint returned status code {account_response.status_code}")
+            
     except requests.exceptions.RequestException as e:
-        logger.error(f"Simkl API: Error getting user settings: {e}", exc_info=True)
+        logger.warning(f"Simkl API: Error accessing account endpoint: {e}")
+    
+    # If account endpoint failed, try settings endpoint with simplified headers
+    settings_url = f'{SIMKL_API_BASE_URL}/users/settings'
+    try:
+        logger.info("Simkl API: Requesting user settings information...")
+        settings_response = requests.get(settings_url, headers=headers, timeout=15)
+        
+        if settings_response.status_code != 200:
+            logger.error(f"Simkl API: Error getting user settings: {settings_response.status_code} {settings_response.text}")
+            return None
+            
+        settings = settings_response.json()
+        logger.info("Simkl API: User settings retrieved successfully.")
+        
+        # Ensure required structures exist
+        if 'user' not in settings:
+            settings['user'] = {}
+        if 'ids' not in settings['user']:
+            settings['user']['ids'] = {}
+        
+        # Extract user ID from various possible locations
+        user_id = None
+        
+        # Check common paths for user ID
+        if 'user' in settings and 'ids' in settings['user'] and 'simkl' in settings['user']['ids']:
+            user_id = settings['user']['ids']['simkl']
+        elif 'account' in settings and 'id' in settings['account']:
+            user_id = settings['account']['id']
+        elif 'id' in settings:
+            user_id = settings['id']
+        
+        # If no user ID found, search deeper
+        if not user_id:
+            for key, value in settings.items():
+                if isinstance(value, dict) and 'id' in value:
+                    user_id = value['id']
+                    break
+        
+        # Store the user ID in consistent locations
+        if user_id:
+            settings['user_id'] = user_id
+            settings['user']['ids']['simkl'] = user_id
+            logger.info(f"Simkl API: Found User ID: {user_id}")
+            
+            # Save user ID to env file for future use
+            from simkl_mps.credentials import get_env_file_path
+            env_path = get_env_file_path()
+            _save_access_token(env_path, access_token, user_id)
+        else:
+            logger.warning("Simkl API: User ID not found in settings response")
+            
+        return settings
+        
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Simkl API: Error getting user settings: {e}")
         return None
 
 def pin_auth_flow(client_id, redirect_uri="urn:ietf:wg:oauth:2.0:oob"):
@@ -400,12 +474,48 @@ def pin_auth_flow(client_id, redirect_uri="urn:ietf:wg:oauth:2.0:oob"):
                     # Success! Save the token
                     print("\n[✓] Authentication successful!")
                     
-                    # Save token to .env file
+                    # Get the user ID before saving
+                    user_id = None
+                    try:
+                        print("Retrieving your Simkl user ID...")
+                        # Try to get user ID from account endpoint first (more reliable)
+                        auth_headers = {
+                            'Content-Type': 'application/json',
+                            'simkl-api-key': client_id,
+                            'Authorization': f'Bearer {access_token}',
+                            'Accept': 'application/json'
+                        }
+                        auth_headers = _add_user_agent(auth_headers)
+                        
+                        account_resp = requests.get(
+                            f"{SIMKL_API_BASE_URL}/users/account", 
+                            headers=auth_headers,
+                            timeout=10
+                        )
+                        
+                        if account_resp.status_code == 200:
+                            account_data = account_resp.json()
+                            user_id = account_data.get('id')
+                            logger.info(f"Retrieved user ID during authentication: {user_id}")
+                            print(f"[✓] Found your Simkl user ID: {user_id}")
+                        
+                        # If account endpoint failed, try settings
+                        if not user_id:
+                            settings = get_user_settings(client_id, access_token)
+                            if settings and settings.get('user_id'):
+                                user_id = settings.get('user_id')
+                                logger.info(f"Retrieved user ID from settings: {user_id}")
+                                print(f"[✓] Found your Simkl user ID: {user_id}")
+                    except Exception as e:
+                        logger.warning(f"Failed to retrieve user ID during authentication: {e}")
+                        print("[!] Warning: Could not retrieve your Simkl user ID - some features may be limited.")
+                    
+                    # Save token (and user ID if available) to .env file
                     env_path = get_env_file_path()
-                    if not _save_access_token(env_path, access_token):
-                        print("[!] Warning: Couldn't save access token to file, but you can still use it for this session.")
+                    if not _save_access_token(env_path, access_token, user_id):
+                        print("[!] Warning: Couldn't save credentials to file, but you can still use them for this session.")
                     else:
-                        print(f"[✓] Access token saved to: {env_path}\n")
+                        print(f"[✓] Credentials saved to: {env_path}\n")
                     
                     # Important: After success, navigate the user back to Simkl main page to complete the experience
                     try:
@@ -448,8 +558,18 @@ def pin_auth_flow(client_id, redirect_uri="urn:ietf:wg:oauth:2.0:oob"):
     print("[ERROR] Authentication timed out. Please try again.")
     return None
 
-def _save_access_token(env_path, access_token):
-    """Helper function to save access token to .env file"""
+def _save_access_token(env_path, access_token, user_id=None):
+    """
+    Helper function to save access token and user ID to .env file
+    
+    Args:
+        env_path (str|Path): Path to the .env file
+        access_token (str): The Simkl access token to save
+        user_id (str|int, optional): The Simkl user ID to save
+        
+    Returns:
+        bool: True if successful, False if an error occurred
+    """
     try:
         from pathlib import Path
         
@@ -466,22 +586,33 @@ def _save_access_token(env_path, access_token):
                 lines = f.readlines()
         
         # Update or add the access token
-        found = False
+        token_found = False
+        user_id_found = False
+        
         for i, line in enumerate(lines):
             if line.strip().startswith("SIMKL_ACCESS_TOKEN="):
                 lines[i] = f"SIMKL_ACCESS_TOKEN={access_token}\n"
-                found = True
-                break
+                token_found = True
+            elif line.strip().startswith("SIMKL_USER_ID=") and user_id is not None:
+                lines[i] = f"SIMKL_USER_ID={user_id}\n"
+                user_id_found = True
         
-        if not found:
+        if not token_found:
             lines.append(f"SIMKL_ACCESS_TOKEN={access_token}\n")
+        
+        if user_id is not None and not user_id_found:
+            lines.append(f"SIMKL_USER_ID={user_id}\n")
         
         with open(env_path, "w", encoding="utf-8") as f:
             f.writelines(lines)
         
+        logger.info(f"Saved credentials to {env_path}")
+        if user_id is not None:
+            logger.info(f"Saved user ID {user_id} to {env_path}")
+            
         return True
     except Exception as e:
-        logger.error(f"Failed to save access token: {e}", exc_info=True)
+        logger.error(f"Failed to save credentials: {e}", exc_info=True)
         return False
 
 def _validate_access_token(client_id, access_token):

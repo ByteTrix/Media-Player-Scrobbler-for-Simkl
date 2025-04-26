@@ -223,6 +223,69 @@ This comprehensive guide helps you solve common problems with Media Player Scrob
 - For some distributions, you may need additional packages for GTK integration
 </details>
 
+<details>
+<summary><b>Linux system tray icon missing</b></summary>
+
+**For Ubuntu/GNOME users:**
+- Install AppIndicator extension: `sudo apt install gnome-shell-extension-appindicator`
+- Enable the extension via GNOME Extensions app or at https://extensions.gnome.org/extension/615/appindicator-support/
+- Restart GNOME Shell: Press Alt+F2, type "r" and press Enter
+- Run the diagnostic script: `python3 -m simkl_mps.utils.linux_tray_diagnostics`
+
+**For KDE Plasma users:**
+- Right-click on system tray → Configure System Tray
+- Ensure "Legacy Tray" is enabled
+- Try restarting the application: `simkl-mps exit` then `simkl-mps start`
+
+**For Xfce, MATE, or Cinnamon users:**
+- Right-click on panel → Panel settings/preferences
+- Ensure "Notification Area" or "System Tray" is added to the panel
+- Try running in foreground to see errors: `simkl-mps tray`
+
+**Missing dependencies:**
+```bash
+# For Ubuntu/Debian
+sudo apt install python3-gi python3-gi-cairo gir1.2-gtk-3.0 gir1.2-appindicator3-0.1
+
+# For Fedora
+sudo dnf install python3-gobject gtk3 libappindicator-gtk3
+
+# For Arch Linux
+sudo pacman -S python-gobject gtk3 libappindicator-gtk3
+```
+
+See the full [Linux Guide](linux-guide.md) for more details.
+</details>
+
+<details>
+<summary><b>Linux autostart configuration</b></summary>
+
+**Setup autostart with a desktop entry (recommended):**
+```bash
+mkdir -p ~/.config/autostart
+cat > ~/.config/autostart/simkl-mps.desktop << EOF
+[Desktop Entry]
+Type=Application
+Name=Media Player Scrobbler for SIMKL
+Exec=simkl-mps start
+Icon=media-player
+Comment=Automatically track media playback and scrobble to SIMKL
+Categories=Utility;
+Terminal=false
+StartupNotify=false
+EOF
+chmod +x ~/.config/autostart/simkl-mps.desktop
+```
+
+**Desktop-specific methods:**
+
+- **GNOME**: Open "Startup Applications" → Add → Command: `simkl-mps start`
+- **KDE Plasma**: System Settings → Startup and Shutdown → Autostart → Add Program → Command: `simkl-mps start`
+- **Xfce**: Settings → Session and Startup → Application Autostart → Add → Command: `simkl-mps start`
+
+See the full [Linux Guide](linux-guide.md) for more details.
+</details>
+
 ## 🧑‍💻 Advanced Diagnostics
 
 ### Debug Logging

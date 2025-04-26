@@ -15,11 +15,11 @@ logger = logging.getLogger(__name__)
 class BacklogCleaner:
     """Manages a backlog of watched movies to sync when connection is restored"""
 
-    def __init__(self, app_data_dir: pathlib.Path, backlog_file="backlog.json", threshold_days=None):
+    def __init__(self, app_data_dir: pathlib.Path, backlog_file="backlog.json"):
         self.app_data_dir = app_data_dir
         self.backlog_file = self.app_data_dir / backlog_file # Use app_data_dir
         self.backlog = self._load_backlog()
-        self.threshold_days = threshold_days  # New parameter for old entries threshold
+        # threshold_days parameter removed as it was unused
 
     def _load_backlog(self):
         """Load the backlog from file, creating the file if it does not exist."""

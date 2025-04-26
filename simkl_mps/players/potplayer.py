@@ -9,9 +9,16 @@ import json
 import logging
 import requests
 import platform
-import winreg
 from pathlib import Path
 from urllib.parse import quote
+
+# Only import Windows-specific modules on Windows
+PLATFORM = platform.system().lower()
+if PLATFORM == 'windows':
+    try:
+        import winreg
+    except ImportError:
+        winreg = None
 
 # Configure module logging
 logger = logging.getLogger(__name__)
