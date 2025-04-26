@@ -600,7 +600,6 @@ class MovieScrobbler:
         pending = self.backlog_cleaner.get_pending()
         
         if not pending:
-            logger.info("[Offline Sync] No backlog entries to sync.")
             return 0
             
         logger.info(f"[Offline Sync] Processing {len(pending)} backlog entries...")
