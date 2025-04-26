@@ -1,37 +1,31 @@
-# ⚙️ Advanced Configuration
+# ⚙️ Advanced & Developer Guide
 
-This guide explains how to customize MPS for SIMKL using config files, environment variables, and command-line options.
+This guide combines advanced configuration and developer documentation for MPS for SIMKL.
 
-## 🗂️ Configuration Layers
+## 🛠️ Advanced Configuration
 
-Settings are applied in this order (highest to lowest priority):
-1. Command-line arguments
-2. Configuration file
-3. Environment variables
-4. Defaults
+Settings can be customized via config files, environment variables, or command-line options. See the [Media Players Guide](media-players.md) for player-specific settings.
 
 ```mermaid
 graph TD
-    A[Configuration Sources] --> B[Command-line Arguments]
-    A --> C[Configuration File]
-    A --> D[Environment Variables]
-    A --> E[Default Settings]
-    B --> F[Configuration Manager]
+    A[Config Sources] --> B[CLI Args]
+    A --> C[Config File]
+    A --> D[Env Vars]
+    A --> E[Defaults]
+    B --> F[Config Manager]
     C --> F
     D --> F
     E --> F
-    F --> G[Application Settings]
-    G --> H[Tracking Options]
-    G --> I[Network Settings]
-    G --> J[UI Preferences]
-    G --> K[Logging Configuration]
+    F --> G[App Settings]
+    G --> H[Tracking]
+    G --> I[Network]
+    G --> J[UI]
+    G --> K[Logging]
     style A fill:#4285f4,stroke:#333,stroke-width:2px,color:#fff
     style F fill:#34a853,stroke:#333,stroke-width:2px,color:#fff
 ```
 
----
-
-## 📁 Configuration Locations
+### Config File Locations
 
 | Platform | Config File Location |
 |----------|---------------------|
@@ -39,88 +33,84 @@ graph TD
 | macOS    | `~/Library/Application Support/kavinthangavel/simkl-mps/.simkl_mps.env` |
 | Linux    | `~/.local/share/kavinthangavel/simkl-mps/.simkl_mps.env` |
 
----
-
-## 🔧 Settings Reference
-
-### Core Settings
-| Setting      | CLI Option         | Env Var                | Default      | Description                  |
-|--------------|--------------------|------------------------|--------------|------------------------------|
-| Auth Token   | `--token TOKEN`    | `SIMKL_ACCESS_TOKEN`   | Auto         | SIMKL authentication token   |
-| Client ID    | `--client-id ID`   | `SIMKL_CLIENT_ID`      | Built-in     | SIMKL API client ID          |
-| Data Dir     | `--data-dir PATH`  | `SIMKL_DATA_DIR`       | Platform dir | Custom data location         |
-
-### Media Tracking
-| Setting         | CLI Option           | Env Var                      | Default | Description                  |
-|-----------------|---------------------|------------------------------|---------|------------------------------|
-| Poll Interval   | `--interval SECONDS`| `SIMKL_POLL_INTERVAL`        | 10      | Window check frequency (sec) |
-| Completion %    | `--threshold PERCENT`| `SIMKL_COMPLETION_THRESHOLD` | 80      | % watched to mark complete   |
-| Offline Mode    | `--offline`         | `SIMKL_OFFLINE_MODE`         | false   | Force offline operation      |
-| Auto Process    | `--auto-process`    | `SIMKL_AUTO_PROCESS_BACKLOG` | true    | Process backlog on connect   |
-
-
-### Logging
-| Setting   | CLI Option         | Env Var           | Default | Description                  |
-|-----------|-------------------|-------------------|---------|------------------------------|
-| Log Level | `--log-level`     | `SIMKL_LOG_LEVEL` | INFO    | `DEBUG`, `INFO`, etc.        |
-| Log File  | `--log-file PATH` | `SIMKL_LOG_FILE`  | Auto    | Custom log file location     |
-
----
-
-## 📝 Example Configuration File
+### Example Settings
 
 ```ini
 # .simkl_mps.env
 SIMKL_ACCESS_TOKEN=your_access_token_here
+SIMKL_POLL_INTERVAL=10
+SIMKL_COMPLETION_THRESHOLD=80
+```
 
+See [Media Players Guide](media-players.md) for player-specific environment variables.
+
+---
+
+## 👩‍💻 Developer Guide
+
+### Project Structure
+
+```
+simkl-movie-tracker/
+  docs/                # Documentation
+  simkl_mps/           # Main package
+    players/           # Media player integrations
+    utils/             # Utility functions
+  pyproject.toml       # Project metadata
+  README.md            # Project overview
+  LICENSE              # License info
+```
+
+### Setup & Environment
+
+```bash
+git clone https://github.com/kavinthangavel/simkl-movie-tracker.git
+cd simkl-movie-tracker
+poetry install --with dev
+# or
+pip install -e ".[dev]"
+```
+
+### Adding a New Media Player
+
+1. Create a new file in `players/` (e.g. `simkl_mps/players/new_player.py`)
+2. Implement a class with a `get_position_duration()` method
+3. Add the player to `players/__init__.py`
+4. Update detection in `window_detection.py`
+
+### Building & Publishing
+
+```bash
+poetry build
+poetry publish
+```
+
+### Architecture Overview
+
+```mermaid
+graph TD
+    A[Window Detection] -->|Active Windows| B[Media Monitor]
+    B -->|Window Info| C[Movie Scrobbler]
+    C -->|Movie Title| D[Title Parser]
+    D -->|Parsed Info| E[SIMKL API Client]
+    E -->|Movie ID & Metadata| F[Progress Tracker]
+    F -->|Position Updates| G{Completion Check}
+    G -->|>80% Complete| H[Mark as Watched]
+    G -->|<80% Complete| F
+    I[Player Integrations] -->|Position & Duration| F
+    J[Backlog Cleaner] <-->|Offline Queue| C
+    K[Media Cache] <-->|Movie Info| C
+    L[Tray Application] <-->|Status & Controls| B
+    I -.->|Connectivity| M{Internet Available?}
+    M -->|Yes| E
+    M -->|No| J
+    style A fill:#d5f5e3,stroke:#333,stroke-width:2px
+    style E fill:#f9d5e5,stroke:#333,stroke-width:2px
+    style H fill:#f9d5e5,stroke:#333,stroke-width:2px
+    style I fill:#d5eef7,stroke:#333,stroke-width:2px
 ```
 
 ---
 
-## 🛠️ Advanced Customization
-
-### Media Player Settings
-```ini
-# VLC
-SIMKL_VLC_PORT=8080
-SIMKL_VLC_PASSWORD=simkl
-# MPV
-SIMKL_MPV_SOCKET_PATH=/custom/path/to/mpvsocket
-# MPC-HC
-SIMKL_MPC_PORT=13579
-```
-
-### Title Detection
-```ini
-SIMKL_TITLE_REGEX=(?i)(.+?)(?:\W\d{4}\W|\W\(\d{4}\)|\W\d{4}$|$)
-SIMKL_MATCH_CONFIDENCE=0.7
-```
-
-### Network
-```ini
-SIMKL_HTTP_PROXY=http://your-proxy-server:port
-SIMKL_HTTPS_PROXY=https://your-proxy-server:port
-SIMKL_CONNECTION_TIMEOUT=10
-```
-
----
-
-## 🧩 Configuration Methods
-
-- **Command Line:**
-  ```bash
-  simkl-mps start --interval 5 --threshold 85 --log-level DEBUG
-  ```
-- **Config File:** Edit `.simkl_mps.env` in your data directory
-
----
-
-## 🚀 Optimization & Debugging
-
-- Enable debug logging: `simkl-mps start --log-level DEBUG`
-- Set custom log file: `simkl-mps start --log-file ~/simkl-debug.log`
-- Use descriptive filenames for best detection
-- Increase poll interval for lower resource use
-
----
+For more, see the [Usage Guide](usage.md) and [Media Players Guide](media-players.md).
 

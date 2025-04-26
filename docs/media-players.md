@@ -27,10 +27,9 @@ graph TD
 | VLC                   | ✅      | ✅    | ✅    | ✅              | Easy                   |
 | MPV                   | ✅      | ✅    | ✅    | ✅              | Moderate               |
 | MPC-HC/BE             | ✅      | ❌    | ❌    | ✅              | Easy                   |
-| PotPlayer             | ✅      | ❌    | ❌    | ✅              | Easy                   |
+| Infuse                | ❌      | ✅    | ❌    | ✅              | Moderate               |
 | Windows Media Player  | ✅      | ❌    | ❌    | ❌              | Not Available          |
 | QuickTime             | ❌      | ✅    | ❌    | ❌              | Not Available          |
-| Infuse                | ❌      | ✅    | ❌    | ✅              | Moderate               |
 | Other Players         | ✅      | ✅    | ✅    | ❌              | Not Available          |
 
 > **Note**: The application currently supports **movie tracking only**. TV show support is planned for future updates.
@@ -112,20 +111,6 @@ flowchart TD
 - The scrobbler will connect to the web interface
 - Position data should be accurately tracked
 
-### PotPlayer
-
-**Configuration Steps:**
-1. Open PotPlayer
-2. Navigate to **Preferences** (F5)
-3. Go to **Network → Remote Control**
-4. Enable **HTTP control**
-5. Set the port to **8080** (or another port of your choice)
-6. Click **OK** and restart PotPlayer
-
-**Verification:**
-- The scrobbler connects to PotPlayer's HTTP control interface
-- Position data should be accurately tracked during playback
-
 ---
 
 ## 🍏 macOS Media Player Configuration
@@ -146,9 +131,21 @@ Follow the same configuration steps as shown in the Windows VLC section above.
    ```
 4. Save and restart MPV
 
-### Infuse (Apple TV/iOS)
+### Infuse (macOS)
 
-Infuse requires special configuration through its settings menu.
+Infuse is a popular media player for macOS (and iOS/Apple TV). To enable tracking with Infuse:
+
+1. Ensure Infuse is running on your Mac.
+2. Enable network sharing or remote control features in Infuse settings (if available).
+3. Make sure your Mac firewall allows connections from the scrobbler.
+4. The scrobbler will attempt to detect Infuse windows and parse titles for tracking.
+5. Advanced integration may require additional setup in future releases.
+
+> **Note:** Infuse support is experimental and may require further configuration or updates.
+
+### QuickTime
+
+Basic window title tracking only. No advanced integration available.
 
 ---
 
@@ -251,7 +248,6 @@ graph TD
 | | Permission issues | Check file permissions on the socket |
 | MPC-HC not detected | Web interface disabled | Enable web interface in MPC options |
 | | Wrong port | Verify port is set to 13579 |
-| PotPlayer not tracking | HTTP control disabled | Enable HTTP control in preferences |
 | General tracking issues | Filename format | Ensure movie files follow naming best practices |
 
 ### Testing Player Configuration
@@ -269,12 +265,12 @@ graph TD
 
 ## 📊 Player Comparison
 
-| Feature | VLC | MPV | MPC-HC/BE | PotPlayer |
-|---------|-----|-----|-----------|-----------|
-| Ease of configuration | ★★★★☆ | ★★★☆☆ | ★★★★☆ | ★★★★☆ |
+| Feature | VLC | MPV | MPC-HC/BE | Infuse |
+|---------|-----|-----|-----------|--------|
+| Ease of configuration | ★★★★☆ | ★★★☆☆ | ★★★★☆ | ★★★☆☆ |
 | Cross-platform | ✅ | ✅ | ❌ | ❌ |
 | Position accuracy | High | Very High | High | High |
 | Resource usage | Moderate | Low | Low | Moderate |
-| Recommended for | Beginners | Power users | Windows users | Windows users |
+| Recommended for | Beginners | Power users | Windows users | Mac users |
 
 The best player for tracking depends on your platform and preferences, but properly configured **VLC** offers the most universal compatibility and reliable tracking.

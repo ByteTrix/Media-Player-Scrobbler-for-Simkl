@@ -1,58 +1,37 @@
 # 📋 Todo List
 
-This document tracks both completed features and planned improvements for Media Player Scrobbler for SIMKL.
+Tracks completed features and planned improvements for MPS for SIMKL.
+
+- For installation and usage, see the [index](index.md) and platform guides.
+- For player setup, see the [Media Players Guide](media-players.md).
+- For advanced/dev info, see [Advanced & Developer Guide](configuration.md).
 
 ## ✅ Completed
-
-- [x] 🌍 Cross-platform support (Windows, macOS, Linux)
-- [x] 🎮 Integration with multiple media players
-- [x] 🔄 ~~Background service implementation~~
-- [x] 📊 Position tracking for media players with web interfaces
-- [x] 🖥️ System tray application
-- [x] 🔌 Offline mode with backlog handling
-- [x] 🧠 Smart movie detection using guessit library
-- [x] 📦 Package distribution via PyPI
-- [x] 😙 New Icon/Logo and Name
-- [x] 🖱️ Enhance the tray application with more controls
-- [x] 📱 Improve notification system
-- [x] 🔐 Enhanced authentication flow
+- Cross-platform support (Windows, macOS, Linux)
+- System tray app
+- Offline mode with backlog
+- Smart movie detection
+- PyPI package
+- New icon/logo
+- Enhanced tray controls
+- Improved notifications
+- Enhanced authentication
 
 ## 🚧 In Progress
-
-- [x] 🏦 Create installers for cross platform(Windows only Tested)
-- [ ] 🚹 Option to User Set Completion Percentage and Edit it Later
-- [ ] 🪜 Testing Cross-Platform
+- Cross-platform installer (Windows tested)
+- Option to set/edit completion percentage
+- Cross-platform testing
 
 ## 📝 Planned Features
+- Automated test suite
+- Manual correction for misidentified movies
+- Two-way sync with SIMKL
+- TV show/anime tracking
+- More streaming platform integrations
+- Multi-user support
+- Advanced search/filtering
+- More documentation/examples
+- Translations
+- Performance optimizations
 
-### Short Term
-
-- [ ] 🧪 Create comprehensive automated test suite
-- [ ] 🔎 Add option to manually correct misidentified movies
-
-
-### Medium Term
-
-- [ ] 🔄 Two-way sync (mark as watched on Simkl affects local status)
-
-
-### Long Term / Ideas
-
-- [ ] 📺 Add support for TV shows/Anime tracking
-- [ ] 🎬 Integration with more streaming platforms (browser extensions)
-- [ ] 👥 Multi-user support for shared computers
-- [ ] 🔍 Advanced search and filtering of watched content
-
-## 🤝 Contribution Opportunities
-
-These are good starting points for new contributors:
-
-- [ ] 📚 Improve documentation with more examples
-- [ ] 🌐 Add translations for UI elements
-- [ ] 🐛 Fix known issues from GitHub Issues
-- [ ] ⚡ Performance optimizations
-- [ ] 🧪 Create additional tests
-
-
-
-_Note: Timeline is approximate and subject to change based on contributor availability._
+_Note: Timeline is approximate and subject to change._

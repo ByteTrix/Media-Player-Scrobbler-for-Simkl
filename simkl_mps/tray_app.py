@@ -382,7 +382,6 @@ Supported players:
 - VLC
 - MPV
 - MPC-HC
-- PotPlayer
 
 Tips:
 - Make sure you've authorized with SIMKL

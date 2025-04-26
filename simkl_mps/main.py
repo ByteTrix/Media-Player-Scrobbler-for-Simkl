@@ -212,6 +212,10 @@ class SimklScrobbler:
         if not title:
             logger.warning("Search Callback: Received empty title.")
             return
+            
+        # Check for generic titles that should be ignored
+        if title.lower() in ["audio", "video", "media", "no file"]:
+            return
 
         logger.info(f"Search Callback: Identifying title: '{title}'")
 
@@ -239,32 +243,32 @@ class SimklScrobbler:
             if ids_dict:
                 simkl_id = ids_dict.get('simkl') or ids_dict.get('simkl_id')
 
-            if simkl_id:
-                # Use the title from the Simkl result if available
-                movie_name = search_result.get('title') or search_result.get('movie', {}).get('title', title)
-                logger.info(f"Search Callback: Found Simkl ID {simkl_id} for '{movie_name}'. Fetching details...")
+                if simkl_id:
+                    # Use the title from the Simkl result if available
+                    movie_name = search_result.get('title') or search_result.get('movie', {}).get('title', title)
+                    logger.info(f"Search Callback: Found Simkl ID {simkl_id} for '{movie_name}'. Fetching details...")
 
-                # Fetch detailed information (including runtime)
-                try:
-                    details = get_movie_details(simkl_id, self.client_id, self.access_token)
-                    if details:
-                        runtime_minutes = details.get('runtime')
-                        if runtime_minutes:
-                            logger.info(f"Search Callback: Retrieved runtime: {runtime_minutes} minutes for ID {simkl_id}.")
+                    # Fetch detailed information (including runtime)
+                    try:
+                        details = get_movie_details(simkl_id, self.client_id, self.access_token)
+                        if details:
+                            runtime_minutes = details.get('runtime')
+                            if runtime_minutes:
+                                logger.info(f"Search Callback: Retrieved runtime: {runtime_minutes} minutes for ID {simkl_id}.")
+                            else:
+                                logger.warning(f"Search Callback: Runtime missing or zero in details for ID {simkl_id}.")
                         else:
-                            logger.warning(f"Search Callback: Runtime missing or zero in details for ID {simkl_id}.")
-                    else:
-                        logger.warning(f"Search Callback: Could not retrieve details for ID {simkl_id}.")
-                except Exception as detail_error:
-                    logger.error(f"Search Callback: Error fetching details for ID {simkl_id}: {detail_error}", exc_info=True)
+                            logger.warning(f"Search Callback: Could not retrieve details for ID {simkl_id}.")
+                    except Exception as detail_error:
+                        logger.error(f"Search Callback: Error fetching details for ID {simkl_id}: {detail_error}", exc_info=True)
 
-                # Cache the found information (original title -> simkl info)
-                self.monitor.cache_movie_info(title, simkl_id, movie_name, runtime_minutes)
-                logger.info(f"Search Callback: Cached info: '{title}' -> '{movie_name}' (ID: {simkl_id}, Runtime: {runtime_minutes})")
-            else:
-                logger.warning(f"Search Callback: No Simkl ID could be extracted from search result for '{title}'.")
-                # Optionally cache negative result here too
-                # self.monitor.cache_movie_info(title, None, None, None)
+                    # Cache the found information (original title -> simkl info)
+                    self.monitor.cache_movie_info(title, simkl_id, movie_name, runtime_minutes)
+                    logger.info(f"Search Callback: Cached info: '{title}' -> '{movie_name}' (ID: {simkl_id}, Runtime: {runtime_minutes})")
+                else:
+                    logger.warning(f"Search Callback: No Simkl ID could be extracted from search result for '{title}'.")
+                    # Optionally cache negative result here too
+                    # self.monitor.cache_movie_info(title, None, None, None)
 
         except Exception as e:
             # Catch unexpected errors during the API interaction or processing
