@@ -243,6 +243,19 @@ class TrayApp(TrayAppBase):
             # Try multiple icon formats and fallbacks
             icon_format = "png"  # PNG is preferred on Linux
             
+            # First try to find high-resolution icons
+            sizes = [128, 64, 32]
+            for size in sizes:
+                status_icon = self.assets_dir / f"simkl-mps-{self.status}-{size}.{icon_format}"
+                if status_icon.exists():
+                    logger.info(f"Using high-res status icon: {status_icon}")
+                    return Image.open(status_icon)
+                    
+                generic_icon = self.assets_dir / f"simkl-mps-{size}.{icon_format}"
+                if generic_icon.exists():
+                    logger.info(f"Using high-res generic icon: {generic_icon}")
+                    return Image.open(generic_icon)
+            
             # List of possible icon files to check in order of preference
             icon_paths = [
                 # Status-specific icons
@@ -251,25 +264,34 @@ class TrayApp(TrayAppBase):
                 
                 # Generic icons
                 self.assets_dir / f"simkl-mps.{icon_format}",
-                self.assets_dir / f"simkl-mps.ico"   # ICO fallback
+                self.assets_dir / f"simkl-mps.ico",   # ICO fallback
+                
+                # Look in parent directory as well (common issue in some package setups)
+                Path(self.assets_dir).parent / f"simkl-mps.{icon_format}",
+                Path(self.assets_dir).parent / f"simkl-mps.ico"
             ]
             
-            # Use the first icon that exists
-            for icon_path in icon_paths:
-                if icon_path.exists():
-                    logger.debug(f"Loading tray icon: {icon_path}")
-                    return Image.open(icon_path)
+            # Verbose logging to help debug icon loading issues
+            logger.debug(f"Looking for icon files in: {self.assets_dir}")
+            for path in icon_paths:
+                logger.debug(f"Checking for icon at: {path}")
+                if path.exists():
+                    logger.info(f"Found and loading tray icon: {path}")
+                    return Image.open(path)
             
             logger.error(f"No suitable icon found in assets directory: {self.assets_dir}")
             logger.error(f"Expected one of: {[p.name for p in icon_paths]}")
-            return self._create_fallback_image()
-            
+            logger.info("Creating fallback icon...")
+            return self._create_fallback_image(size=128)
+                
         except FileNotFoundError as e:
             logger.error(f"Icon file not found: {e}", exc_info=True)
-            return self._create_fallback_image()
+            logger.info("Creating fallback icon after FileNotFoundError...")
+            return self._create_fallback_image(size=128)
         except Exception as e:
             logger.error(f"Error loading status icon: {e}", exc_info=True)
-            return self._create_fallback_image()
+            logger.info("Creating fallback icon after Exception...")
+            return self._create_fallback_image(size=128)
 
     def create_menu(self):
         """Create the system tray menu with a professional layout"""
