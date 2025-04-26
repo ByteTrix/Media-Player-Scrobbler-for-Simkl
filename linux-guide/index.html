@@ -944,17 +944,6 @@
 <h2 id="media-player-configuration-on-linux">⚙️ Media Player Configuration on Linux<a class="headerlink" href="#media-player-configuration-on-linux" title="Permanent link">&para;</a></h2>
 <p>For the best movie tracking experience, configure your preferred media players:</p>
 <h3 id="vlc-media-player">VLC Media Player<a class="headerlink" href="#vlc-media-player" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>flowchart TD
-<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>    A[Open VLC] --&gt; B[Tools → Preferences]
-<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>    B --&gt; C[Show Settings: All]
-<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a>    C --&gt; D[Interface → Main interfaces]
-<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a>    D --&gt; E[Check &#39;Web&#39; option]
-<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a>    E --&gt; F[Interface → Main interfaces → Lua]
-<a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a>    F --&gt; G[Set HTTP Password]
-<a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a>    G --&gt; H[Save &amp; Restart VLC]
-<a id="__codelineno-13-9" name="__codelineno-13-9" href="#__codelineno-13-9"></a>    style A fill:#d4f1f9,stroke:#333,stroke-width:2px
-<a id="__codelineno-13-10" name="__codelineno-13-10" href="#__codelineno-13-10"></a>    style H fill:#d5f5e3,stroke:#333,stroke-width:2px
-</code></pre></div>
 <p><strong>Step-by-Step Configuration:</strong>
 1. Open VLC Media Player
 2. Navigate to <strong>Tools → Preferences</strong>
@@ -967,8 +956,8 @@
 <h3 id="mpv-media-player-recommended-for-linux">MPV Media Player (Recommended for Linux)<a class="headerlink" href="#mpv-media-player-recommended-for-linux" title="Permanent link">&para;</a></h3>
 <p><strong>Configuration Steps:</strong>
 1. Create or edit the MPV configuration file:
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>mkdir<span class="w"> </span>-p<span class="w"> </span>~/.config/mpv
-<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="nb">echo</span><span class="w"> </span><span class="s1">&#39;input-ipc-server=/tmp/mpvsocket&#39;</span><span class="w"> </span>&gt;&gt;<span class="w"> </span>~/.config/mpv/mpv.conf
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>mkdir<span class="w"> </span>-p<span class="w"> </span>~/.config/mpv
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="nb">echo</span><span class="w"> </span><span class="s1">&#39;input-ipc-server=/tmp/mpvsocket&#39;</span><span class="w"> </span>&gt;&gt;<span class="w"> </span>~/.config/mpv/mpv.conf
 </code></pre></div>
 2. Save and restart MPV</p>
 <h3 id="celluloid-gnome-mpv">Celluloid (GNOME MPV)<a class="headerlink" href="#celluloid-gnome-mpv" title="Permanent link">&para;</a></h3>
@@ -982,20 +971,23 @@
 <h2 id="linux-system-integration">🖥️ Linux System Integration<a class="headerlink" href="#linux-system-integration" title="Permanent link">&para;</a></h2>
 <h3 id="system-tray-features">System Tray Features<a class="headerlink" href="#system-tray-features" title="Permanent link">&para;</a></h3>
 <p>Right-click the system tray icon to access:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>flowchart TD
-<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>    A[System Tray Icon] --&gt;|Right-click| B[Context Menu]
-<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>    B --&gt; C[Status Information]
-<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a>    B --&gt; D[Start/Pause Tracking]
-<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a>    B --&gt; E[Tools Submenu]
-<a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a>    E --&gt; E1[Open Logs]
-<a id="__codelineno-15-7" name="__codelineno-15-7" href="#__codelineno-15-7"></a>    E --&gt; E2[Config Directory]
-<a id="__codelineno-15-8" name="__codelineno-15-8" href="#__codelineno-15-8"></a>    E --&gt; E3[Process Backlog]
-<a id="__codelineno-15-9" name="__codelineno-15-9" href="#__codelineno-15-9"></a>    B --&gt; F[Check for Updates]
-<a id="__codelineno-15-10" name="__codelineno-15-10" href="#__codelineno-15-10"></a>    B --&gt; G[Help/About]
-<a id="__codelineno-15-11" name="__codelineno-15-11" href="#__codelineno-15-11"></a>    B --&gt; H[Exit]
-<a id="__codelineno-15-12" name="__codelineno-15-12" href="#__codelineno-15-12"></a>    style A fill:#4285f4,stroke:#333,stroke-width:2px,color:#fff
-<a id="__codelineno-15-13" name="__codelineno-15-13" href="#__codelineno-15-13"></a>    style D fill:#34a853,stroke:#333,stroke-width:2px,color:#fff
-<a id="__codelineno-15-14" name="__codelineno-15-14" href="#__codelineno-15-14"></a>    style F fill:#fbbc05,stroke:#333,stroke-width:2px
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>flowchart TD
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>    A[System Tray Icon] --&gt;|Right-click| B[Context Menu]
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>    B --&gt; C[Status Information]
+<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a>    B --&gt; D[Start/Pause Tracking]
+<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a>    B --&gt; E[Tools Submenu]
+<a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a>    B --&gt; F[Online Services]
+<a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a>    E --&gt; E1[Open Logs]
+<a id="__codelineno-14-8" name="__codelineno-14-8" href="#__codelineno-14-8"></a>    E --&gt; E2[Config Directory]
+<a id="__codelineno-14-9" name="__codelineno-14-9" href="#__codelineno-14-9"></a>    E --&gt; E3[Process Backlog]
+<a id="__codelineno-14-10" name="__codelineno-14-10" href="#__codelineno-14-10"></a>    F --&gt; F1[Simkl Website]
+<a id="__codelineno-14-11" name="__codelineno-14-11" href="#__codelineno-14-11"></a>    F --&gt; F2[Watch History]
+<a id="__codelineno-14-12" name="__codelineno-14-12" href="#__codelineno-14-12"></a>    B --&gt; G[Check for Updates]
+<a id="__codelineno-14-13" name="__codelineno-14-13" href="#__codelineno-14-13"></a>    B --&gt; H[Help/About]
+<a id="__codelineno-14-14" name="__codelineno-14-14" href="#__codelineno-14-14"></a>    B --&gt; I[Exit]
+<a id="__codelineno-14-15" name="__codelineno-14-15" href="#__codelineno-14-15"></a>    style A fill:#4285f4,stroke:#333,stroke-width:2px,color:#fff
+<a id="__codelineno-14-16" name="__codelineno-14-16" href="#__codelineno-14-16"></a>    style D fill:#34a853,stroke:#333,stroke-width:2px,color:#fff
+<a id="__codelineno-14-17" name="__codelineno-14-17" href="#__codelineno-14-17"></a>    style F fill:#fbbc05,stroke:#333,stroke-width:2px
 </code></pre></div>
 <ul>
 <li><strong>Status information</strong>: Current monitoring state and connection status</li>
@@ -1011,11 +1003,11 @@
 </ul>
 <h2 id="updates">🔄 Updates<a class="headerlink" href="#updates" title="Permanent link">&para;</a></h2>
 <p>To update your installation:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="c1"># If installed with pipx</span>
-<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>pipx<span class="w"> </span>upgrade<span class="w"> </span>simkl-mps
-<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a>
-<a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a><span class="c1"># If installed with pip</span>
-<a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a>pip<span class="w"> </span>install<span class="w"> </span>--upgrade<span class="w"> </span>--user<span class="w"> </span><span class="s2">&quot;simkl-mps[linux]&quot;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="c1"># If installed with pipx</span>
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>pipx<span class="w"> </span>upgrade<span class="w"> </span>simkl-mps
+<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>
+<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a><span class="c1"># If installed with pip</span>
+<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a>pip<span class="w"> </span>install<span class="w"> </span>--upgrade<span class="w"> </span>--user<span class="w"> </span><span class="s2">&quot;simkl-mps[linux]&quot;</span>
 </code></pre></div>
 <h2 id="optimizing-for-linux">🚀 Optimizing for Linux<a class="headerlink" href="#optimizing-for-linux" title="Permanent link">&para;</a></h2>
 <h3 id="performance-tips">Performance Tips<a class="headerlink" href="#performance-tips" title="Permanent link">&para;</a></h3>
@@ -1075,22 +1067,22 @@
 <ol>
 <li>
 <p>View logs in real-time with:
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>tail<span class="w"> </span>-f<span class="w"> </span>~/.local/share/kavinthangavel/simkl-mps/simkl_mps.log
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>tail<span class="w"> </span>-f<span class="w"> </span>~/.local/share/kavinthangavel/simkl-mps/simkl_mps.log
 </code></pre></div></p>
 </li>
 <li>
 <p>Or open in your text editor:
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>xdg-open<span class="w"> </span>~/.local/share/kavinthangavel/simkl-mps/simkl_mps.log
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>xdg-open<span class="w"> </span>~/.local/share/kavinthangavel/simkl-mps/simkl_mps.log
 </code></pre></div></p>
 </li>
 </ol>
 <h3 id="running-with-debug-logging">Running with Debug Logging<a class="headerlink" href="#running-with-debug-logging" title="Permanent link">&para;</a></h3>
 <p>For advanced troubleshooting:
-<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>simkl-mps<span class="w"> </span>tray<span class="w"> </span>--debug
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>simkl-mps<span class="w"> </span>tray<span class="w"> </span>--debug
 </code></pre></div></p>
 <h3 id="diagnostics-script">Diagnostics Script<a class="headerlink" href="#diagnostics-script" title="Permanent link">&para;</a></h3>
 <p>Run the built-in diagnostics script to check your environment:
-<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>python3<span class="w"> </span>-m<span class="w"> </span>simkl_mps.utils.linux_tray_diagnostics
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>python3<span class="w"> </span>-m<span class="w"> </span>simkl_mps.utils.linux_tray_diagnostics
 </code></pre></div></p>
 <h2 id="final-checklist-for-linux-users">🔔 Final Checklist for Linux Users<a class="headerlink" href="#final-checklist-for-linux-users" title="Permanent link">&para;</a></h2>
 <ol>
@@ -1125,7 +1117,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="April 26, 2025 12:29:34">April 26, 2025</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="April 26, 2025 18:19:22">April 26, 2025</span>
   </span>
 
     
