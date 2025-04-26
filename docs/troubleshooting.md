@@ -10,7 +10,7 @@ This guide helps you solve common problems with MPS for SIMKL.
 ### Authentication
 - Run `simkl-mps init --force` to reset authentication.
 - Check your internet connection.
-- For Windows EXE: restart from Start menu.
+- For **Windows EXE**: restart app from Start menu.
 
 ### Movie Detection
 - Use clear filenames: `Movie Title (Year).ext`.
@@ -20,10 +20,11 @@ This guide helps you solve common problems with MPS for SIMKL.
 
 ### Player Configuration
 - See [Media Players Guide](media-players.md) for all player setup steps.
-- For VLC, MPV, MPC-HC/BE, PotPlayer: follow the exact configuration steps.
+- For VLC, MPV, MPC-HC/BE, etc: follow the exact configuration steps.
 
 ### Tray/App Issues
 - Tray icon missing: check hidden icons or restart app.
+- For Windows, see [Win Guide](windows-guide.md) for common errors 
 - For Linux, see [Linux Guide](linux-guide.md) for tray troubleshooting.
 - For Mac, see [Mac Guide](mac-guide.md) for permissions and tray info.
 
