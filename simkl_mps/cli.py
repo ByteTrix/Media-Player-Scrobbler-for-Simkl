@@ -290,46 +290,6 @@ def version_command(args):
     print(f"\nData directory: {APP_DATA_DIR}")
     return 0
 
-def verify_command(args):
-    """
-    Handles the 'verify' command.
-    
-    Displays build verification information to help users verify that
-    the app was built from source using GitHub Actions.
-    """
-    print(f"{Fore.CYAN}=== Simkl MPS Build Verification ==={Style.RESET_ALL}")
-    logger.info("Displaying build verification information")
-    
-    # Get verification info
-    verification_info = get_verification_info()
-    
-    print(f"\n{Fore.GREEN}Build Information:{Style.RESET_ALL}")
-    print(f"{Fore.WHITE}┌{'─' * 60}┐{Style.RESET_ALL}")
-    
-    for key, value in verification_info.items():
-        print(f"{Fore.WHITE}│{Style.RESET_ALL} {Fore.YELLOW}{key:<20}{Style.RESET_ALL}: {value}")
-    
-    print(f"{Fore.WHITE}└{'─' * 60}┘{Style.RESET_ALL}")
-    
-    # Get executable checksum
-    checksum = get_executable_checksum()
-    print(f"\n{Fore.GREEN}Executable SHA256 Checksum:{Style.RESET_ALL}")
-    print(f"{checksum}")
-    
-    # Verification instructions
-    print(f"\n{Fore.GREEN}How to verify this build:{Style.RESET_ALL}")
-    print(f"1. Visit the GitHub release page at:")
-    print(f"   https://github.com/kavinthangavel/Media-Player-Scrobbler-for-Simkl/releases/tag/v{verification_info['Application Version']}")
-    print(f"2. Compare the checksum above with the SHA256SUMS.txt file in the release assets")
-    print(f"3. Verify that the build was created by the GitHub Actions workflow:")
-    
-    if verification_info["GitHub Run ID"] != "local":
-        print(f"   {verification_info['GitHub Run URL']}")
-    else:
-        print(f"   This appears to be a local development build, not an official release build.")
-    
-    return 0
-
 def check_for_updates(silent=False):
     """
     Check for updates to the application.
@@ -380,6 +340,183 @@ def check_for_updates(silent=False):
         logger.error(f"Error checking for updates: {e}")
         return False
 
+def exit_command(args):
+    """
+    Handles the 'exit' command.
+    
+    Finds and terminates all running instances of the application,
+    ensuring all background activities are properly stopped.
+    """
+    print(f"{Fore.CYAN}=== Stopping Media Player Scrobbler for SIMKL ==={Style.RESET_ALL}")
+    logger.info("Executing exit command to terminate all instances.")
+    
+    if sys.platform == "win32":
+        # Windows implementation
+        import ctypes
+        import win32com.client
+        import win32gui
+        import win32process
+        import win32con
+        
+        print("[*] Looking for running SIMKL-MPS instances...")
+        killed_any = False
+        
+        try:
+            # First approach: Find by window title/class and send WM_CLOSE
+            def enum_windows_callback(hwnd, results):
+                if win32gui.IsWindowVisible(hwnd):
+                    window_text = win32gui.GetWindowText(hwnd)
+                    class_name = win32gui.GetClassName(hwnd)
+                    
+                    # Check for our app window (both executable and Python process)
+                    if "MPS for SIMKL" in window_text or "simkl-mps" in window_text.lower():
+                        logger.info(f"Found window: '{window_text}', class: '{class_name}'")
+                        results.append(hwnd)
+                        
+                    # Also look for pystray windows (development mode)
+                    if class_name == "pystray" or "simkl-mps" in class_name.lower():
+                        logger.info(f"Found pystray window: '{window_text}', class: '{class_name}'")
+                        results.append(hwnd)
+                return True
+            
+            window_handles = []
+            win32gui.EnumWindows(enum_windows_callback, window_handles)
+            
+            for hwnd in window_handles:
+                try:
+                    # Get process ID for the window
+                    _, pid = win32process.GetWindowThreadProcessId(hwnd)
+                    logger.info(f"Sending close command to window with PID: {pid}")
+                    
+                    # Try to post a close message
+                    win32gui.PostMessage(hwnd, win32con.WM_CLOSE, 0, 0)
+                    killed_any = True
+                except Exception as e:
+                    logger.error(f"Failed to close window: {e}")
+            
+            # Second approach: Find processes by executable name
+            try:
+                wmi = win32com.client.GetObject('winmgmts:')
+                
+                process_names = [
+                    "MPS for SIMKL.exe",
+                    "MPSS.exe",
+                    "simkl-mps.exe",
+                    "python.exe"
+                ]
+                
+                for process_name in process_names:
+                    processes = []
+                    
+                    if process_name == "python.exe":
+                        # Only target Python processes running our module
+                        processes = wmi.ExecQuery(
+                            f"SELECT * FROM Win32_Process WHERE Name = '{process_name}' AND CommandLine LIKE '%simkl_mps%'"
+                        )
+                    else:
+                        processes = wmi.ExecQuery(f"SELECT * FROM Win32_Process WHERE Name = '{process_name}'")
+                    
+                    for process in processes:
+                        try:
+                            pid = process.ProcessId
+                            cmd_line = process.CommandLine or ""
+                            
+                            # Skip the current process
+                            if pid == os.getpid():
+                                continue
+                                
+                            # For python.exe, confirm it's actually our app
+                            if process_name == "python.exe" and "simkl_mps" not in cmd_line.lower():
+                                logger.debug(f"Skipping Python process (PID: {pid}) - not related to simkl-mps")
+                                continue
+                                
+                            logger.info(f"Terminating process: {process_name} (PID: {pid})")
+                            print(f"[*] Terminating process: {process_name} (PID: {pid})")
+                            process.Terminate()
+                            killed_any = True
+                        except Exception as e:
+                            logger.error(f"Failed to terminate process {process_name}: {e}")
+            except Exception as e:
+                logger.error(f"Error accessing WMI: {e}")
+        
+        except Exception as e:
+            logger.error(f"Error during Windows process termination: {e}", exc_info=True)
+            print(f"{Fore.RED}ERROR: Could not terminate processes: {e}{Style.RESET_ALL}", file=sys.stderr)
+            return 1
+    
+    elif sys.platform == "darwin":
+        # macOS implementation
+        import subprocess
+        
+        print("[*] Looking for running SIMKL-MPS instances...")
+        killed_any = False
+        
+        try:
+            # Find processes
+            cmd = [
+                "pgrep", "-f", "simkl-mps|simkl_mps|MPS for SIMKL"
+            ]
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            pids = result.stdout.strip().split()
+            
+            # Terminate each process except the current one
+            for pid in pids:
+                pid = pid.strip()
+                if pid and pid.isdigit() and int(pid) != os.getpid():
+                    logger.info(f"Terminating process with PID: {pid}")
+                    print(f"[*] Terminating process with PID: {pid}")
+                    try:
+                        subprocess.run(["kill", pid])
+                        killed_any = True
+                    except Exception as e:
+                        logger.error(f"Failed to terminate process {pid}: {e}")
+            
+        except Exception as e:
+            logger.error(f"Error during macOS process termination: {e}", exc_info=True)
+            print(f"{Fore.RED}ERROR: Could not terminate processes: {e}{Style.RESET_ALL}", file=sys.stderr)
+            return 1
+    
+    else:
+        # Linux implementation
+        import subprocess
+        
+        print("[*] Looking for running SIMKL-MPS instances...")
+        killed_any = False
+        
+        try:
+            # First find the relevant processes
+            cmd = [
+                "pgrep", "-f", "simkl-mps|simkl_mps|MPS for SIMKL"
+            ]
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            pids = result.stdout.strip().split()
+            
+            # Terminate each process except the current one
+            for pid in pids:
+                pid = pid.strip()
+                if pid and pid.isdigit() and int(pid) != os.getpid():
+                    logger.info(f"Terminating process with PID: {pid}")
+                    print(f"[*] Terminating process with PID: {pid}")
+                    try:
+                        subprocess.run(["kill", pid])
+                        killed_any = True
+                    except Exception as e:
+                        logger.error(f"Failed to terminate process {pid}: {e}")
+            
+        except Exception as e:
+            logger.error(f"Error during Linux process termination: {e}", exc_info=True)
+            print(f"{Fore.RED}ERROR: Could not terminate processes: {e}{Style.RESET_ALL}", file=sys.stderr)
+            return 1
+    
+    # Check if we killed anything
+    if killed_any:
+        print(f"{Fore.GREEN}[✓] Successfully terminated SIMKL-MPS processes.{Style.RESET_ALL}")
+    else:
+        print(f"{Fore.YELLOW}[!] No running SIMKL-MPS processes were found.{Style.RESET_ALL}")
+        
+    print(f"{Fore.GREEN}[✓] Application has been stopped.{Style.RESET_ALL}")
+    return 0
+
 def create_parser():
     """
     Creates and configures the argument parser for the CLI.
@@ -421,10 +558,10 @@ def create_parser():
         help="Display the current installed version of simkl-mps."
     )
     
-    verify_parser = subparsers.add_parser(
-        "verify",
-        aliases=['vf'],
-        help="Verify build authenticity and display build information."
+    exit_parser = subparsers.add_parser(
+        "exit",
+        aliases=['e', 'stop', 'quit'],
+        help="Stop all running instances of the application and terminate all background activities."
     )
     
     return parser
@@ -494,7 +631,7 @@ def main():
         "start": start_command,
         "tray": tray_command,
         "version": version_command,
-        "verify": verify_command,
+        "exit": exit_command,
         "help": lambda _: parser.print_help()
     }
 
