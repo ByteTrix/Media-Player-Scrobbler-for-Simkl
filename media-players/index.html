@@ -1017,17 +1017,6 @@
 <hr />
 <h2 id="windows-media-player-configuration">🪟 Windows Media Player Configuration<a class="headerlink" href="#windows-media-player-configuration" title="Permanent link">&para;</a></h2>
 <h3 id="vlc-media-player-recommended">VLC Media Player (Recommended)<a class="headerlink" href="#vlc-media-player-recommended" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>flowchart TD
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>    A[Open VLC] --&gt; B[Tools → Preferences]
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>    B --&gt; C[Show Settings: All]
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>    C --&gt; D[Interface → Main interfaces]
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>    D --&gt; E[Check &#39;Web&#39; option]
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>    E --&gt; F[Interface → Main interfaces → Lua]
-<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>    F --&gt; G[Set HTTP Password]
-<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>    G --&gt; H[Save &amp; Restart VLC]
-<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>    style A fill:#d4f1f9,stroke:#333,stroke-width:2px
-<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>    style H fill:#d5f5e3,stroke:#333,stroke-width:2px
-</code></pre></div>
 <p><strong>Step-by-Step Configuration:</strong>
 1. Open VLC Media Player
 2. Navigate to <strong>Tools → Preferences</strong>
@@ -1037,34 +1026,32 @@
 6. Go to <strong>Interface → Main interfaces → Lua</strong>
 7. Set a password in the <strong>Lua HTTP Password</strong> field (remember this password)
 8. Optional: Change the port number (default is 8080)
-9. Click <strong>Save</strong> and restart VLC</p>
+9. Click <strong>Save</strong> and restart VLC
+10. Visit http://localhost:8080/
+11. Enter Your Password (Set in Step 7) </p>
+<blockquote>
+<p>For Detailed Step by Step Config <a href="https://github.com/azrafe7/vlc4youtube/blob/55946aaea09375cfa4dc0dbae0428ad13eb9e046/instructions/how-to-enable-vlc-web-interface.md">Config with Images</a> - Make Sure to set a Password</p>
+</blockquote>
 <p><strong>Verification:</strong>
 - The scrobbler will automatically connect to VLC on port 8080 (or your custom port)
 - Play a movie in VLC to test - you should see accurate position tracking</p>
 <h3 id="mpv-media-player">MPV Media Player<a class="headerlink" href="#mpv-media-player" title="Permanent link">&para;</a></h3>
 <p><strong>Windows Configuration:</strong>
 1. Locate or create the MPV configuration directory:
+   - Press <code>Win+R</code> and enter <code>%APPDATA%</code> to open the Roaming folder
+   Or
    - Navigate to <code>%APPDATA%\mpv\</code> (create it if it doesn't exist)
-2. Create or edit <code>mpv.conf</code> file
-3. Add the following lines:
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a># Enable IPC socket for advanced tracking
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>input-ipc-server=\\.\pipe\mpvsocket
+3. Create or edit <code>mpv.conf</code> file
+4. Add the following lines:
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a># Enable IPC socket for advanced tracking
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>input-ipc-server=\\.\pipe\mpvsocket
 </code></pre></div>
-4. Save the file and restart MPV</p>
+5. Save the file and restart MPV</p>
 <p><strong>Verification:</strong>
 - Play a movie in MPV
 - The scrobbler will connect to the pipe socket
 - Position data should be accurately tracked</p>
 <h3 id="mpc-hcbe-media-player-classic">MPC-HC/BE (Media Player Classic)<a class="headerlink" href="#mpc-hcbe-media-player-classic" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>flowchart TD
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>    A[Open MPC-HC/BE] --&gt; B[View → Options]
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>    B --&gt; C[Player → Web Interface]
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>    C --&gt; D[Enable Web Interface]
-<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>    D --&gt; E[Set port to 13579]
-<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>    E --&gt; F[Save &amp; Restart]
-<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>    style A fill:#d4f1f9,stroke:#333,stroke-width:2px
-<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>    style F fill:#d5f5e3,stroke:#333,stroke-width:2px
-</code></pre></div>
 <p><strong>Step-by-Step Configuration:</strong>
 1. Open MPC-HC or MPC-BE
 2. Navigate to <strong>View → Options</strong>
@@ -1085,8 +1072,8 @@
 <li><code>~/.config/mpv/</code> (create it if it doesn't exist)</li>
 <li>Create or edit <code>mpv.conf</code></li>
 <li>Add the following line:
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a># Enable IPC socket for advanced tracking
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>input-ipc-server=/tmp/mpvsocket
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a># Enable IPC socket for advanced tracking
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>input-ipc-server=/tmp/mpvsocket
 </code></pre></div></li>
 <li>Save and restart MPV</li>
 </ol>
@@ -1114,29 +1101,29 @@
 <li><code>~/.config/mpv/</code> (create it if it doesn't exist)</li>
 <li>Create or edit <code>mpv.conf</code></li>
 <li>Add the following line:
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a># Enable IPC socket for advanced tracking
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>input-ipc-server=/tmp/mpvsocket
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a># Enable IPC socket for advanced tracking
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>input-ipc-server=/tmp/mpvsocket
 </code></pre></div></li>
 <li>Ensure the socket path has appropriate permissions</li>
 <li>Save and restart MPV</li>
 </ol>
 <hr />
 <h2 id="tracking-methods-explained">🧠 Tracking Methods Explained<a class="headerlink" href="#tracking-methods-explained" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>graph LR
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>    A[Player Integration Methods] --&gt; B[Web Interface]
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>    A --&gt; C[IPC Socket]
-<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>    A --&gt; D[Window Title]
-<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>    B --&gt; E[VLC, MPC, PotPlayer]
-<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>    C --&gt; F[MPV]
-<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>    D --&gt; G[Other Players]
-<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>    E --&gt; H[Position + Filename]
-<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a>    F --&gt; H
-<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a>    G --&gt; I[Filename Only]
-<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a>    H --&gt; J[High Accuracy]
-<a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a>    I --&gt; K[Basic Accuracy]
-<a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a>    style A fill:#4285f4,stroke:#333,stroke-width:2px,color:#fff
-<a id="__codelineno-6-14" name="__codelineno-6-14" href="#__codelineno-6-14"></a>    style J fill:#34a853,stroke:#333,stroke-width:2px,color:#fff
-<a id="__codelineno-6-15" name="__codelineno-6-15" href="#__codelineno-6-15"></a>    style K fill:#fbbc05,stroke:#333,stroke-width:2px
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>graph LR
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>    A[Player Integration Methods] --&gt; B[Web Interface]
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>    A --&gt; C[IPC Socket]
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>    A --&gt; D[Window Title]
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>    B --&gt; E[VLC, MPC]
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>    C --&gt; F[MPV]
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>    D --&gt; G[Other Players]
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>    E --&gt; H[Position + Filename]
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>    F --&gt; H
+<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a>    G --&gt; I[Filename Only]
+<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a>    H --&gt; J[High Accuracy]
+<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a>    I --&gt; K[Basic Accuracy]
+<a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a>    style A fill:#4285f4,stroke:#333,stroke-width:2px,color:#fff
+<a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a>    style J fill:#34a853,stroke:#333,stroke-width:2px,color:#fff
+<a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a>    style K fill:#fbbc05,stroke:#333,stroke-width:2px
 </code></pre></div>
 <h3 id="advanced-tracking">Advanced Tracking<a class="headerlink" href="#advanced-tracking" title="Permanent link">&para;</a></h3>
 <p>With advanced tracking (properly configured players):
@@ -1153,15 +1140,15 @@
 <hr />
 <h2 id="filename-best-practices">🏷️ Filename Best Practices<a class="headerlink" href="#filename-best-practices" title="Permanent link">&para;</a></h2>
 <p>For optimal movie identification, follow these naming conventions:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>graph TD
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>    A[Optimal Movie Filename Format] --&gt; B[&quot;MovieTitle (Year).ext&quot;]
-<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>    B --&gt; C[&quot;Inception (2010).mkv&quot;]
-<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>    B --&gt; D[&quot;The Godfather (1972).mp4&quot;]
-<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>    B --&gt; E[&quot;Parasite (2019).avi&quot;]
-<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>    style A fill:#4285f4,stroke:#333,stroke-width:2px,color:#fff
-<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a>    style C fill:#d5f5e3,stroke:#333,stroke-width:2px
-<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a>    style D fill:#d5f5e3,stroke:#333,stroke-width:2px
-<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a>    style E fill:#d5f5e3,stroke:#333,stroke-width:2px
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>graph TD
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>    A[Optimal Movie Filename Format] --&gt; B[&quot;MovieTitle (Year).ext&quot;]
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>    B --&gt; C[&quot;Inception (2010).mkv&quot;]
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>    B --&gt; D[&quot;The Godfather (1972).mp4&quot;]
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>    B --&gt; E[&quot;Parasite (2019).avi&quot;]
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>    style A fill:#4285f4,stroke:#333,stroke-width:2px,color:#fff
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>    style C fill:#d5f5e3,stroke:#333,stroke-width:2px
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>    style D fill:#d5f5e3,stroke:#333,stroke-width:2px
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>    style E fill:#d5f5e3,stroke:#333,stroke-width:2px
 </code></pre></div>
 <p><strong>Recommended Format:</strong> <code>MovieTitle (Year).extension</code></p>
 <p><strong>Examples:</strong>
@@ -1171,8 +1158,7 @@
 <p><strong>Additional Tips:</strong>
 - Include the year for better identification
 - Avoid extra text like quality info or release group names in main filename
-- Remove unnecessary punctuation
-- If the movie has a subtitle, include it: <code>Movie Title: Subtitle (Year).ext</code></p>
+- Remove unnecessary punctuation</p>
 <hr />
 <h2 id="troubleshooting-player-configuration">🛠️ Troubleshooting Player Configuration<a class="headerlink" href="#troubleshooting-player-configuration" title="Permanent link">&para;</a></h2>
 <table>
@@ -1230,7 +1216,7 @@
 <ol>
 <li>Configure your media player according to the instructions</li>
 <li>Start the Media Player Scrobbler for Simkl with debug logging:
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>simkl-mps<span class="w"> </span>tray<span class="w"> </span>--debug
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>simkl-mps<span class="w"> </span>tray<span class="w"> </span>--debug
 </code></pre></div></li>
 <li>Play a movie in your configured media player</li>
 <li>Check the logs for connection messages and position data</li>
@@ -1252,7 +1238,7 @@
 <tr>
 <td>Ease of configuration</td>
 <td>★★★★☆</td>
-<td>★★★☆☆</td>
+<td>★★☆☆☆</td>
 <td>★★★★☆</td>
 <td>★★★☆☆</td>
 </tr>
@@ -1265,9 +1251,9 @@
 </tr>
 <tr>
 <td>Position accuracy</td>
-<td>High</td>
 <td>Very High</td>
 <td>High</td>
+<td>Very High</td>
 <td>High</td>
 </tr>
 <tr>
@@ -1309,7 +1295,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="April 26, 2025 13:57:00">April 26, 2025</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="April 26, 2025 18:29:06">April 26, 2025</span>
   </span>
 
     
