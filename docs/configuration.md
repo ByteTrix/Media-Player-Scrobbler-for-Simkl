@@ -6,24 +6,6 @@ This guide combines advanced configuration and developer documentation for MPS f
 
 Settings can be customized via config files, environment variables, or command-line options. See the [Media Players Guide](media-players.md) for player-specific settings.
 
-```mermaid
-graph TD
-    A[Config Sources] --> B[CLI Args]
-    A --> C[Config File]
-    A --> D[Env Vars]
-    A --> E[Defaults]
-    B --> F[Config Manager]
-    C --> F
-    D --> F
-    E --> F
-    F --> G[App Settings]
-    G --> H[Tracking]
-    G --> I[Network]
-    G --> J[UI]
-    G --> K[Logging]
-    style A fill:#4285f4,stroke:#333,stroke-width:2px,color:#fff
-    style F fill:#34a853,stroke:#333,stroke-width:2px,color:#fff
-```
 
 ### Config File Locations
 
