@@ -42,15 +42,14 @@ After installation, authenticate with SIMKL and **configure your media players**
 ## 🔍 How It Works
 
 ```mermaid
-graph TD
-    A[Media Player] -->|Playback Info| B[MPS for SIMKL]
-    B -->|Extract & Parse| C[Identify Media Title]
-    C -->|Search| D[SIMKL API]
-    D -->|Metadata| E[Track Progress]
-    E -->|>80% Complete| F[Mark as Watched]
-    F -->|Update| G[SIMKL Profile]
+graph LR
+    A[Media Player] -->|Player Title| B[Simkl Scrobbler]
+    B -->|Parse Title| C[Movie Identification]
+    C -->|Track Progress| D[Simkl API]
+    D -->|Mark as Watched| E[Simkl Profile]
+    
     style A fill:#d5f5e3,stroke:#333,stroke-width:2px
-    style G fill:#d5f5e3,stroke:#333,stroke-width:2px
+    style E fill:#d5f5e3,stroke:#333,stroke-width:2px
 ```
 
 ## 🚦 Performance Notes
