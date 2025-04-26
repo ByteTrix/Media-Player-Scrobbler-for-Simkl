@@ -30,17 +30,16 @@ def cleanup_build_artifacts():
     
     try:
         # Try to terminate any running instances that might lock files
-        if sys.platform == 'win32':
-            # Windows-specific process termination
-            try:
-                subprocess.run(['taskkill', '/F', '/IM', 'MPS for Simkl.exe'], 
-                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                subprocess.run(['taskkill', '/F', '/IM', 'MPSS.exe'], 
-                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                # Give Windows time to release file handles
-                time.sleep(1)
-            except Exception as e:
-                print(f"Warning: Could not terminate processes: {e}")
+        # Windows-specific process termination
+        try:
+            subprocess.run(['taskkill', '/F', '/IM', 'MPS for Simkl.exe'], 
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.run(['taskkill', '/F', '/IM', 'MPSS.exe'], 
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            # Give Windows time to release file handles
+            time.sleep(1)
+        except Exception as e:
+            print(f"Warning: Could not terminate processes: {e}")
         
         # Check for locked executables and handle them
         problematic_files = [
@@ -118,7 +117,7 @@ except Exception as e:
 
 block_cipher = None
 
-# Define platform-specific hidden imports
+# Define Windows-specific hidden imports
 hidden_imports = [
     'babelfish.language',
     'babelfish.converters',
@@ -131,35 +130,11 @@ hidden_imports = [
     'babelfish.script',
     'babelfish.converters.opensubtitles',
     'babelfish.converters.scope',
+    'plyer.platforms.win.notification',
+    'win32api', 'win32con', 'win32gui',
+    'tkinter', 'tkinter.ttk',  # Add tkinter for dialogs
+    'threading',  # Ensure threading is included
 ]
-
-# Add platform-specific imports
-if sys.platform == 'win32':
-    hidden_imports.extend([
-        'plyer.platforms.win.notification',
-        'win32api', 'win32con', 'win32gui',
-        'tkinter', 'tkinter.ttk',  # Add tkinter for dialogs
-        'threading',  # Ensure threading is included
-    ])
-elif sys.platform == 'darwin':
-    hidden_imports.extend([
-        'plyer.platforms.macosx.notification',
-        'pystray._darwin',
-        'Foundation', 'AppKit', 'Cocoa',
-        'PyObjC',
-        'tkinter', 'tkinter.ttk',  # Add tkinter for dialogs
-        'threading',  # Ensure threading is included
-    ])
-elif sys.platform.startswith('linux'):
-    hidden_imports.extend([
-        'plyer.platforms.linux.notification',
-        'pystray._xorg',
-        'PIL._tkinter_finder',
-        'gi', 'gi.repository.Gtk', 'gi.repository.GdkPixbuf', 
-        'gi.repository.GLib', 'gi.repository.Gio',
-        'tkinter', 'tkinter.ttk',  # Add tkinter for dialogs
-        'threading',  # Ensure threading is included
-    ])
 
 # Main application analysis
 a = Analysis(
@@ -195,13 +170,8 @@ a.datas += [
 
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 
-# Determine icon path based on platform
-if sys.platform == 'win32':
-    icon_path = str(assets_path / 'simkl-mps.ico')
-elif sys.platform == 'darwin':
-    icon_path = str(assets_path / 'simkl-mps.icns')  # Make sure this file exists in assets
-else:  # Linux and others
-    icon_path = str(assets_path / 'simkl-mps.png')
+# Set icon path for Windows
+icon_path = str(assets_path / 'simkl-mps.ico')
 
 exe = EXE(
     pyz,
@@ -219,11 +189,15 @@ exe = EXE(
     runtime_tmpdir=None,
     console=True,  # Set to False for a GUI-only app (no console window)
     disable_windowed_traceback=False,
-    argv_emulation=False if sys.platform != 'darwin' else True,  # Enable argv emulation for macOS
+    argv_emulation=False,
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
     icon=icon_path if os.path.exists(icon_path) else None,
+    uac_admin=False,  # Explicitly disable UAC admin request
+    uac_uiaccess=False,  # Disable UI access privileges
+    # Add a requestedExecutionLevel that doesn't require admin
+    manifest='<assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0"><trustInfo xmlns="urn:schemas-microsoft-com:asm.v3"><security><requestedPrivileges><requestedExecutionLevel level="asInvoker" uiAccess="false"/></requestedPrivileges></security></trustInfo></assembly>',
 )
 
 # Tray application analysis
@@ -273,65 +247,13 @@ tray_exe = EXE(
     runtime_tmpdir=None,
     console=False,  # No console for tray app
     disable_windowed_traceback=False,
-    argv_emulation=False if sys.platform != 'darwin' else True,  # Enable argv emulation for macOS
+    argv_emulation=False,
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
     icon=icon_path if os.path.exists(icon_path) else None,
+    uac_admin=False,  # Explicitly disable UAC admin request
+    uac_uiaccess=False,  # Disable UI access privileges
+    # Add a requestedExecutionLevel that doesn't require admin
+    manifest='<assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0"><trustInfo xmlns="urn:schemas-microsoft-com:asm.v3"><security><requestedPrivileges><requestedExecutionLevel level="asInvoker" uiAccess="false"/></requestedPrivileges></security></trustInfo></assembly>',
 )
-
-# For macOS, create application bundles
-if sys.platform == 'darwin':
-    app = BUNDLE(
-        exe,
-        name='MPSS.app',
-        icon=str(assets_path / 'simkl-mps.icns'),  # macOS icon format
-        bundle_identifier='com.simkl.mpss',
-        info_plist={
-            'NSHighResolutionCapable': 'True',
-            'LSBackgroundOnly': 'False',
-            'CFBundleDisplayName': 'Media Player Scrobbler for SIMKL',
-            'CFBundleShortVersionString': '${VERSION}',
-            'NSRequiresAquaSystemAppearance': 'False',
-            'LSUIElement': '0',  # Not a background-only app
-        },
-    )
-    
-    tray_app = BUNDLE(
-        tray_exe,
-        name='MPS for Simkl.app',
-        icon=str(assets_path / 'simkl-mps.icns'),
-        bundle_identifier='com.simkl.mpss.tray',
-        info_plist={
-            'NSHighResolutionCapable': 'True',
-            'LSBackgroundOnly': 'True',  # Background app for tray
-            'CFBundleDisplayName': 'MPSS Tray',
-            'CFBundleShortVersionString': '${VERSION}',
-            'NSRequiresAquaSystemAppearance': 'False',
-            'LSUIElement': '1',  # Background-only app
-        },
-    )
-
-# For Linux, create a collect directory
-elif sys.platform.startswith('linux'):
-    coll = COLLECT(
-        exe,
-        a.binaries,
-        a.zipfiles,
-        a.datas,
-        strip=False,
-        upx=True,
-        upx_exclude=[],
-        name='simkl-mps',
-    )
-    
-    tray_coll = COLLECT(
-        tray_exe,
-        tray_a.binaries,
-        tray_a.zipfiles,
-        tray_a.datas,
-        strip=False,
-        upx=True,
-        upx_exclude=[],
-        name='simkl-mps-tray',
-    )

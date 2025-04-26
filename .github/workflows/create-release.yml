@@ -17,12 +17,12 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      id-token: write  # Required for provenance
+      id-token: write  
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Full history for tag verification
+          fetch-depth: 0  
 
       - name: Verify signed tag
         env:
@@ -99,7 +99,7 @@ jobs:
             echo "Warning: No Windows installer found!"
           fi
 
-      - name: Find Windows Installer # Corrected indentation
+      - name: Find Windows Installer 
         id: find_installer
         run: |
           INSTALLER_PATH=$(find release-artifacts -name "MPSS_Setup_*.exe" -o -name "*.exe" | grep -i "setup" | head -1)
@@ -114,11 +114,10 @@ jobs:
             find release-artifacts -name "*.exe" || echo "No .exe files found"
             exit 1
           fi
-      # Removed incorrect sigstore/gh-action-sigstore step
-      - name: Install cosign # Corrected indentation
-        uses: sigstore/cosign-installer@v3.4.0 # Use the same version as in build-verification.yml
+      - name: Install cosign 
+        uses: sigstore/cosign-installer@v3.4.0
 
-      - name: Sign Windows Installer with Cosign # Corrected indentation
+      - name: Sign Windows Installer with Cosign 
         id: sign_installer
         run: |
           INSTALLER_PATH="${{ steps.find_installer.outputs.path }}"
@@ -127,7 +126,7 @@ jobs:
           echo "Signature created at ${INSTALLER_PATH}.sig"
           echo "signature_path=${INSTALLER_PATH}.sig" >> $GITHUB_OUTPUT
           
-      - name: Prepare verification information # Corrected indentation
+      - name: Prepare verification information 
         run: |
           # Ensure verification-artifacts directory exists
           mkdir -p verification-info
@@ -221,28 +220,6 @@ jobs:
             echo "::warning:: Installer signature file not found at $INSTALLER_SIG_PATH"
           fi
           echo "Verification artifacts uploaded."
-
-          # The Windows installer is now attached during 'gh release create',
-          # so the separate upload step below is removed.
-          
-          # Upload other installers if we have them (commented out for now)
-          # MACOS_DMG=$(find release-artifacts/macos-installers -name "*.dmg" | head -1)
-          # MACOS_PKG=$(find release-artifacts/macos-installers -name "*.pkg" | head -1)
-          # LINUX_APPIMAGE=$(find release-artifacts/linux-installers -name "*.AppImage" | head -1)
-          # LINUX_DEB=$(find release-artifacts/linux-installers -name "*.deb" | head -1)
-          
-          # if [ -n "$MACOS_DMG" ]; then
-          #   gh release upload "v$VERSION" "$MACOS_DMG" --clobber
-          # fi
-          # if [ -n "$MACOS_PKG" ]; then
-          #   gh release upload "v$VERSION" "$MACOS_PKG" --clobber
-          # fi
-          # if [ -n "$LINUX_APPIMAGE" ]; then
-          #   gh release upload "v$VERSION" "$LINUX_APPIMAGE" --clobber
-          # fi
-          # if [ -n "$LINUX_DEB" ]; then
-          #   gh release upload "v$VERSION" "$LINUX_DEB" --clobber
-          # fi
           
       - name: Delete all workflow artifacts after release
         uses: geekyeggo/delete-artifact@v5

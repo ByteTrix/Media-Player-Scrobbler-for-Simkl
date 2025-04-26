@@ -15,7 +15,7 @@ on:
 
 permissions:
   contents: write
-  id-token: write  # Required for provenance and attestation
+  id-token: write  
 
 jobs:
   prepare-release:
@@ -26,7 +26,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Fetch all history for changelog generation
+          fetch-depth: 0  
 
       - name: Determine version
         id: get_version
@@ -47,7 +47,6 @@ jobs:
     uses: ./.github/workflows/build-verification.yml
     with:
       version: ${{ needs.prepare-release.outputs.version }}
-    # Permissions are inherited from the calling workflow
 
   publish-pypi:
     needs: prepare-release
@@ -68,26 +67,7 @@ jobs:
       SIMKL_CLIENT_ID: ${{ secrets.SIMKL_CLIENT_ID }}
       SIMKL_CLIENT_SECRET: ${{ secrets.SIMKL_CLIENT_SECRET }}
 
-  # build-macos:
-  #   needs: prepare-release
-  #   uses: ./.github/workflows/macos-build.yml
-  #   with:
-  #     version: ${{ needs.prepare-release.outputs.version }}
-  #   secrets:
-  #     SIMKL_CLIENT_ID: ${{ secrets.SIMKL_CLIENT_ID }}
-  #     SIMKL_CLIENT_SECRET: ${{ secrets.SIMKL_CLIENT_SECRET }}
-
-  # build-linux:
-  #   needs: prepare-release
-  #   uses: ./.github/workflows/linux-build.yml
-  #   with:
-  #     version: ${{ needs.prepare-release.outputs.version }}
-  #   secrets:
-  #     SIMKL_CLIENT_ID: ${{ secrets.SIMKL_CLIENT_ID }}
-  #     SIMKL_CLIENT_SECRET: ${{ secrets.SIMKL_CLIENT_SECRET }}
-
   create-github-release:
-    # needs: [prepare-release, publish-pypi, build-windows, build-macos, build-linux]
     needs: [prepare-release, publish-pypi, build-windows, build-verification]
     uses: ./.github/workflows/create-release.yml
     with:
