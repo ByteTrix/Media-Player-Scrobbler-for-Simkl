@@ -464,53 +464,11 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#media-player-configuration-on-windows" class="md-nav__link">
+  <a href="#media-player-configuration-on-windows-recommended" class="md-nav__link">
     <span class="md-ellipsis">
-      ⚙️ Media Player Configuration on Windows
+      ⚙️ Media Player Configuration on Windows (recommended)
     </span>
   </a>
-  
-    <nav class="md-nav" aria-label="⚙️ Media Player Configuration on Windows">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#vlc-media-player-recommended" class="md-nav__link">
-    <span class="md-ellipsis">
-      VLC Media Player (Recommended)
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#media-player-classic-mpc-hcbe" class="md-nav__link">
-    <span class="md-ellipsis">
-      Media Player Classic (MPC-HC/BE)
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#mpv-media-player" class="md-nav__link">
-    <span class="md-ellipsis">
-      MPV Media Player
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#potplayer" class="md-nav__link">
-    <span class="md-ellipsis">
-      PotPlayer
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
@@ -570,15 +528,6 @@
   <a href="#how-updates-work" class="md-nav__link">
     <span class="md-ellipsis">
       How Updates Work
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#manual-update-check" class="md-nav__link">
-    <span class="md-ellipsis">
-      Manual Update Check
     </span>
   </a>
   
@@ -709,7 +658,7 @@
 <h2 id="windows-installer">📥 Windows Installer<a class="headerlink" href="#windows-installer" title="Permanent link">&para;</a></h2>
 <p>The Windows installer provides the most streamlined experience with automatic updates and system integration.</p>
 <h3 id="download-and-installation-process">Download and Installation Process<a class="headerlink" href="#download-and-installation-process" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>flowchart TD
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>flowchart LR
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    A[Download Installer] --&gt; B[Run as Administrator]
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    B --&gt; C[Accept License Agreement]
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    C --&gt; D[Choose Install Location]
@@ -728,7 +677,7 @@
 <li><strong>Right-click</strong> the installer and select <strong>"Run as administrator"</strong> (recommended)</li>
 <li>Follow the setup wizard:</li>
 <li>Accept the license agreement</li>
-<li>Choose your preferred installation location</li>
+<li>Choose your preferred installation location (optional)</li>
 <li>Select components to install:<ul>
 <li>Desktop shortcut</li>
 <li>Start menu shortcuts</li>
@@ -751,78 +700,26 @@
 2. Authenticate with your Simkl account when prompted
 3. A system tray icon appears in the notification area
 4. <strong>CRITICAL STEP</strong>: Configure your media players for optimal tracking (see below)</p>
-<h2 id="media-player-configuration-on-windows">⚙️ Media Player Configuration on Windows<a class="headerlink" href="#media-player-configuration-on-windows" title="Permanent link">&para;</a></h2>
-<p>For the best movie tracking experience, configure your preferred media players:</p>
-<h3 id="vlc-media-player-recommended">VLC Media Player (Recommended)<a class="headerlink" href="#vlc-media-player-recommended" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>flowchart TD
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>    A[Open VLC] --&gt; B[Tools → Preferences]
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>    B --&gt; C[Show Settings: All]
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>    C --&gt; D[Interface → Main interfaces]
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>    D --&gt; E[Check &#39;Web&#39; option]
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>    E --&gt; F[Interface → Main interfaces → Lua]
-<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>    F --&gt; G[Set HTTP Password]
-<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>    G --&gt; H[Save &amp; Restart VLC]
-<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>    style A fill:#d4f1f9,stroke:#333,stroke-width:2px
-<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>    style H fill:#d5f5e3,stroke:#333,stroke-width:2px
-</code></pre></div>
-<p><strong>Step-by-Step Configuration:</strong>
-1. Open VLC Media Player
-2. Navigate to <strong>Tools → Preferences</strong>
-3. At the bottom left, change <strong>Show settings</strong> to <strong>All</strong>
-4. Navigate to <strong>Interface → Main interfaces</strong>
-5. Check the box for <strong>Web</strong> to enable the web interface
-6. Go to <strong>Interface → Main interfaces → Lua</strong>
-7. Set a password in the <strong>Lua HTTP Password</strong> field
-8. Click <strong>Save</strong> and restart VLC</p>
-<h3 id="media-player-classic-mpc-hcbe">Media Player Classic (MPC-HC/BE)<a class="headerlink" href="#media-player-classic-mpc-hcbe" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>flowchart TD
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>    A[Open MPC-HC/BE] --&gt; B[View → Options]
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>    B --&gt; C[Player → Web Interface]
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>    C --&gt; D[Enable Web Interface]
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>    D --&gt; E[Set port to 13579]
-<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>    E --&gt; F[OK and Restart]
-<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>    style A fill:#d4f1f9,stroke:#333,stroke-width:2px
-<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>    style F fill:#d5f5e3,stroke:#333,stroke-width:2px
-</code></pre></div>
-<p><strong>Configuration Steps:</strong>
-1. Open MPC-HC or MPC-BE
-2. Navigate to <strong>View → Options</strong>
-3. Go to <strong>Player → Web Interface</strong>
-4. Check <strong>Listen on port:</strong> and ensure it's set to <strong>13579</strong> (default)
-5. Click <strong>OK</strong> and restart MPC</p>
-<h3 id="mpv-media-player">MPV Media Player<a class="headerlink" href="#mpv-media-player" title="Permanent link">&para;</a></h3>
-<p><strong>Configuration Steps:</strong>
-1. Navigate to <code>%APPDATA%\mpv\</code> (create it if it doesn't exist)
-2. Create or edit the <code>mpv.conf</code> file
-3. Add the following line:
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>input-ipc-server=\\.\pipe\mpvsocket
-</code></pre></div>
-4. Save the file and restart MPV</p>
-<h3 id="potplayer">PotPlayer<a class="headerlink" href="#potplayer" title="Permanent link">&para;</a></h3>
-<p><strong>Configuration Steps:</strong>
-1. Open PotPlayer
-2. Navigate to <strong>Preferences</strong> (F5)
-3. Go to <strong>Network → Remote Control</strong>
-4. Enable <strong>HTTP control</strong>
-5. Set the port to <strong>8080</strong> (or another port of your choice)
-6. Click <strong>OK</strong> and restart PotPlayer</p>
+<h2 id="media-player-configuration-on-windows-recommended">⚙️ Media Player Configuration on Windows (recommended)<a class="headerlink" href="#media-player-configuration-on-windows-recommended" title="Permanent link">&para;</a></h2>
+<p>For the best movie tracking experience, configure your preferred media players:
+<a href="media_players.md">Media Players</a></p>
 <h2 id="windows-system-integration">🖥️ Windows System Integration<a class="headerlink" href="#windows-system-integration" title="Permanent link">&para;</a></h2>
 <h3 id="system-tray-features">System Tray Features<a class="headerlink" href="#system-tray-features" title="Permanent link">&para;</a></h3>
 <p>Right-click the system tray icon to access:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>flowchart TD
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>    A[System Tray Icon] --&gt;|Right-click| B[Context Menu]
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>    B --&gt; C[Status Information]
-<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>    B --&gt; D[Start/Pause Tracking]
-<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>    B --&gt; E[Tools Submenu]
-<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>    E --&gt; E1[Open Logs]
-<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>    E --&gt; E2[Config Directory]
-<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>    E --&gt; E3[Process Backlog]
-<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>    B --&gt; F[Check for Updates]
-<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a>    B --&gt; G[Help/About]
-<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a>    B --&gt; H[Exit]
-<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a>    style A fill:#4285f4,stroke:#333,stroke-width:2px,color:#fff
-<a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a>    style D fill:#34a853,stroke:#333,stroke-width:2px,color:#fff
-<a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a>    style F fill:#fbbc05,stroke:#333,stroke-width:2px
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>flowchart TD
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>    A[System Tray Icon] --&gt;|Right-click| B[Context Menu]
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>    B --&gt; C[Status Information]
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>    B --&gt; D[Start/Pause Tracking]
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>    B --&gt; E[Tools Submenu]
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>    E --&gt; E1[Open Logs]
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>    E --&gt; E2[Config Directory]
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>    E --&gt; E3[Process Backlog]
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>    B --&gt; F[Check for Updates]
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>    B --&gt; G[Help/About]
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>    B --&gt; H[Exit]
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>    style A fill:#4285f4,stroke:#333,stroke-width:2px,color:#fff
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>    style D fill:#34a853,stroke:#333,stroke-width:2px,color:#fff
+<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a>    style F fill:#fbbc05,stroke:#333,stroke-width:2px
 </code></pre></div>
 <ul>
 <li><strong>Status information</strong>: Current monitoring state and connection status</li>
@@ -846,39 +743,21 @@
 </ul>
 <h2 id="windows-update-system">🔄 Windows Update System<a class="headerlink" href="#windows-update-system" title="Permanent link">&para;</a></h2>
 <p>The Windows installer version includes an automatic update system:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>flowchart TD
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>    A[Update Process] --&gt; B{Auto-check enabled?}
-<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>    B --&gt;|Yes| C[Weekly Background Check]
-<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>    B --&gt;|No| D[Manual Check]
-<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>    C --&gt; E{Update Available?}
-<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>    D --&gt; E
-<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>    E --&gt;|Yes| F[Notification]
-<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>    F --&gt; G[Install Update?]
-<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>    G --&gt;|Yes| H[Download Update]
-<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a>    H --&gt; I[Install &amp; Restart]
-<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a>    style A fill:#4285f4,stroke:#333,stroke-width:2px,color:#fff
-<a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a>    style I fill:#34a853,stroke:#333,stroke-width:2px,color:#fff
-</code></pre></div>
 <h3 id="how-updates-work">How Updates Work<a class="headerlink" href="#how-updates-work" title="Permanent link">&para;</a></h3>
 <ol>
 <li>If auto-check is enabled, the application checks for updates weekly</li>
 <li>When an update is available, a notification appears</li>
-<li>Click the notification or update option in the tray menu</li>
-<li>The update downloads and installs automatically</li>
+<li>Click the update option in the tray menu</li>
+<li>Your default browser opens and the update downloads automatically</li>
+<li>Install the Setup</li>
 <li>The application restarts with the new version</li>
-</ol>
-<h3 id="manual-update-check">Manual Update Check<a class="headerlink" href="#manual-update-check" title="Permanent link">&para;</a></h3>
-<ol>
-<li>Right-click the system tray icon</li>
-<li>Select <strong>Check for Updates</strong></li>
-<li>Follow the prompts if an update is available</li>
 </ol>
 <h2 id="optimizing-for-windows">🚀 Optimizing for Windows<a class="headerlink" href="#optimizing-for-windows" title="Permanent link">&para;</a></h2>
 <h3 id="performance-tips">Performance Tips<a class="headerlink" href="#performance-tips" title="Permanent link">&para;</a></h3>
 <ol>
 <li><strong>Use the Windows installer</strong> for the best experience</li>
 <li>Enable <strong>auto-start</strong> for convenience</li>
-<li>Configure <strong>VLC</strong> or <strong>MPV</strong> for the most accurate tracking</li>
+<li>Configure <strong>VLC</strong> or <strong>MCP-HC</strong> for the most accurate tracking</li>
 <li>Use the <strong>system tray menu</strong> for quick access to functions</li>
 <li><strong>Proper filenames</strong> significantly improve movie identification:</li>
 <li>Best format: <code>Movie Title (Year).extension</code></li>
@@ -889,7 +768,7 @@
 <li><strong>Memory</strong>: 30-60 MB (typical)</li>
 <li><strong>CPU</strong>: Minimal (1-2% during active tracking)</li>
 <li><strong>Disk</strong>: ~20 MB for installation + small database (~1 MB)</li>
-<li><strong>Network</strong>: Only when identifying movies or syncing with Simkl</li>
+<li><strong>Network</strong>: Only when syncing with Simkl</li>
 </ul>
 <h2 id="windows-troubleshooting">🔍 Windows Troubleshooting<a class="headerlink" href="#windows-troubleshooting" title="Permanent link">&para;</a></h2>
 <h3 id="common-issues">Common Issues<a class="headerlink" href="#common-issues" title="Permanent link">&para;</a></h3>
@@ -942,10 +821,10 @@
 <p>To remove the application from your Windows system:</p>
 <ol>
 <li>Open <strong>Settings → Apps → Apps &amp; features</strong></li>
-<li>Find "Media Player Scrobbler for SIMKL"</li>
+<li>Find "MPS for SIMKL"</li>
 <li>Click <strong>Uninstall</strong></li>
 <li>Follow the uninstallation wizard</li>
-<li>Choose whether to remove user data (settings, logs, backlog)</li>
+<li>Choose whether to remove user data (settings, logs, backlog) ("No" is Recommended)</li>
 </ol>
 <h2 id="final-checklist-for-windows-users">🔔 Final Checklist for Windows Users<a class="headerlink" href="#final-checklist-for-windows-users" title="Permanent link">&para;</a></h2>
 <ol>
@@ -978,7 +857,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="April 25, 2025 19:24:44">April 25, 2025</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="April 26, 2025 18:53:55">April 26, 2025</span>
   </span>
 
     
