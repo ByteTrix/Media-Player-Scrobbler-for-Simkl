@@ -252,7 +252,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../installation/" class="md-nav__link">
+      <a href="../installation.md" class="md-nav__link">
         
   
   
@@ -422,15 +422,6 @@
   
 </li>
         
-          <li class="md-nav__item">
-  <a href="#potplayer" class="md-nav__link">
-    <span class="md-ellipsis">
-      PotPlayer
-    </span>
-  </a>
-  
-</li>
-        
       </ul>
     </nav>
   
@@ -465,9 +456,18 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#infuse-apple-tvios" class="md-nav__link">
+  <a href="#infuse-macos" class="md-nav__link">
     <span class="md-ellipsis">
-      Infuse (Apple TV/iOS)
+      Infuse (macOS)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#quicktime" class="md-nav__link">
+    <span class="md-ellipsis">
+      QuickTime
     </span>
   </a>
   
@@ -741,15 +741,6 @@
   
 </li>
         
-          <li class="md-nav__item">
-  <a href="#potplayer" class="md-nav__link">
-    <span class="md-ellipsis">
-      PotPlayer
-    </span>
-  </a>
-  
-</li>
-        
       </ul>
     </nav>
   
@@ -784,9 +775,18 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#infuse-apple-tvios" class="md-nav__link">
+  <a href="#infuse-macos" class="md-nav__link">
     <span class="md-ellipsis">
-      Infuse (Apple TV/iOS)
+      Infuse (macOS)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#quicktime" class="md-nav__link">
+    <span class="md-ellipsis">
+      QuickTime
     </span>
   </a>
   
@@ -978,12 +978,12 @@
 <td style="text-align: center;">Easy</td>
 </tr>
 <tr>
-<td>PotPlayer</td>
-<td style="text-align: center;">✅</td>
-<td style="text-align: center;">❌</td>
+<td>Infuse</td>
 <td style="text-align: center;">❌</td>
 <td style="text-align: center;">✅</td>
-<td style="text-align: center;">Easy</td>
+<td style="text-align: center;">❌</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">Moderate</td>
 </tr>
 <tr>
 <td>Windows Media Player</td>
@@ -1000,14 +1000,6 @@
 <td style="text-align: center;">❌</td>
 <td style="text-align: center;">❌</td>
 <td style="text-align: center;">Not Available</td>
-</tr>
-<tr>
-<td>Infuse</td>
-<td style="text-align: center;">❌</td>
-<td style="text-align: center;">✅</td>
-<td style="text-align: center;">❌</td>
-<td style="text-align: center;">✅</td>
-<td style="text-align: center;">Moderate</td>
 </tr>
 <tr>
 <td>Other Players</td>
@@ -1083,17 +1075,6 @@
 - Play a movie in MPC
 - The scrobbler will connect to the web interface
 - Position data should be accurately tracked</p>
-<h3 id="potplayer">PotPlayer<a class="headerlink" href="#potplayer" title="Permanent link">&para;</a></h3>
-<p><strong>Configuration Steps:</strong>
-1. Open PotPlayer
-2. Navigate to <strong>Preferences</strong> (F5)
-3. Go to <strong>Network → Remote Control</strong>
-4. Enable <strong>HTTP control</strong>
-5. Set the port to <strong>8080</strong> (or another port of your choice)
-6. Click <strong>OK</strong> and restart PotPlayer</p>
-<p><strong>Verification:</strong>
-- The scrobbler connects to PotPlayer's HTTP control interface
-- Position data should be accurately tracked during playback</p>
 <hr />
 <h2 id="macos-media-player-configuration">🍏 macOS Media Player Configuration<a class="headerlink" href="#macos-media-player-configuration" title="Permanent link">&para;</a></h2>
 <h3 id="vlc-media-player">VLC Media Player<a class="headerlink" href="#vlc-media-player" title="Permanent link">&para;</a></h3>
@@ -1109,8 +1090,20 @@
 </code></pre></div></li>
 <li>Save and restart MPV</li>
 </ol>
-<h3 id="infuse-apple-tvios">Infuse (Apple TV/iOS)<a class="headerlink" href="#infuse-apple-tvios" title="Permanent link">&para;</a></h3>
-<p>Infuse requires special configuration through its settings menu.</p>
+<h3 id="infuse-macos">Infuse (macOS)<a class="headerlink" href="#infuse-macos" title="Permanent link">&para;</a></h3>
+<p>Infuse is a popular media player for macOS (and iOS/Apple TV). To enable tracking with Infuse:</p>
+<ol>
+<li>Ensure Infuse is running on your Mac.</li>
+<li>Enable network sharing or remote control features in Infuse settings (if available).</li>
+<li>Make sure your Mac firewall allows connections from the scrobbler.</li>
+<li>The scrobbler will attempt to detect Infuse windows and parse titles for tracking.</li>
+<li>Advanced integration may require additional setup in future releases.</li>
+</ol>
+<blockquote>
+<p><strong>Note:</strong> Infuse support is experimental and may require further configuration or updates.</p>
+</blockquote>
+<h3 id="quicktime">QuickTime<a class="headerlink" href="#quicktime" title="Permanent link">&para;</a></h3>
+<p>Basic window title tracking only. No advanced integration available.</p>
 <hr />
 <h2 id="linux-media-player-configuration">🐧 Linux Media Player Configuration<a class="headerlink" href="#linux-media-player-configuration" title="Permanent link">&para;</a></h2>
 <h3 id="vlc-media-player_1">VLC Media Player<a class="headerlink" href="#vlc-media-player_1" title="Permanent link">&para;</a></h3>
@@ -1227,11 +1220,6 @@
 <td>Verify port is set to 13579</td>
 </tr>
 <tr>
-<td>PotPlayer not tracking</td>
-<td>HTTP control disabled</td>
-<td>Enable HTTP control in preferences</td>
-</tr>
-<tr>
 <td>General tracking issues</td>
 <td>Filename format</td>
 <td>Ensure movie files follow naming best practices</td>
@@ -1257,7 +1245,7 @@
 <th>VLC</th>
 <th>MPV</th>
 <th>MPC-HC/BE</th>
-<th>PotPlayer</th>
+<th>Infuse</th>
 </tr>
 </thead>
 <tbody>
@@ -1266,7 +1254,7 @@
 <td>★★★★☆</td>
 <td>★★★☆☆</td>
 <td>★★★★☆</td>
-<td>★★★★☆</td>
+<td>★★★☆☆</td>
 </tr>
 <tr>
 <td>Cross-platform</td>
@@ -1294,7 +1282,7 @@
 <td>Beginners</td>
 <td>Power users</td>
 <td>Windows users</td>
-<td>Windows users</td>
+<td>Mac users</td>
 </tr>
 </tbody>
 </table>
@@ -1321,7 +1309,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="April 25, 2025 19:24:44">April 25, 2025</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="April 26, 2025 13:57:00">April 26, 2025</span>
   </span>
 
     

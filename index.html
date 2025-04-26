@@ -14,7 +14,7 @@
       
       
       
-        <link rel="next" href="installation/">
+        <link rel="next" href="configuration/">
       
       
       <link rel="icon" href="assets/images/favicon.png">
@@ -346,7 +346,7 @@
   
   
     <li class="md-nav__item">
-      <a href="installation/" class="md-nav__link">
+      <a href="installation.md" class="md-nav__link">
         
   
   
@@ -604,48 +604,42 @@
 </div>
 
 <h2 id="what-is-mps-for-simkl">What is MPS for SIMKL?<a class="headerlink" href="#what-is-mps-for-simkl" title="Permanent link">&para;</a></h2>
-<p>MPS for SIMKL (Media Player Scrobbler) is a cross-platform app that automatically tracks your movie watching in popular media players and syncs your progress to your SIMKL account. It runs in the background or system tray, requires minimal setup, and supports Windows, macOS, and Linux.</p>
+<p>MPS for SIMKL (Media Player Scrobbler) is a cross-platform app that automatically tracks your movie watching in popular media players and syncs your progress to your SIMKL account. It runs in the background or system tray, requires minimal setup, and supports Windows, macOS (experimental), and Linux.</p>
 <h2 id="quick-start">⚡ Quick Start<a class="headerlink" href="#quick-start" title="Permanent link">&para;</a></h2>
 <ul>
-<li>
-<p><strong>Windows:</strong> <a href="https://github.com/kavinthangavel/media-player-scrobbler-for-simkl/releases/latest">Download the installer</a> and follow the setup wizard.</p>
-</li>
-<li>
-<p><strong>macOS/Linux:</strong> [Testing in Progress]
-  <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pip<span class="w"> </span>install<span class="w"> </span>simkl-mps
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>simkl-mps<span class="w"> </span>start
-</code></pre></div></p>
-</li>
-<li>Authenticate with SIMKL when prompted.</li>
+<li><strong>Windows:</strong> Use the <a href="windows-guide/">Windows Guide</a> (EXE installer, tray app, no commands needed).</li>
+<li><strong>Linux:</strong> Use the <a href="linux-guide/">Linux Guide</a> (pipx recommended, tray app, setup command needed).</li>
+<li><strong>macOS:</strong> Use the <a href="mac-guide/">Mac Guide</a> (pip install, tray app, setup command needed, experimental/untested).</li>
 </ul>
-<p>See the <a href="installation/">Installation Guide</a> for full details.</p>
+<p>After installation, authenticate with SIMKL and <strong>configure your media players</strong> using the <a href="media-players/">Media Players Guide</a> (this step is critical for accurate tracking).</p>
 <h2 id="documentation">📚 Documentation<a class="headerlink" href="#documentation" title="Permanent link">&para;</a></h2>
 <ul>
-<li><a href="installation/">Installation Guide</a></li>
-<li><a href="usage/">Usage Guide</a></li>
+<li><a href="windows-guide/">Windows Guide</a></li>
+<li><a href="linux-guide/">Linux Guide</a></li>
+<li><a href="mac-guide/">Mac Guide</a></li>
 <li><a href="media-players/">Supported Media Players</a></li>
-<li><a href="configuration/">Configuration</a></li>
-<li><a href="troubleshooting/">Troubleshooting</a></li>
-<li><a href="development/">Development Guide</a></li>
+<li><a href="usage/">Usage Guide</a></li>
+<li><a href="configuration/">Advanced &amp; Developer Guide</a></li>
+<li><a href="troubleshooting/">Troubleshooting Guide</a></li>
 <li><a href="todo/">Todo List</a></li>
 </ul>
 <h2 id="how-it-works">🔍 How It Works<a class="headerlink" href="#how-it-works" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>graph TD
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>    A[Media Player] --&gt;|Active Window| B[MPS for SIMKL]
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>    B --&gt;|Extract Information| C[Parse Media Title]
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>    C --&gt;|Search| D[SIMKL API]
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>    D --&gt;|Metadata| E[Track Progress]
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>    E --&gt;|&gt;80% Complete| F[Mark as Watched]
-<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>    F --&gt;|Update| G[SIMKL Profile]
-<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>    style A fill:#d5f5e3,stroke:#333,stroke-width:2px
-<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>    style G fill:#d5f5e3,stroke:#333,stroke-width:2px
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>graph TD
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    A[Media Player] --&gt;|Playback Info| B[MPS for SIMKL]
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    B --&gt;|Extract &amp; Parse| C[Identify Media Title]
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    C --&gt;|Search| D[SIMKL API]
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    D --&gt;|Metadata| E[Track Progress]
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    E --&gt;|&gt;80% Complete| F[Mark as Watched]
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    F --&gt;|Update| G[SIMKL Profile]
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    style A fill:#d5f5e3,stroke:#333,stroke-width:2px
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    style G fill:#d5f5e3,stroke:#333,stroke-width:2px
 </code></pre></div>
 <ol>
-<li><strong>Detection:</strong> Monitors active windows to detect media players</li>
-<li><strong>Identification:</strong> Extracts and matches media titles against SIMKL</li>
-<li><strong>Tracking:</strong> Monitors playback position</li>
-<li><strong>Completion:</strong> Marks as watched when threshold is reached</li>
-<li><strong>Sync:</strong> Updates your SIMKL profile automatically</li>
+<li><strong>Detection:</strong> Monitors media players via window titles or player APIs.</li>
+<li><strong>Identification:</strong> Extracts and matches media titles against SIMKL.</li>
+<li><strong>Tracking:</strong> Monitors playback position (requires player configuration via <a href="media-players/">Media Players Guide</a>).</li>
+<li><strong>Completion:</strong> Marks as watched when the configured threshold (default 80%) is reached.</li>
+<li><strong>Sync:</strong> Updates your SIMKL profile automatically.</li>
 </ol>
 <h2 id="performance-notes">🚦 Performance Notes<a class="headerlink" href="#performance-notes" title="Permanent link">&para;</a></h2>
 <ul>
@@ -686,7 +680,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="April 25, 2025 19:24:44">April 25, 2025</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="April 26, 2025 13:57:00">April 26, 2025</span>
   </span>
 
     
