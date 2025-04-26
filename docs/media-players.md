@@ -40,19 +40,6 @@ graph TD
 
 ### VLC Media Player (Recommended)
 
-```mermaid
-flowchart TD
-    A[Open VLC] --> B[Tools → Preferences]
-    B --> C[Show Settings: All]
-    C --> D[Interface → Main interfaces]
-    D --> E[Check 'Web' option]
-    E --> F[Interface → Main interfaces → Lua]
-    F --> G[Set HTTP Password]
-    G --> H[Save & Restart VLC]
-    style A fill:#d4f1f9,stroke:#333,stroke-width:2px
-    style H fill:#d5f5e3,stroke:#333,stroke-width:2px
-```
-
 **Step-by-Step Configuration:**
 1. Open VLC Media Player
 2. Navigate to **Tools → Preferences**
@@ -63,6 +50,10 @@ flowchart TD
 7. Set a password in the **Lua HTTP Password** field (remember this password)
 8. Optional: Change the port number (default is 8080)
 9. Click **Save** and restart VLC
+10. Visit http://localhost:8080/
+11. Enter Your Password (Set in Step 7) 
+
+> For Detailed Step by Step Config [Config with Images](https://github.com/azrafe7/vlc4youtube/blob/55946aaea09375cfa4dc0dbae0428ad13eb9e046/instructions/how-to-enable-vlc-web-interface.md) - Make Sure to set a Password
 
 **Verification:**
 - The scrobbler will automatically connect to VLC on port 8080 (or your custom port)
@@ -72,14 +63,16 @@ flowchart TD
 
 **Windows Configuration:**
 1. Locate or create the MPV configuration directory:
+   - Press `Win+R` and enter `%APPDATA%` to open the Roaming folder
+   Or
    - Navigate to `%APPDATA%\mpv\` (create it if it doesn't exist)
-2. Create or edit `mpv.conf` file
-3. Add the following lines:
+3. Create or edit `mpv.conf` file
+4. Add the following lines:
    ```
    # Enable IPC socket for advanced tracking
    input-ipc-server=\\.\pipe\mpvsocket
    ```
-4. Save the file and restart MPV
+5. Save the file and restart MPV
 
 **Verification:**
 - Play a movie in MPV
@@ -87,17 +80,6 @@ flowchart TD
 - Position data should be accurately tracked
 
 ### MPC-HC/BE (Media Player Classic)
-
-```mermaid
-flowchart TD
-    A[Open MPC-HC/BE] --> B[View → Options]
-    B --> C[Player → Web Interface]
-    C --> D[Enable Web Interface]
-    D --> E[Set port to 13579]
-    E --> F[Save & Restart]
-    style A fill:#d4f1f9,stroke:#333,stroke-width:2px
-    style F fill:#d5f5e3,stroke:#333,stroke-width:2px
-```
 
 **Step-by-Step Configuration:**
 1. Open MPC-HC or MPC-BE
@@ -177,7 +159,7 @@ graph LR
     A[Player Integration Methods] --> B[Web Interface]
     A --> C[IPC Socket]
     A --> D[Window Title]
-    B --> E[VLC, MPC, PotPlayer]
+    B --> E[VLC, MPC]
     C --> F[MPV]
     D --> G[Other Players]
     E --> H[Position + Filename]
@@ -233,7 +215,7 @@ graph TD
 - Include the year for better identification
 - Avoid extra text like quality info or release group names in main filename
 - Remove unnecessary punctuation
-- If the movie has a subtitle, include it: `Movie Title: Subtitle (Year).ext`
+
 
 ---
 
@@ -267,9 +249,9 @@ graph TD
 
 | Feature | VLC | MPV | MPC-HC/BE | Infuse |
 |---------|-----|-----|-----------|--------|
-| Ease of configuration | ★★★★☆ | ★★★☆☆ | ★★★★☆ | ★★★☆☆ |
+| Ease of configuration | ★★★★☆ | ★★☆☆☆ | ★★★★☆ | ★★★☆☆ |
 | Cross-platform | ✅ | ✅ | ❌ | ❌ |
-| Position accuracy | High | Very High | High | High |
+| Position accuracy | Very High | High | Very High | High |
 | Resource usage | Moderate | Low | Low | Moderate |
 | Recommended for | Beginners | Power users | Windows users | Mac users |
 
