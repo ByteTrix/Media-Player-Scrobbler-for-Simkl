@@ -11,7 +11,7 @@ The Windows installer provides the most streamlined experience with automatic up
 ### Download and Installation Process
 
 ```mermaid
-flowchart TD
+flowchart LR
     A[Download Installer] --> B[Run as Administrator]
     B --> C[Accept License Agreement]
     C --> D[Choose Install Location]
@@ -30,7 +30,7 @@ flowchart TD
 2. **Right-click** the installer and select **"Run as administrator"** (recommended)
 3. Follow the setup wizard:
    - Accept the license agreement
-   - Choose your preferred installation location
+   - Choose your preferred installation location (optional)
    - Select components to install:
      - Desktop shortcut
      - Start menu shortcuts
@@ -53,75 +53,11 @@ After installation completes:
 3. A system tray icon appears in the notification area
 4. **CRITICAL STEP**: Configure your media players for optimal tracking (see below)
 
-## ⚙️ Media Player Configuration on Windows
+## ⚙️ Media Player Configuration on Windows (recommended)
 
 For the best movie tracking experience, configure your preferred media players:
+[Media Players](media_players.md)
 
-### VLC Media Player (Recommended)
-
-```mermaid
-flowchart TD
-    A[Open VLC] --> B[Tools → Preferences]
-    B --> C[Show Settings: All]
-    C --> D[Interface → Main interfaces]
-    D --> E[Check 'Web' option]
-    E --> F[Interface → Main interfaces → Lua]
-    F --> G[Set HTTP Password]
-    G --> H[Save & Restart VLC]
-    style A fill:#d4f1f9,stroke:#333,stroke-width:2px
-    style H fill:#d5f5e3,stroke:#333,stroke-width:2px
-```
-
-**Step-by-Step Configuration:**
-1. Open VLC Media Player
-2. Navigate to **Tools → Preferences**
-3. At the bottom left, change **Show settings** to **All**
-4. Navigate to **Interface → Main interfaces**
-5. Check the box for **Web** to enable the web interface
-6. Go to **Interface → Main interfaces → Lua**
-7. Set a password in the **Lua HTTP Password** field
-8. Click **Save** and restart VLC
-
-### Media Player Classic (MPC-HC/BE)
-
-```mermaid
-flowchart TD
-    A[Open MPC-HC/BE] --> B[View → Options]
-    B --> C[Player → Web Interface]
-    C --> D[Enable Web Interface]
-    D --> E[Set port to 13579]
-    E --> F[OK and Restart]
-    style A fill:#d4f1f9,stroke:#333,stroke-width:2px
-    style F fill:#d5f5e3,stroke:#333,stroke-width:2px
-```
-
-**Configuration Steps:**
-1. Open MPC-HC or MPC-BE
-2. Navigate to **View → Options**
-3. Go to **Player → Web Interface**
-4. Check **Listen on port:** and ensure it's set to **13579** (default)
-5. Click **OK** and restart MPC
-
-### MPV Media Player
-
-**Configuration Steps:**
-1. Navigate to `%APPDATA%\mpv\` (create it if it doesn't exist)
-2. Create or edit the `mpv.conf` file
-3. Add the following line:
-   ```
-   input-ipc-server=\\.\pipe\mpvsocket
-   ```
-4. Save the file and restart MPV
-
-### PotPlayer
-
-**Configuration Steps:**
-1. Open PotPlayer
-2. Navigate to **Preferences** (F5)
-3. Go to **Network → Remote Control**
-4. Enable **HTTP control**
-5. Set the port to **8080** (or another port of your choice)
-6. Click **OK** and restart PotPlayer
 
 ## 🖥️ Windows System Integration
 
@@ -170,34 +106,15 @@ If you selected auto-start during installation, the application will launch auto
 
 The Windows installer version includes an automatic update system:
 
-```mermaid
-flowchart TD
-    A[Update Process] --> B{Auto-check enabled?}
-    B -->|Yes| C[Weekly Background Check]
-    B -->|No| D[Manual Check]
-    C --> E{Update Available?}
-    D --> E
-    E -->|Yes| F[Notification]
-    F --> G[Install Update?]
-    G -->|Yes| H[Download Update]
-    H --> I[Install & Restart]
-    style A fill:#4285f4,stroke:#333,stroke-width:2px,color:#fff
-    style I fill:#34a853,stroke:#333,stroke-width:2px,color:#fff
-```
-
 ### How Updates Work
 
 1. If auto-check is enabled, the application checks for updates weekly
 2. When an update is available, a notification appears
-3. Click the notification or update option in the tray menu
-4. The update downloads and installs automatically
-5. The application restarts with the new version
+3. Click the update option in the tray menu
+4. Your default browser opens and the update downloads automatically
+5. Install the Setup
+6. The application restarts with the new version
 
-### Manual Update Check
-
-1. Right-click the system tray icon
-2. Select **Check for Updates**
-3. Follow the prompts if an update is available
 
 ## 🚀 Optimizing for Windows
 
@@ -205,7 +122,7 @@ flowchart TD
 
 1. **Use the Windows installer** for the best experience
 2. Enable **auto-start** for convenience
-3. Configure **VLC** or **MPV** for the most accurate tracking
+3. Configure **VLC** or **MCP-HC** for the most accurate tracking
 4. Use the **system tray menu** for quick access to functions
 5. **Proper filenames** significantly improve movie identification:
    - Best format: `Movie Title (Year).extension`
@@ -216,7 +133,7 @@ flowchart TD
 - **Memory**: 30-60 MB (typical)
 - **CPU**: Minimal (1-2% during active tracking)
 - **Disk**: ~20 MB for installation + small database (~1 MB)
-- **Network**: Only when identifying movies or syncing with Simkl
+- **Network**: Only when syncing with Simkl
 
 ## 🔍 Windows Troubleshooting
 
@@ -249,10 +166,10 @@ For advanced troubleshooting:
 To remove the application from your Windows system:
 
 1. Open **Settings → Apps → Apps & features**
-2. Find "Media Player Scrobbler for SIMKL"
+2. Find "MPS for SIMKL"
 3. Click **Uninstall**
 4. Follow the uninstallation wizard
-5. Choose whether to remove user data (settings, logs, backlog)
+5. Choose whether to remove user data (settings, logs, backlog) ("No" is Recommended)
 
 ## 🔔 Final Checklist for Windows Users
 
