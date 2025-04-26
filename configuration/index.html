@@ -676,23 +676,6 @@
 <p>This guide combines advanced configuration and developer documentation for MPS for SIMKL.</p>
 <h2 id="advanced-configuration">🛠️ Advanced Configuration<a class="headerlink" href="#advanced-configuration" title="Permanent link">&para;</a></h2>
 <p>Settings can be customized via config files, environment variables, or command-line options. See the <a href="../media-players/">Media Players Guide</a> for player-specific settings.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>graph TD
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    A[Config Sources] --&gt; B[CLI Args]
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    A --&gt; C[Config File]
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    A --&gt; D[Env Vars]
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    A --&gt; E[Defaults]
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    B --&gt; F[Config Manager]
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    C --&gt; F
-<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    D --&gt; F
-<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    E --&gt; F
-<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    F --&gt; G[App Settings]
-<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    G --&gt; H[Tracking]
-<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>    G --&gt; I[Network]
-<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>    G --&gt; J[UI]
-<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>    G --&gt; K[Logging]
-<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>    style A fill:#4285f4,stroke:#333,stroke-width:2px,color:#fff
-<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>    style F fill:#34a853,stroke:#333,stroke-width:2px,color:#fff
-</code></pre></div>
 <h3 id="config-file-locations">Config File Locations<a class="headerlink" href="#config-file-locations" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
@@ -717,30 +700,30 @@
 </tbody>
 </table>
 <h3 id="example-settings">Example Settings<a class="headerlink" href="#example-settings" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># .simkl_mps.env</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="na">SIMKL_ACCESS_TOKEN</span><span class="o">=</span><span class="s">your_access_token_here</span>
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="na">SIMKL_POLL_INTERVAL</span><span class="o">=</span><span class="s">10</span>
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="na">SIMKL_COMPLETION_THRESHOLD</span><span class="o">=</span><span class="s">80</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># .simkl_mps.env</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="na">SIMKL_ACCESS_TOKEN</span><span class="o">=</span><span class="s">your_access_token_here</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="na">SIMKL_POLL_INTERVAL</span><span class="o">=</span><span class="s">10</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="na">SIMKL_COMPLETION_THRESHOLD</span><span class="o">=</span><span class="s">80</span>
 </code></pre></div>
 <p>See <a href="../media-players/">Media Players Guide</a> for player-specific environment variables.</p>
 <hr />
 <h2 id="developer-guide">👩‍💻 Developer Guide<a class="headerlink" href="#developer-guide" title="Permanent link">&para;</a></h2>
 <h3 id="project-structure">Project Structure<a class="headerlink" href="#project-structure" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>simkl-movie-tracker/
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>  docs/                # Documentation
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>  simkl_mps/           # Main package
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>    players/           # Media player integrations
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>    utils/             # Utility functions
-<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>  pyproject.toml       # Project metadata
-<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>  README.md            # Project overview
-<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>  LICENSE              # License info
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>simkl-movie-tracker/
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>  docs/                # Documentation
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>  simkl_mps/           # Main package
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>    players/           # Media player integrations
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>    utils/             # Utility functions
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>  pyproject.toml       # Project metadata
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>  README.md            # Project overview
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>  LICENSE              # License info
 </code></pre></div>
 <h3 id="setup-environment">Setup &amp; Environment<a class="headerlink" href="#setup-environment" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/kavinthangavel/simkl-movie-tracker.git
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="nb">cd</span><span class="w"> </span>simkl-movie-tracker
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>poetry<span class="w"> </span>install<span class="w"> </span>--with<span class="w"> </span>dev
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="c1"># or</span>
-<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span><span class="s2">&quot;.[dev]&quot;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/kavinthangavel/simkl-movie-tracker.git
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="nb">cd</span><span class="w"> </span>simkl-movie-tracker
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>poetry<span class="w"> </span>install<span class="w"> </span>--with<span class="w"> </span>dev
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="c1"># or</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span><span class="s2">&quot;.[dev]&quot;</span>
 </code></pre></div>
 <h3 id="adding-a-new-media-player">Adding a New Media Player<a class="headerlink" href="#adding-a-new-media-player" title="Permanent link">&para;</a></h3>
 <ol>
@@ -750,30 +733,30 @@
 <li>Update detection in <code>window_detection.py</code></li>
 </ol>
 <h3 id="building-publishing">Building &amp; Publishing<a class="headerlink" href="#building-publishing" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>poetry<span class="w"> </span>build
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>poetry<span class="w"> </span>publish
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>poetry<span class="w"> </span>build
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>poetry<span class="w"> </span>publish
 </code></pre></div>
 <h3 id="architecture-overview">Architecture Overview<a class="headerlink" href="#architecture-overview" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>graph TD
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>    A[Window Detection] --&gt;|Active Windows| B[Media Monitor]
-<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>    B --&gt;|Window Info| C[Movie Scrobbler]
-<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>    C --&gt;|Movie Title| D[Title Parser]
-<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>    D --&gt;|Parsed Info| E[SIMKL API Client]
-<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>    E --&gt;|Movie ID &amp; Metadata| F[Progress Tracker]
-<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>    F --&gt;|Position Updates| G{Completion Check}
-<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>    G --&gt;|&gt;80% Complete| H[Mark as Watched]
-<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>    G --&gt;|&lt;80% Complete| F
-<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a>    I[Player Integrations] --&gt;|Position &amp; Duration| F
-<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a>    J[Backlog Cleaner] &lt;--&gt;|Offline Queue| C
-<a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a>    K[Media Cache] &lt;--&gt;|Movie Info| C
-<a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a>    L[Tray Application] &lt;--&gt;|Status &amp; Controls| B
-<a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a>    I -.-&gt;|Connectivity| M{Internet Available?}
-<a id="__codelineno-5-15" name="__codelineno-5-15" href="#__codelineno-5-15"></a>    M --&gt;|Yes| E
-<a id="__codelineno-5-16" name="__codelineno-5-16" href="#__codelineno-5-16"></a>    M --&gt;|No| J
-<a id="__codelineno-5-17" name="__codelineno-5-17" href="#__codelineno-5-17"></a>    style A fill:#d5f5e3,stroke:#333,stroke-width:2px
-<a id="__codelineno-5-18" name="__codelineno-5-18" href="#__codelineno-5-18"></a>    style E fill:#f9d5e5,stroke:#333,stroke-width:2px
-<a id="__codelineno-5-19" name="__codelineno-5-19" href="#__codelineno-5-19"></a>    style H fill:#f9d5e5,stroke:#333,stroke-width:2px
-<a id="__codelineno-5-20" name="__codelineno-5-20" href="#__codelineno-5-20"></a>    style I fill:#d5eef7,stroke:#333,stroke-width:2px
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>graph TD
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>    A[Window Detection] --&gt;|Active Windows| B[Media Monitor]
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>    B --&gt;|Window Info| C[Movie Scrobbler]
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>    C --&gt;|Movie Title| D[Title Parser]
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>    D --&gt;|Parsed Info| E[SIMKL API Client]
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>    E --&gt;|Movie ID &amp; Metadata| F[Progress Tracker]
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>    F --&gt;|Position Updates| G{Completion Check}
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>    G --&gt;|&gt;80% Complete| H[Mark as Watched]
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>    G --&gt;|&lt;80% Complete| F
+<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a>    I[Player Integrations] --&gt;|Position &amp; Duration| F
+<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a>    J[Backlog Cleaner] &lt;--&gt;|Offline Queue| C
+<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a>    K[Media Cache] &lt;--&gt;|Movie Info| C
+<a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a>    L[Tray Application] &lt;--&gt;|Status &amp; Controls| B
+<a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a>    I -.-&gt;|Connectivity| M{Internet Available?}
+<a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a>    M --&gt;|Yes| E
+<a id="__codelineno-4-16" name="__codelineno-4-16" href="#__codelineno-4-16"></a>    M --&gt;|No| J
+<a id="__codelineno-4-17" name="__codelineno-4-17" href="#__codelineno-4-17"></a>    style A fill:#d5f5e3,stroke:#333,stroke-width:2px
+<a id="__codelineno-4-18" name="__codelineno-4-18" href="#__codelineno-4-18"></a>    style E fill:#f9d5e5,stroke:#333,stroke-width:2px
+<a id="__codelineno-4-19" name="__codelineno-4-19" href="#__codelineno-4-19"></a>    style H fill:#f9d5e5,stroke:#333,stroke-width:2px
+<a id="__codelineno-4-20" name="__codelineno-4-20" href="#__codelineno-4-20"></a>    style I fill:#d5eef7,stroke:#333,stroke-width:2px
 </code></pre></div>
 <hr />
 <p>For more, see the <a href="../usage/">Usage Guide</a> and <a href="../media-players/">Media Players Guide</a>.</p>
@@ -799,7 +782,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="April 26, 2025 13:57:00">April 26, 2025</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="April 26, 2025 18:09:50">April 26, 2025</span>
   </span>
 
     
