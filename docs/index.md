@@ -13,37 +13,33 @@
 
 ## What is MPS for SIMKL?
 
-MPS for SIMKL (Media Player Scrobbler) is a cross-platform app that automatically tracks your movie watching in popular media players and syncs your progress to your SIMKL account. It runs in the background or system tray, requires minimal setup, and supports Windows, macOS, and Linux.
+MPS for SIMKL (Media Player Scrobbler) is a cross-platform app that automatically tracks your movie watching in popular media players and syncs your progress to your SIMKL account. It runs in the background or system tray, requires minimal setup, and supports Windows, macOS (experimental), and Linux.
 
 ## ⚡ Quick Start
 
-- **Windows:** [Download the installer](https://github.com/kavinthangavel/media-player-scrobbler-for-simkl/releases/latest) and follow the setup wizard.
+- **Windows:** Use the [Windows Guide](windows-guide.md) (EXE installer, tray app, no commands needed).
+- **Linux:** Use the [Linux Guide](linux-guide.md) (pipx recommended, tray app, setup command needed).
+- **macOS:** Use the [Mac Guide](mac-guide.md) (pip install, tray app, setup command needed, experimental/untested).
 
-- **macOS/Linux:** [Testing in Progress]
-  ```bash
-  pip install simkl-mps
-  simkl-mps start
-  ```
-- Authenticate with SIMKL when prompted.
-
-See the [Installation Guide](installation.md) for full details.
+After installation, authenticate with SIMKL and **configure your media players** using the [Media Players Guide](media-players.md) (this step is critical for accurate tracking).
 
 ## 📚 Documentation
 
-- [Installation Guide](installation.md)
-- [Usage Guide](usage.md)
+- [Windows Guide](windows-guide.md)
+- [Linux Guide](linux-guide.md)
+- [Mac Guide](mac-guide.md)
 - [Supported Media Players](media-players.md)
-- [Configuration](configuration.md)
-- [Troubleshooting](troubleshooting.md)
-- [Development Guide](development.md)
+- [Usage Guide](usage.md)
+- [Advanced & Developer Guide](configuration.md)
+- [Troubleshooting Guide](troubleshooting.md)
 - [Todo List](todo.md)
 
 ## 🔍 How It Works
 
 ```mermaid
 graph TD
-    A[Media Player] -->|Active Window| B[MPS for SIMKL]
-    B -->|Extract Information| C[Parse Media Title]
+    A[Media Player] -->|Playback Info| B[MPS for SIMKL]
+    B -->|Extract & Parse| C[Identify Media Title]
     C -->|Search| D[SIMKL API]
     D -->|Metadata| E[Track Progress]
     E -->|>80% Complete| F[Mark as Watched]
@@ -52,11 +48,11 @@ graph TD
     style G fill:#d5f5e3,stroke:#333,stroke-width:2px
 ```
 
-1. **Detection:** Monitors active windows to detect media players
-2. **Identification:** Extracts and matches media titles against SIMKL
-3. **Tracking:** Monitors playback position
-4. **Completion:** Marks as watched when threshold is reached
-5. **Sync:** Updates your SIMKL profile automatically
+1. **Detection:** Monitors media players via window titles or player APIs.
+2. **Identification:** Extracts and matches media titles against SIMKL.
+3. **Tracking:** Monitors playback position (requires player configuration via [Media Players Guide](media-players.md)).
+4. **Completion:** Marks as watched when the configured threshold (default 80%) is reached.
+5. **Sync:** Updates your SIMKL profile automatically.
 
 ## 🚦 Performance Notes
 

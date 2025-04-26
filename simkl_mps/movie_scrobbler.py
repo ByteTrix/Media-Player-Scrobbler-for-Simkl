@@ -185,21 +185,6 @@ class MovieScrobbler:
                     logger.debug("MPC integration couldn't get position/duration data")
             # --- End MPC-HC/BE Integration ---
 
-            elif any(player in process_name_lower for player in ['potplayer.exe', 'potplayermini.exe', 'potplayermini64.exe']):
-                logger.debug(f"PotPlayer detected: {process_name}")
-                from simkl_mps.players import PotPlayerIntegration
-                
-                if not hasattr(self, '_potplayer_integration'):
-                    self._potplayer_integration = PotPlayerIntegration()
-                
-                position, duration = self._potplayer_integration.get_position_duration(process_name)
-                
-                if position is not None and duration is not None:
-                    logger.debug(f"Retrieved position data from PotPlayer: position={position}s, duration={duration}s")
-                    return position, duration
-                else:
-                    logger.debug("PotPlayer integration couldn't get position/duration data")
-
             elif 'mpv' in process_name_lower:
                 logger.debug(f"MPV detection - socket communication not fully implemented yet")
 

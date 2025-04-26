@@ -12,65 +12,50 @@
 
 ## ✨ Features
 
-- 🎮 **Universal Media Player Support** (VLC, MPV, MPC-HC, PotPlayer, and more)
-- 🌐 **Cross-Platform** – Windows, (macOS, Linux)- Testing in Progress
+- 🎮 **Universal Media Player Support** (VLC, MPV, MPC-HC and more)
+- 🌐 **Cross-Platform** – Windows, macOS (experimental), Linux
 - 🖥️ **Native Executable** – System tray, auto-update, and background service (Windows)
-- 📈 **Accurate Position Tracking** – For supported players Need to Configure [Media Player](docs/media-players.md)
+- 📈 **Accurate Position Tracking** – For supported players (configure via [Media Players Guide](docs/media-players.md))
 - 🔌 **Offline Support** – Queues updates when offline
 - 🧠 **Smart Movie Detection** – Intelligent filename parsing
-- 🍿 **Movie-Focused** – Currently optimized for movies (TV show tracking planned for future updates)
-
-## 🖥️ Executable Overview
-
-MPS for SIMKL provides a professional, cross-platform executable for Windows, macOS, and Linux. The EXE bundles all dependencies, offers a native system tray interface, and supports auto-start, auto-update, and seamless background operation.
-
-- **Background Mode:** Runs silently, tracks media, and syncs with SIMKL
-- **Tray Mode:** Interactive tray icon for status, controls, and updates
-- **Service/Daemon Mode:** For advanced users and servers (Linux/macOS)
-- **Auto-Update:** Built-in update checker and installer
+- 🍿 **Movie-Focused** – Currently optimized for movies (TV show tracking planned)
 
 ## ⚡ Quick Start
 
-Download the latest installer for Windows from the [Releases Page](https://github.com/kavinthangavel/media-player-scrobbler-for-simkl/releases/latest).
+- **Windows:** Use the [Windows Guide](docs/windows-guide.md) (EXE installer, tray app, no commands needed).
+- **Linux:** Use the [Linux Guide](docs/linux-guide.md) (pipx recommended, tray app, setup command needed).
+- **macOS:** Use the [Mac Guide](docs/mac-guide.md) (pip install, tray app, setup command needed, experimental/untested).
 
-> Must Setup [Media Player](docs/media-player.md)
-> Detailed Guide about [Windows installer](docs/windows-guide.md)
-
-or
-
-```bash
-#mac/linux testing is still in progress
-pip install simkl-mps
-simkl-mps start
-```
-
+After installation, authenticate with SIMKL and **configure your media players** using the [Media Players Guide](docs/media-players.md) (this step is critical for accurate tracking).
 
 ## 📚 Documentation
 
-- [Installation Guide](docs/installation.md) - Platform-specific installation instructions
-- [Windows Guide](docs/windows-guide.md) - Full Guide for Windows Installer
-- [Usage Guide](docs/usage.md) - Getting started and day-to-day usage
-- [Supported Media Players](docs/media-players.md) - Compatible players and configuration
-- [Configuration](docs/configuration.md) - Advanced settings and options
-- [Troubleshooting](docs/troubleshooting.md) - Common issues and solutions
-- [Development Guide](docs/development.md) - Contributing to the project
-- [Todo List](docs/todo.md) - Upcoming features and improvements
+- [Windows Guide](docs/windows-guide.md)
+- [Linux Guide](docs/linux-guide.md)
+- [Mac Guide](docs/mac-guide.md)
+- [Supported Media Players](docs/media-players.md)
+- [Usage Guide](docs/usage.md)
+- [Advanced & Developer Guide](docs/configuration.md)
+- [Troubleshooting Guide](docs/troubleshooting.md)
+- [Todo List](docs/todo.md)
 
 ## 🔍 How It Works
 
 ```mermaid
-graph LR
-    A[Media Player] -->|Window Title| B[simkl-mps]
-    B -->|Parse Title| C[Movie Identification]
-    C -->|Track Progress| D[Simkl API]
-    D -->|Mark as Watched| E[Simkl Profile]
+graph TD
+    A[Media Player] -->|Playback Info| B[MPS for SIMKL]
+    B -->|Extract & Parse| C[Identify Media Title]
+    C -->|Search| D[SIMKL API]
+    D -->|Metadata| E[Track Progress]
+    E -->|>80% Complete| F[Mark as Watched]
+    F -->|Update| G[SIMKL Profile]
     style A fill:#d5f5e3,stroke:#333,stroke-width:2px
-    style E fill:#d5f5e3,stroke:#333,stroke-width:2px
+    style G fill:#d5f5e3,stroke:#333,stroke-width:2px
 ```
 
 ## 🚦 Performance Notes
 
-- **Movie identification:** 15–25 seconds (typical)
+- **Movie identification:** 15–30 seconds (typical)
 - **Mark as watched (online):** 2–8 seconds (best connection)
 - **Offline scrobble:** 4–10 seconds to process title, 1–3 seconds to add to backlog after threshold
 
