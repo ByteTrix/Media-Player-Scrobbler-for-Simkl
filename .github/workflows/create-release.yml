@@ -37,47 +37,44 @@ jobs:
 
           # Find the specific files needed
           INSTALLER_PATH=$(find artifacts/windows-installer -name "*.exe" -type f | head -n 1)
-          WHEEL_PATH=$(find artifacts/python-package -name "*.whl" -type f | head -n 1)
           BUILD_INFO_PATH=$(find artifacts/build-info -name "build_info.json" -type f | head -n 1)
 
           if [ -z "$INSTALLER_PATH" ]; then
             echo "::error::Windows installer (.exe) not found in artifacts/windows-installer"
             exit 1
           fi
-          if [ -z "$WHEEL_PATH" ]; then
-            echo "::error::Python wheel (.whl) not found in artifacts/python-package"
-            exit 1
-          fi
-           if [ -z "$BUILD_INFO_PATH" ]; then
+          if [ -z "$BUILD_INFO_PATH" ]; then
             echo "::warning::build_info.json not found in artifacts/build-info"
             # Decide if this is fatal or not, for now just warn
           fi
 
           echo "Found Installer: $INSTALLER_PATH"
-          echo "Found Wheel: $WHEEL_PATH"
           echo "Found Build Info: $BUILD_INFO_PATH"
 
           echo "installer_path=$INSTALLER_PATH" >> $GITHUB_OUTPUT
-          echo "wheel_path=$WHEEL_PATH" >> $GITHUB_OUTPUT
           echo "build_info_path=$BUILD_INFO_PATH" >> $GITHUB_OUTPUT
           echo "installer_filename=$(basename "$INSTALLER_PATH")" >> $GITHUB_OUTPUT
-          echo "wheel_filename=$(basename "$WHEEL_PATH")" >> $GITHUB_OUTPUT
+          echo "build_info_filename=$(basename "$BUILD_INFO_PATH")" >> $GITHUB_OUTPUT
 
       - name: Calculate Specific Checksums
         id: calc_hashes
         run: |
           INSTALLER_PATH="${{ steps.prep_paths.outputs.installer_path }}"
-          WHEEL_PATH="${{ steps.prep_paths.outputs.wheel_path }}"
+          BUILD_INFO_PATH="${{ steps.prep_paths.outputs.build_info_path }}"
 
           echo "Calculating SHA256 for $INSTALLER_PATH..."
           EXE_HASH=$(sha256sum "$INSTALLER_PATH" | awk '{print $1}')
           echo "exe_hash=$EXE_HASH" >> $GITHUB_OUTPUT
           echo "Calculated EXE hash: $EXE_HASH"
-
-          echo "Calculating SHA256 for $WHEEL_PATH..."
-          WHL_HASH=$(sha256sum "$WHEEL_PATH" | awk '{print $1}')
-          echo "whl_hash=$WHL_HASH" >> $GITHUB_OUTPUT
-          echo "Calculated WHL hash: $WHL_HASH"
+          
+          if [ -n "$BUILD_INFO_PATH" ]; then
+            echo "Calculating SHA256 for $BUILD_INFO_PATH..."
+            BUILD_INFO_HASH=$(sha256sum "$BUILD_INFO_PATH" | awk '{print $1}')
+            echo "build_info_hash=$BUILD_INFO_HASH" >> $GITHUB_OUTPUT
+            echo "Calculated build info hash: $BUILD_INFO_HASH"
+          else
+            echo "Build info file not found, skipping hash calculation"
+          fi
 
       - name: Install cosign
         uses: sigstore/cosign-installer@v3.4.0
@@ -91,15 +88,6 @@ jobs:
           echo "Signature created at ${INSTALLER_PATH}.sig"
           echo "signature_path=${INSTALLER_PATH}.sig" >> $GITHUB_OUTPUT
 
-      - name: Sign Python Wheel with Cosign
-        id: sign_wheel
-        run: |
-          WHEEL_PATH="${{ steps.prep_paths.outputs.wheel_path }}"
-          echo "Signing $WHEEL_PATH..."
-          cosign sign-blob --yes "$WHEEL_PATH" --output-signature "${WHEEL_PATH}.sig"
-          echo "Signature created at ${WHEEL_PATH}.sig"
-          echo "signature_path=${WHEEL_PATH}.sig" >> $GITHUB_OUTPUT
-
       - name: Prepare Verification Instructions (docs/verify.md)
         run: |
           mkdir -p docs # Ensure docs directory exists
@@ -107,8 +95,6 @@ jobs:
           # Define variables for clarity
           INSTALLER_FILENAME="${{ steps.prep_paths.outputs.installer_filename }}"
           INSTALLER_SIG_FILENAME="${INSTALLER_FILENAME}.sig"
-          WHEEL_FILENAME="${{ steps.prep_paths.outputs.wheel_filename }}"
-          WHEEL_SIG_FILENAME="${WHEEL_FILENAME}.sig"
           RELEASE_TAG="v${{ inputs.version }}"
           REPO_URL="https://github.com/${{ github.repository }}"
           RELEASE_URL="$REPO_URL/releases/tag/$RELEASE_TAG"
@@ -120,7 +106,7 @@ jobs:
           cat > docs/verify.md << EOF
           # Verifying Simkl Media Player Scrobbler Releases ($RELEASE_TAG)
 
-          This document explains how to verify the authenticity and integrity of the Simkl Media Player Scrobbler release files (\`.exe\`, \`.whl\`) downloaded from GitHub. Verification ensures the files haven't been tampered with since they were built and signed by the official GitHub Actions release workflow.
+          This document explains how to verify the authenticity and integrity of the Simkl Media Player Scrobbler release files (\`.exe\`) downloaded from GitHub. Verification ensures the files haven't been tampered with since they were built and signed by the official GitHub Actions release workflow.
 
           We use [Sigstore/cosign](https://github.com/sigstore/cosign) for signing and verification.
 
@@ -137,14 +123,12 @@ jobs:
           From the [GitHub Releases page]($RELEASE_URL), download the following files into the same directory:
           *   The Windows installer: \`$INSTALLER_FILENAME\`
           *   The installer's signature: \`$INSTALLER_SIG_FILENAME\`
-          *   The Python wheel: \`$WHEEL_FILENAME\`
-          *   The wheel's signature: \`$WHEEL_SIG_FILENAME\`
 
           ## 3. Verify Signatures with Cosign
 
-          Verify the digital signatures of the downloaded installer and wheel using \`cosign\`. This confirms they were signed by the expected GitHub Actions workflow.
+          Verify the digital signatures of the downloaded installer using \`cosign\`. This confirms it was signed by the expected GitHub Actions workflow.
 
-          Run the following commands in your terminal (in the directory where you downloaded the files):
+          Run the following command in your terminal (in the directory where you downloaded the files):
 
           \`\`\`bash
           # Verify the Windows Installer signature
@@ -153,38 +137,29 @@ jobs:
             --certificate-oidc-issuer "$CERT_ISSUER" \\
             --signature "$INSTALLER_SIG_FILENAME" \\
             "$INSTALLER_FILENAME"
-
-          # Verify the Python Wheel signature
-          cosign verify-blob \\
-            --certificate-identity "$CERT_IDENTITY" \\
-            --certificate-oidc-issuer "$CERT_ISSUER" \\
-            --signature "$WHEEL_SIG_FILENAME" \\
-            "$WHEEL_FILENAME"
           \`\`\`
 
-          If verification is successful for both files, you will see "Verified OK" messages. This confirms the files were signed by the official release workflow (\`create-release.yml\`) for the tag \`$RELEASE_TAG\`. **Do not proceed if verification fails for either file.**
+          If verification is successful, you will see a "Verified OK" message. This confirms the file was signed by the official release workflow (\`create-release.yml\`) for the tag \`$RELEASE_TAG\`. **Do not proceed if verification fails.**
 
-          *Note: The \`--certificate-identity\` points to this workflow (\`create-release.yml\`) and the specific release tag (\`$RELEASE_TAG\`) that signed the files.*
+          *Note: The \`--certificate-identity\` points to this workflow (\`create-release.yml\`) and the specific release tag (\`$RELEASE_TAG\`) that signed the file.*
 
           ## 4. Verify Checksums Manually
 
-          As an additional check, manually calculate the SHA256 hash of the downloaded files and compare them against the hashes listed in the table within the GitHub Release notes.
+          As an additional check, manually calculate the SHA256 hash of the downloaded file and compare it against the hash listed in the table within the GitHub Release notes.
 
           **Example Commands:**
 
           *   **Linux/macOS:**
               \`\`\`bash
               sha256sum "$INSTALLER_FILENAME"
-              sha256sum "$WHEEL_FILENAME"
               \`\`\`
 
           *   **Windows (Command Prompt or PowerShell):**
               \`\`\`cmd
               certutil -hashfile "$INSTALLER_FILENAME" SHA256
-              certutil -hashfile "$WHEEL_FILENAME" SHA256
               \`\`\`
 
-          Compare the output hash for each file with the corresponding hash in the release notes table. They must match exactly. **Do not use the files if the hashes do not match.**
+          Compare the output hash with the corresponding hash in the release notes table. They must match exactly. **Do not use the file if the hash does not match.**
 
           ## Build Provenance
 
@@ -214,16 +189,14 @@ jobs:
           INSTALLER_PATH="${{ steps.prep_paths.outputs.installer_path }}"
           INSTALLER_FILENAME="${{ steps.prep_paths.outputs.installer_filename }}"
           INSTALLER_SIG_PATH="${{ steps.sign_installer.outputs.signature_path }}"
-          WHEEL_PATH="${{ steps.prep_paths.outputs.wheel_path }}"
-          WHEEL_FILENAME="${{ steps.prep_paths.outputs.wheel_filename }}"
-          WHEEL_SIG_PATH="${{ steps.sign_wheel.outputs.signature_path }}"
+          BUILD_INFO_FILENAME="${{ steps.prep_paths.outputs.build_info_filename }}"
           VERIFY_DOC_PATH="docs/verify.md"
+          WORKFLOW_RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
           echo "Release Tag: $TAG_NAME"
           echo "Installer: $INSTALLER_PATH"
           echo "Installer Sig: $INSTALLER_SIG_PATH"
-          echo "Wheel: $WHEEL_PATH"
-          echo "Wheel Sig: $WHEEL_SIG_PATH"
+          echo "Build Info Filename: $BUILD_INFO_FILENAME"
           echo "Verification Doc: $VERIFY_DOC_PATH"
 
           # Construct the verification section for the release body
@@ -234,11 +207,15 @@ jobs:
           | File                 | SHA256 Checksum                                  |
           |----------------------|--------------------------------------------------|
           | \`$INSTALLER_FILENAME\` | \`${{ steps.calc_hashes.outputs.exe_hash }}\`    |
-          | \`$WHEEL_FILENAME\`    | \`${{ steps.calc_hashes.outputs.whl_hash }}\`    |
+          | \`$BUILD_INFO_FILENAME\` | \`${{ steps.calc_hashes.outputs.build_info_hash }}\`    |
+
+          **Build Info:**
+          
+          The build info file contains detailed information about this build and is available in the workflow artifacts: [$BUILD_INFO_FILENAME]($WORKFLOW_RUN_URL)
 
           **Verification:**
 
-          Please follow the instructions in the [Verification Guide](https://github.com/kavinthangavel/Media-Player-Scrobbler-for-Simkl/releases/download/$TAG_NAME/verify.md) to verify the signatures and checksums of the downloaded files.
+          Please follow the instructions in the [Verification Guide](https://github.com/${{ github.repository }}/releases/download/$TAG_NAME/verify.md) to verify the signatures and checksums of the downloaded files.
           EOF
           )
 
@@ -279,7 +256,7 @@ jobs:
           gh release upload "$TAG_NAME" "$INSTALLER_PATH" --clobber
           gh release upload "$TAG_NAME" "$INSTALLER_SIG_PATH" --clobber
           gh release upload "$TAG_NAME" "$VERIFY_DOC_PATH" --clobber
-
+          # Note: Not uploading the build_info.json file as requested
 
       # Optional: Keep or remove the delete-artifact step as needed
       - name: Delete build artifacts
