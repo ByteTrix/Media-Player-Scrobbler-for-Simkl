@@ -263,9 +263,7 @@ jobs:
           echo "Release body updated successfully."
 
       - name: Delete build artifacts
-        uses: actions/delete-artifact@v5
+        uses: geekyeggo/delete-artifact@v5
         with:
           name: |
-            sha256-hash
-            windows-installer
             python-package
