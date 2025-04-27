@@ -10,11 +10,13 @@
       
       
       
-        <link rel="canonical" href="https://kavinthangavel.github.io/media-player-scrobbler-for-simkl/todo/">
+        <link rel="canonical" href="https://kavinthangavel.github.io/media-player-scrobbler-for-simkl/verify/">
       
       
-        <link rel="prev" href="../troubleshooting/">
+        <link rel="prev" href="../usage/">
       
+      
+        <link rel="next" href="../media-players/">
       
       
       <link rel="icon" href="../assets/images/favicon.png">
@@ -22,7 +24,7 @@
     
     
       
-        <title>Todo - Media Player Scrobbler for SIMKL</title>
+        <title>Verification - Media Player Scrobbler for SIMKL</title>
       
     
     
@@ -72,7 +74,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#todo-list" class="md-skip">
+        <a href="#verifying-simkl-media-player-scrobbler-releases-v205" class="md-skip">
           Skip to content
         </a>
       
@@ -108,7 +110,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Todo
+              Verification
             
           </span>
         </div>
@@ -313,10 +315,32 @@
       
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../verify/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    Verification
+    
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -327,6 +351,71 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-prerequisites" class="md-nav__link">
+    <span class="md-ellipsis">
+      1. Prerequisites
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-download-release-assets" class="md-nav__link">
+    <span class="md-ellipsis">
+      2. Download Release Assets
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-verify-signatures-with-cosign" class="md-nav__link">
+    <span class="md-ellipsis">
+      3. Verify Signatures with Cosign
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-verify-checksums-manually" class="md-nav__link">
+    <span class="md-ellipsis">
+      4. Verify Checksums Manually
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#build-provenance" class="md-nav__link">
+    <span class="md-ellipsis">
+      Build Provenance
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -401,32 +490,10 @@
       
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    Todo
-    
-  </span>
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../todo/" class="md-nav__link">
         
   
   
@@ -437,95 +504,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#completed" class="md-nav__link">
-    <span class="md-ellipsis">
-      ✅ Completed
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#in-progress" class="md-nav__link">
-    <span class="md-ellipsis">
-      🚧 In Progress
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#planned-features" class="md-nav__link">
-    <span class="md-ellipsis">
-      📝 Planned Features
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="📝 Planned Features">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#short-term" class="md-nav__link">
-    <span class="md-ellipsis">
-      Short Term
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#medium-term" class="md-nav__link">
-    <span class="md-ellipsis">
-      Medium Term
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#long-term-ideas" class="md-nav__link">
-    <span class="md-ellipsis">
-      Long Term / Ideas
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#contribution-opportunities" class="md-nav__link">
-    <span class="md-ellipsis">
-      🤝 Contribution Opportunities
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -557,69 +535,45 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#completed" class="md-nav__link">
+  <a href="#1-prerequisites" class="md-nav__link">
     <span class="md-ellipsis">
-      ✅ Completed
+      1. Prerequisites
     </span>
   </a>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#in-progress" class="md-nav__link">
+  <a href="#2-download-release-assets" class="md-nav__link">
     <span class="md-ellipsis">
-      🚧 In Progress
+      2. Download Release Assets
     </span>
   </a>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#planned-features" class="md-nav__link">
+  <a href="#3-verify-signatures-with-cosign" class="md-nav__link">
     <span class="md-ellipsis">
-      📝 Planned Features
+      3. Verify Signatures with Cosign
     </span>
   </a>
-  
-    <nav class="md-nav" aria-label="📝 Planned Features">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#short-term" class="md-nav__link">
-    <span class="md-ellipsis">
-      Short Term
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#medium-term" class="md-nav__link">
-    <span class="md-ellipsis">
-      Medium Term
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#long-term-ideas" class="md-nav__link">
-    <span class="md-ellipsis">
-      Long Term / Ideas
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#contribution-opportunities" class="md-nav__link">
+  <a href="#4-verify-checksums-manually" class="md-nav__link">
     <span class="md-ellipsis">
-      🤝 Contribution Opportunities
+      4. Verify Checksums Manually
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#build-provenance" class="md-nav__link">
+    <span class="md-ellipsis">
+      Build Provenance
     </span>
   </a>
   
@@ -644,58 +598,61 @@
   
 
 
-<h1 id="todo-list">📋 Todo List<a class="headerlink" href="#todo-list" title="Permanent link">&para;</a></h1>
-<p>Tracks completed features and planned improvements for MPS for SIMKL.</p>
+<h1 id="verifying-simkl-media-player-scrobbler-releases-v205">Verifying Simkl Media Player Scrobbler Releases (v2.0.5)<a class="headerlink" href="#verifying-simkl-media-player-scrobbler-releases-v205" title="Permanent link">&para;</a></h1>
+<p>This document explains how to verify the authenticity and integrity of the Simkl Media Player Scrobbler release files (<code>.exe</code>, <code>.whl</code>) downloaded from GitHub. Verification ensures the files haven't been tampered with since they were built and signed by the official GitHub Actions release workflow.</p>
+<p>We use <a href="https://github.com/sigstore/cosign">Sigstore/cosign</a> for signing and verification.</p>
+<h2 id="1-prerequisites">1. Prerequisites<a class="headerlink" href="#1-prerequisites" title="Permanent link">&para;</a></h2>
+<p>You'll need the following tools installed:
+*   <strong>cosign</strong>: Follow the <a href="https://docs.sigstore.dev/cosign/installation/">official installation guide</a>.
+*   <strong>sha256sum</strong> (Linux/macOS) or <strong>certutil</strong> (Windows): For calculating SHA256 hashes.
+    *   Windows: <code>certutil -hashfile &lt;filename&gt; SHA256</code>
+    *   Linux/macOS: <code>sha256sum &lt;filename&gt;</code></p>
+<h2 id="2-download-release-assets">2. Download Release Assets<a class="headerlink" href="#2-download-release-assets" title="Permanent link">&para;</a></h2>
+<p>From the <a href="https://github.com/kavinthangavel/Media-Player-Scrobbler-for-Simkl/releases/tag/v2.0.5">GitHub Releases page</a>, download the following files into the same directory:
+*   The Windows installer: <code>MPSS_Setup_2.0.5.exe</code>
+*   The installer's signature: <code>MPSS_Setup_2.0.5.exe.sig</code>
+*   The Python wheel: <code>simkl_mps-2.0.5-py3-none-any.whl</code>
+*   The wheel's signature: <code>simkl_mps-2.0.5-py3-none-any.whl.sig</code></p>
+<h2 id="3-verify-signatures-with-cosign">3. Verify Signatures with Cosign<a class="headerlink" href="#3-verify-signatures-with-cosign" title="Permanent link">&para;</a></h2>
+<p>Verify the digital signatures of the downloaded installer and wheel using <code>cosign</code>. This confirms they were signed by the expected GitHub Actions workflow.</p>
+<p>Run the following commands in your terminal (in the directory where you downloaded the files):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># Verify the Windows Installer signature</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>cosign<span class="w"> </span>verify-blob<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">  </span>--certificate-identity<span class="w"> </span><span class="s2">&quot;https://github.com/kavinthangavel/Media-Player-Scrobbler-for-Simkl/.github/workflows/create-release.yml@refs/tags/v2.0.5&quot;</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">  </span>--certificate-oidc-issuer<span class="w"> </span><span class="s2">&quot;https://token.actions.githubusercontent.com&quot;</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">  </span>--signature<span class="w"> </span><span class="s2">&quot;MPSS_Setup_2.0.5.exe.sig&quot;</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="w">  </span><span class="s2">&quot;MPSS_Setup_2.0.5.exe&quot;</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="c1"># Verify the Python Wheel signature</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>cosign<span class="w"> </span>verify-blob<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="w">  </span>--certificate-identity<span class="w"> </span><span class="s2">&quot;https://github.com/kavinthangavel/Media-Player-Scrobbler-for-Simkl/.github/workflows/create-release.yml@refs/tags/v2.0.5&quot;</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="w">  </span>--certificate-oidc-issuer<span class="w"> </span><span class="s2">&quot;https://token.actions.githubusercontent.com&quot;</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="w">  </span>--signature<span class="w"> </span><span class="s2">&quot;simkl_mps-2.0.5-py3-none-any.whl.sig&quot;</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="w">  </span><span class="s2">&quot;simkl_mps-2.0.5-py3-none-any.whl&quot;</span>
+</code></pre></div>
+<p>If verification is successful for both files, you will see "Verified OK" messages. This confirms the files were signed by the official release workflow (<code>create-release.yml</code>) for the tag <code>v2.0.5</code>. <strong>Do not proceed if verification fails for either file.</strong></p>
+<p><em>Note: The <code>--certificate-identity</code> points to this workflow (<code>create-release.yml</code>) and the specific release tag (<code>v2.0.5</code>) that signed the files.</em></p>
+<h2 id="4-verify-checksums-manually">4. Verify Checksums Manually<a class="headerlink" href="#4-verify-checksums-manually" title="Permanent link">&para;</a></h2>
+<p>As an additional check, manually calculate the SHA256 hash of the downloaded files and compare them against the hashes listed in the table within the GitHub Release notes.</p>
+<p><strong>Example Commands:</strong></p>
 <ul>
-<li>For installation and usage, see the <a href="../">index</a> and platform guides.</li>
-<li>For player setup, see the <a href="../media-players/">Media Players Guide</a>.</li>
-<li>For advanced/dev info, see <a href="../configuration/">Advanced &amp; Developer Guide</a>.</li>
+<li>
+<p><strong>Linux/macOS:</strong>
+    <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>sha256sum<span class="w"> </span><span class="s2">&quot;MPSS_Setup_2.0.5.exe&quot;</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>sha256sum<span class="w"> </span><span class="s2">&quot;simkl_mps-2.0.5-py3-none-any.whl&quot;</span>
+</code></pre></div></p>
+</li>
+<li>
+<p><strong>Windows (Command Prompt or PowerShell):</strong>
+    <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>certutil -hashfile &quot;MPSS_Setup_2.0.5.exe&quot; SHA256
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>certutil -hashfile &quot;simkl_mps-2.0.5-py3-none-any.whl&quot; SHA256
+</code></pre></div></p>
+</li>
 </ul>
-<h2 id="completed">✅ Completed<a class="headerlink" href="#completed" title="Permanent link">&para;</a></h2>
-<ul>
-<li>[x] 👨🏻‍💻 Cross-platform support (Windows, macOS, Linux)</li>
-<li>[x] 📥 System tray app</li>
-<li>[x] ⛔ Offline mode with backlog</li>
-<li>[x] 🧠 Smart movie detection</li>
-<li>[x] 📦 PyPI package</li>
-<li>[x] 😍 New icon/logo</li>
-<li>[x] 🎛️ Enhanced tray controls</li>
-<li>[x] 🔔 Improved notifications</li>
-<li>[x] ⛓️ Enhanced authentication</li>
-</ul>
-<h2 id="in-progress">🚧 In Progress<a class="headerlink" href="#in-progress" title="Permanent link">&para;</a></h2>
-<ul>
-<li>💻 Cross-platform testing</li>
-<li>💾 Option to set/edit completion percentage</li>
-</ul>
-<h2 id="planned-features">📝 Planned Features<a class="headerlink" href="#planned-features" title="Permanent link">&para;</a></h2>
-<h3 id="short-term">Short Term<a class="headerlink" href="#short-term" title="Permanent link">&para;</a></h3>
-<ul>
-<li>[ ] 😈 Auto download and install latest Update</li>
-<li>[ ] 🧪 Create comprehensive automated test suite</li>
-<li>[ ] 🔎 Add option to manually correct misidentified movies</li>
-</ul>
-<h3 id="medium-term">Medium Term<a class="headerlink" href="#medium-term" title="Permanent link">&para;</a></h3>
-<ul>
-<li>[ ] 🔄 Two-way sync (mark as watched on Simkl affects local status)</li>
-</ul>
-<h3 id="long-term-ideas">Long Term / Ideas<a class="headerlink" href="#long-term-ideas" title="Permanent link">&para;</a></h3>
-<ul>
-<li>[ ] 📺 Add support for TV shows/Anime tracking</li>
-<li>[ ] 🎬 Integration with more streaming platforms (browser extensions)</li>
-<li>[ ] 👥 Multi-user support for shared computers</li>
-<li>[ ] 🔍 Advanced search and filtering of watched content</li>
-</ul>
-<h2 id="contribution-opportunities">🤝 Contribution Opportunities<a class="headerlink" href="#contribution-opportunities" title="Permanent link">&para;</a></h2>
-<p>These are good starting points for new contributors:</p>
-<ul>
-<li>[ ] 📚 Improve documentation with more examples</li>
-<li>[ ] 🌐 Add translations for UI elements</li>
-<li>[ ] 🐛 Fix known issues from GitHub Issues</li>
-<li>[ ] ⚡ Performance optimizations</li>
-<li>[ ] 🧪 Create additional tests</li>
-</ul>
-<p><em>Note: Timeline is approximate and subject to change.</em></p>
+<p>Compare the output hash for each file with the corresponding hash in the release notes table. They must match exactly. <strong>Do not use the files if the hashes do not match.</strong></p>
+<h2 id="build-provenance">Build Provenance<a class="headerlink" href="#build-provenance" title="Permanent link">&para;</a></h2>
+<p>This release incorporates artifacts built and verified by GitHub Actions workflow run #70 (ID: 14695353723).
+View the release workflow log: https://github.com/kavinthangavel/Media-Player-Scrobbler-for-Simkl/actions/runs/14695353723</p>
 
 
 
@@ -718,7 +675,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="April 26, 2025 18:59:57">April 26, 2025</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="April 27, 2025 19:46:25">April 27, 2025</span>
   </span>
 
     
@@ -728,7 +685,7 @@
     <span class="md-icon" title="Created">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M14.47 15.08 11 13V7h1.5v5.25l3.08 1.83c-.41.28-.79.62-1.11 1m-1.39 4.84c-.36.05-.71.08-1.08.08-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8c0 .37-.03.72-.08 1.08.69.1 1.33.32 1.92.64.1-.56.16-1.13.16-1.72 0-5.5-4.5-10-10-10S2 6.5 2 12s4.47 10 10 10c.59 0 1.16-.06 1.72-.16-.32-.59-.54-1.23-.64-1.92M18 15v3h-3v2h3v3h2v-3h3v-2h-3v-3z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="April 20, 2025 17:01:31">April 20, 2025</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="April 27, 2025 19:46:25">April 27, 2025</span>
   </span>
 
     
