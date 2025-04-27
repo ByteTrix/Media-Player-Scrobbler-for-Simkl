@@ -223,17 +223,7 @@ jobs:
           INSTALLER_PATH="${{ steps.find_installer.outputs.path }}"
           echo "Windows installer to upload: $INSTALLER_PATH"
           
-<<<<<<< Updated upstream
           # Check if release already exists
-=======
-          VERIFICATION_STATUS=""
-          if [ "$TAG_VERIFIED" = "true" ]; then
-            VERIFICATION_STATUS="✅ This release is signed with a verified GPG key."
-          else
-            VERIFICATION_STATUS="⚠️ This release was not verified with a GPG signature."
-          fi
-
->>>>>>> Stashed changes
           if gh release view "v$VERSION" &>/dev/null; then
             echo "Release v$VERSION already exists. Updating verification status and uploading artifacts."
             EXISTING_BODY=$(gh release view "v$VERSION" --json body --jq .body)
@@ -242,31 +232,12 @@ jobs:
               gh release edit "v$VERSION" --notes "$NEW_BODY"
             fi
           else
-<<<<<<< Updated upstream
             # Create release with provenance, attaching the main artifact directly
             gh release create "v$VERSION" \
               "$INSTALLER_PATH" \
               --title "Release $VERSION" \
               --generate-notes \
               --verify-tag \
-=======
-            NOTES=$(cat <<EOF
-$VERIFICATION_STATUS
-
-This is release version $VERSION of Media Player Scrobbler for Simkl.
-
-## Installation
-Download the Windows installer and run it to install the application.
-
-## Verification
-See the README.md in the release assets for information on how to verify this release.
-EOF
-)
-            gh release create "v$VERSION" \
-              "$INSTALLER_PATH" \
-              --title "Release $VERSION" \
-              --notes "$NOTES" \
->>>>>>> Stashed changes
               --discussion-category "Releases"
             echo "Release created and Windows installer attached."
           fi
