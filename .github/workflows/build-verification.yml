@@ -16,7 +16,6 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       build_info_path: ${{ steps.create-build-info.outputs.build_info_path }}
-      sha256_path: ${{ steps.create-checksums.outputs.sha256_path }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -46,41 +45,3 @@ jobs:
           name: build-info
           path: build_info.json
           
-  sign-release:
-    needs: generate-build-info
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Download all build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: all-artifacts
-
-      - name: List all artifacts
-        run: find all-artifacts -type f | sort
-
-      - name: Calculate SHA256 checksums
-        id: create-checksums
-        run: |
-          # Create a checksums file
-          find all-artifacts -type f -not -path "*/\.*" | sort | xargs sha256sum > SHA256SUMS.txt
-          cat SHA256SUMS.txt
-          echo "sha256_path=SHA256SUMS.txt" >> $GITHUB_OUTPUT
-
-      - name: Install cosign
-        uses: sigstore/cosign-installer@v3.4.0
-
-      - name: Sign checksums with keyless signing
-        run: |
-          cosign sign-blob --yes SHA256SUMS.txt --output-signature SHA256SUMS.txt.sig
-          echo "Signed checksums file with Sigstore/cosign"
-
-      - name: Upload verification artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: verification-artifacts
-          path: |
-            SHA256SUMS.txt
-            SHA256SUMS.txt.sig

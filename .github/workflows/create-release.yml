@@ -24,105 +24,60 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Verify signed tag
-        env:
-          GPG_PUBLIC_KEY: ${{ secrets.GPG_PUBLIC_KEY }}
-        run: |
-          echo "Verifying tag signature for v${{ inputs.version }}..."
-          
-          # Import GPG public key
-          if [ -n "$GPG_PUBLIC_KEY" ]; then
-            echo "$GPG_PUBLIC_KEY" | gpg --batch --import - || echo "::warning::Failed to import GPG key, but continuing..."
-            echo "GPG Public Key import attempted."
-            echo "Available GPG keys:"
-            gpg --list-keys
-          else
-            echo "::warning::GPG_PUBLIC_KEY secret not found. Will skip signature verification."
-          fi
-          
-          # Check if tag exists in local repository
-          if ! git tag -l "v${{ inputs.version }}" | grep -q "v${{ inputs.version }}"; then
-            echo "Tag not found in local repository, attempting to fetch from remote..."
-            git fetch origin tag "v${{ inputs.version }}" --no-tags
-          fi
-          
-          # Verify that the tag exists now
-          if ! git tag -l "v${{ inputs.version }}" | grep -q "v${{ inputs.version }}"; then
-            echo "::error::Tag v${{ inputs.version }} not found in both local and remote repositories!"
-            exit 1
-          fi
-          
-          # Attempt to verify the tag signature
-          if git verify-tag "v${{ inputs.version }}" 2>&1 | grep -q "Good signature"; then
-            echo "✅ Tag v${{ inputs.version }} has a valid GPG signature!"
-            TAG_VERIFIED=true
-          else
-            echo "::warning::Tag v${{ inputs.version }} could not be verified with GPG signature."
-            echo "Continuing workflow but release will be marked as unverified."
-            echo "For fully verified releases, please use a GPG-signed tag:"
-            echo "  git tag -s v${{ inputs.version }} -m \"Release version ${{ inputs.version }}\""
-            echo "  git push origin v${{ inputs.version }}"
-            
-            # Enforce signed tags for verified releases
-            exit 1
-          fi
-          
-          # Set verification status for later steps
-          echo "tag_verified=$TAG_VERIFIED" >> $GITHUB_OUTPUT
-        id: verify_tag
-
-      - name: Download all artifacts
+      - name: Download Build Artifacts
         uses: actions/download-artifact@v4
         with:
-          path: release-artifacts
+          path: artifacts/ # Download all artifacts into a base directory
 
-      - name: Download SHA256 Hash Artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: sha256-hash
-          path: ./
-
-      - name: Read SHA256 Hash
-        id: read_hash
-        shell: pwsh
+      - name: List downloaded artifacts and prepare paths
+        id: prep_paths
         run: |
-          $hashPath = "./sha256_hash.txt"
-          if (Test-Path $hashPath) {
-            $hash = Get-Content -Path $hashPath -Raw
-            echo "sha256_hash=$hash" >> $env:GITHUB_OUTPUT
-            echo "Read hash: $hash"
-          } else {
-            echo "::error::SHA256 hash file not found at $hashPath"
-            exit 1
-          }
+          echo "Listing downloaded artifacts..."
+          find artifacts -type f | sort
 
-      - name: List downloaded artifacts
-        run: |
-          echo "All downloaded artifacts:"
-          find release-artifacts -type f | sort
-          WINDOWS_INSTALLER=$(find release-artifacts/windows-installer -name "*.exe" | head -1)
-          if [ -n "$WINDOWS_INSTALLER" ]; then
-            echo "Found Windows installer: $WINDOWS_INSTALLER"
-            ls -la "$WINDOWS_INSTALLER"
-          else
-            echo "Warning: No Windows installer found!"
-          fi
+          # Find the specific files needed
+          INSTALLER_PATH=$(find artifacts/windows-installer -name "*.exe" -type f | head -n 1)
+          WHEEL_PATH=$(find artifacts/python-package -name "*.whl" -type f | head -n 1)
+          BUILD_INFO_PATH=$(find artifacts/build-info -name "build_info.json" -type f | head -n 1)
 
-      - name: Find Windows Installer
-        id: find_installer
-        run: |
-          INSTALLER_PATH=$(find release-artifacts -name "MPSS_Setup_*.exe" -o -name "*.exe" | grep -i "setup" | head -1)
           if [ -z "$INSTALLER_PATH" ]; then
-            INSTALLER_PATH=$(find release-artifacts -name "*.exe" | head -1)
-          fi
-          if [ -n "$INSTALLER_PATH" ] && [ -f "$INSTALLER_PATH" ]; then
-            echo "Found installer: $INSTALLER_PATH"
-            echo "path=$INSTALLER_PATH" >> $GITHUB_OUTPUT
-          else
-            echo "::error::Windows installer not found or not a valid file!"
-            find release-artifacts -name "*.exe" || echo "No .exe files found"
+            echo "::error::Windows installer (.exe) not found in artifacts/windows-installer"
             exit 1
           fi
+          if [ -z "$WHEEL_PATH" ]; then
+            echo "::error::Python wheel (.whl) not found in artifacts/python-package"
+            exit 1
+          fi
+           if [ -z "$BUILD_INFO_PATH" ]; then
+            echo "::warning::build_info.json not found in artifacts/build-info"
+            # Decide if this is fatal or not, for now just warn
+          fi
+
+          echo "Found Installer: $INSTALLER_PATH"
+          echo "Found Wheel: $WHEEL_PATH"
+          echo "Found Build Info: $BUILD_INFO_PATH"
+
+          echo "installer_path=$INSTALLER_PATH" >> $GITHUB_OUTPUT
+          echo "wheel_path=$WHEEL_PATH" >> $GITHUB_OUTPUT
+          echo "build_info_path=$BUILD_INFO_PATH" >> $GITHUB_OUTPUT
+          echo "installer_filename=$(basename "$INSTALLER_PATH")" >> $GITHUB_OUTPUT
+          echo "wheel_filename=$(basename "$WHEEL_PATH")" >> $GITHUB_OUTPUT
+
+      - name: Calculate Specific Checksums
+        id: calc_hashes
+        run: |
+          INSTALLER_PATH="${{ steps.prep_paths.outputs.installer_path }}"
+          WHEEL_PATH="${{ steps.prep_paths.outputs.wheel_path }}"
+
+          echo "Calculating SHA256 for $INSTALLER_PATH..."
+          EXE_HASH=$(sha256sum "$INSTALLER_PATH" | awk '{print $1}')
+          echo "exe_hash=$EXE_HASH" >> $GITHUB_OUTPUT
+          echo "Calculated EXE hash: $EXE_HASH"
+
+          echo "Calculating SHA256 for $WHEEL_PATH..."
+          WHL_HASH=$(sha256sum "$WHEEL_PATH" | awk '{print $1}')
+          echo "whl_hash=$WHL_HASH" >> $GITHUB_OUTPUT
+          echo "Calculated WHL hash: $WHL_HASH"
 
       - name: Install cosign
         uses: sigstore/cosign-installer@v3.4.0
@@ -130,67 +85,114 @@ jobs:
       - name: Sign Windows Installer with Cosign
         id: sign_installer
         run: |
-          INSTALLER_PATH="${{ steps.find_installer.outputs.path }}"
+          INSTALLER_PATH="${{ steps.prep_paths.outputs.installer_path }}"
           echo "Signing $INSTALLER_PATH..."
           cosign sign-blob --yes "$INSTALLER_PATH" --output-signature "${INSTALLER_PATH}.sig"
           echo "Signature created at ${INSTALLER_PATH}.sig"
           echo "signature_path=${INSTALLER_PATH}.sig" >> $GITHUB_OUTPUT
 
-      - name: Prepare verification information
+      - name: Sign Python Wheel with Cosign
+        id: sign_wheel
         run: |
-          mkdir -p verification-info
-          cp -r release-artifacts/verification-artifacts/* verification-info/ || echo "No verification artifacts found"
-          INSTALLER_PATH="${{ steps.find_installer.outputs.path }}"
-          INSTALLER_FILENAME=$(basename "$INSTALLER_PATH")
-          CERT_IDENTITY="https://github.com/${{ github.repository }}/.github/workflows/build.yml@refs/tags/v${{ inputs.version }}"
-          CERT_ISSUER="https://token.actions.githubusercontent.com"
-          cat > verification-info/README.md << EOF
-          # Build Verification
+          WHEEL_PATH="${{ steps.prep_paths.outputs.wheel_path }}"
+          echo "Signing $WHEEL_PATH..."
+          cosign sign-blob --yes "$WHEEL_PATH" --output-signature "${WHEEL_PATH}.sig"
+          echo "Signature created at ${WHEEL_PATH}.sig"
+          echo "signature_path=${WHEEL_PATH}.sig" >> $GITHUB_OUTPUT
 
-          This release was built using GitHub Actions. You can verify the authenticity of this build using the information below.
+      - name: Prepare Verification Instructions (docs/verify.md)
+        run: |
+          mkdir -p docs # Ensure docs directory exists
 
-          ## SHA256 Checksums
+          # Define variables for clarity
+          INSTALLER_FILENAME="${{ steps.prep_paths.outputs.installer_filename }}"
+          INSTALLER_SIG_FILENAME="${INSTALLER_FILENAME}.sig"
+          WHEEL_FILENAME="${{ steps.prep_paths.outputs.wheel_filename }}"
+          WHEEL_SIG_FILENAME="${WHEEL_FILENAME}.sig"
+          RELEASE_TAG="v${{ inputs.version }}"
+          REPO_URL="https://github.com/${{ github.repository }}"
+          RELEASE_URL="$REPO_URL/releases/tag/$RELEASE_TAG"
+          # Identity should point to *this* workflow (create-release.yml) as it's doing the signing now
+          CERT_IDENTITY="$REPO_URL/.github/workflows/create-release.yml@refs/tags/$RELEASE_TAG"
+          CERT_ISSUER="https://token.actions.githubusercontent.com" # Standard issuer for GitHub Actions OIDC
 
-          The SHA256SUMS.txt file contains checksums for all files in this release. You can verify the checksums with:
+          # Generate the verify.md content
+          cat > docs/verify.md << EOF
+          # Verifying Simkl Media Player Scrobbler Releases ($RELEASE_TAG)
 
-          \`\`\`
-          sha256sum -c SHA256SUMS.txt
-          \`\`\`
+          This document explains how to verify the authenticity and integrity of the Simkl Media Player Scrobbler release files (\`.exe\`, \`.whl\`) downloaded from GitHub. Verification ensures the files haven't been tampered with since they were built and signed by the official GitHub Actions release workflow.
 
-          ## Signature Verification
+          We use [Sigstore/cosign](https://github.com/sigstore/cosign) for signing and verification.
 
-          ### Checksum Signature
+          ## 1. Prerequisites
 
-          The checksums file (\`SHA256SUMS.txt\`) is signed using [Sigstore/cosign](https://github.com/sigstore/cosign). You can verify its signature with:
+          You'll need the following tools installed:
+          *   **cosign**: Follow the [official installation guide](https://docs.sigstore.dev/cosign/installation/).
+          *   **sha256sum** (Linux/macOS) or **certutil** (Windows): For calculating SHA256 hashes.
+              *   Windows: \`certutil -hashfile <filename> SHA256\`
+              *   Linux/macOS: \`sha256sum <filename>\`
+
+          ## 2. Download Release Assets
+
+          From the [GitHub Releases page]($RELEASE_URL), download the following files into the same directory:
+          *   The Windows installer: \`$INSTALLER_FILENAME\`
+          *   The installer's signature: \`$INSTALLER_SIG_FILENAME\`
+          *   The Python wheel: \`$WHEEL_FILENAME\`
+          *   The wheel's signature: \`$WHEEL_SIG_FILENAME\`
+
+          ## 3. Verify Signatures with Cosign
+
+          Verify the digital signatures of the downloaded installer and wheel using \`cosign\`. This confirms they were signed by the expected GitHub Actions workflow.
+
+          Run the following commands in your terminal (in the directory where you downloaded the files):
 
           \`\`\`bash
-          cosign verify-blob \
-            --certificate-identity "$CERT_IDENTITY" \
-            --certificate-oidc-issuer "$CERT_ISSUER" \
-            --signature SHA256SUMS.txt.sig \
-            SHA256SUMS.txt
-          \`\`\`
-
-          ### Executable Signature
-
-          You can also verify the signature of the Windows executable file (\`$INSTALLER_FILENAME\`) directly:
-
-          \`\`\`bash
-          cosign verify-blob \
-            --certificate-identity "$CERT_IDENTITY" \
-            --certificate-oidc-issuer "$CERT_ISSUER" \
-            --signature "${INSTALLER_FILENAME}.sig" \
+          # Verify the Windows Installer signature
+          cosign verify-blob \\
+            --certificate-identity "$CERT_IDENTITY" \\
+            --certificate-oidc-issuer "$CERT_ISSUER" \\
+            --signature "$INSTALLER_SIG_FILENAME" \\
             "$INSTALLER_FILENAME"
+
+          # Verify the Python Wheel signature
+          cosign verify-blob \\
+            --certificate-identity "$CERT_IDENTITY" \\
+            --certificate-oidc-issuer "$CERT_ISSUER" \\
+            --signature "$WHEEL_SIG_FILENAME" \\
+            "$WHEEL_FILENAME"
           \`\`\`
 
-          These commands verify that the signature was created by the expected GitHub Actions workflow (`build.yml`) for this specific tag (`v${{ inputs.version }}`).
+          If verification is successful for both files, you will see "Verified OK" messages. This confirms the files were signed by the official release workflow (\`create-release.yml\`) for the tag \`$RELEASE_TAG\`. **Do not proceed if verification fails for either file.**
+
+          *Note: The \`--certificate-identity\` points to this workflow (\`create-release.yml\`) and the specific release tag (\`$RELEASE_TAG\`) that signed the files.*
+
+          ## 4. Verify Checksums Manually
+
+          As an additional check, manually calculate the SHA256 hash of the downloaded files and compare them against the hashes listed in the table within the GitHub Release notes.
+
+          **Example Commands:**
+
+          *   **Linux/macOS:**
+              \`\`\`bash
+              sha256sum "$INSTALLER_FILENAME"
+              sha256sum "$WHEEL_FILENAME"
+              \`\`\`
+
+          *   **Windows (Command Prompt or PowerShell):**
+              \`\`\`cmd
+              certutil -hashfile "$INSTALLER_FILENAME" SHA256
+              certutil -hashfile "$WHEEL_FILENAME" SHA256
+              \`\`\`
+
+          Compare the output hash for each file with the corresponding hash in the release notes table. They must match exactly. **Do not use the files if the hashes do not match.**
 
           ## Build Provenance
 
-          This build was created by GitHub Actions workflow run #${{ github.run_number }} (ID: ${{ github.run_id }}).
-
-          View the build: https://github.com/kavinthangavel/Media-Player-Scrobbler-for-Simkl/actions/runs/${{ github.run_id }}
+          This release incorporates artifacts built and verified by GitHub Actions workflow run #${{ github.run_number }} (ID: ${{ github.run_id }}).
+          View the release workflow log: $REPO_URL/actions/runs/${{ github.run_id }}
           EOF
+
+          echo "Generated verification instructions: docs/verify.md"
 
       - name: Setup GitHub CLI
         run: |
@@ -202,83 +204,90 @@ jobs:
             sudo apt install gh
           )
 
-      - name: Create Release and Upload Initial Artifacts
+      - name: Create/Update Release and Upload Artifacts
         env:
           GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
-          TAG_VERIFIED: ${{ steps.verify_tag.outputs.tag_verified }}
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }} # Some tools might prefer GH_TOKEN
         run: |
           VERSION="${{ inputs.version }}"
-          INSTALLER_PATH="${{ steps.find_installer.outputs.path }}"
-          echo "Windows installer to upload: $INSTALLER_PATH"
-          
-          # Check if release already exists
-          if gh release view "v$VERSION" &>/dev/null; then
-            echo "Release v$VERSION already exists. Updating verification status and uploading artifacts."
-            EXISTING_BODY=$(gh release view "v$VERSION" --json body --jq .body)
-            if ! echo "$EXISTING_BODY" | grep -q "This release"; then
-              NEW_BODY="$VERIFICATION_STATUS\n\n$EXISTING_BODY"
-              gh release edit "v$VERSION" --notes "$NEW_BODY"
-            fi
-          else
-            # Create release with provenance, attaching the main artifact directly
-            gh release create "v$VERSION" \
-              "$INSTALLER_PATH" \
-              --title "Release $VERSION" \
-              --generate-notes \
-              --verify-tag \
-              --discussion-category "Releases"
-            echo "Release created and Windows installer attached."
-          fi
-
-          echo "Uploading verification artifacts from verification-info/ ..."
-          find verification-info -type f | while read file; do
-            echo "Uploading $file..."
-            gh release upload "v$VERSION" "$file" --clobber
-          done
-
+          TAG_NAME="v$VERSION"
+          INSTALLER_PATH="${{ steps.prep_paths.outputs.installer_path }}"
+          INSTALLER_FILENAME="${{ steps.prep_paths.outputs.installer_filename }}"
           INSTALLER_SIG_PATH="${{ steps.sign_installer.outputs.signature_path }}"
-          if [ -f "$INSTALLER_SIG_PATH" ]; then
-            echo "Uploading installer signature: $INSTALLER_SIG_PATH"
-            gh release upload "v$VERSION" "$INSTALLER_SIG_PATH" --clobber
-          else
-            echo "::warning:: Installer signature file not found at $INSTALLER_SIG_PATH"
-          fi
-          echo "Verification artifacts uploaded."
+          WHEEL_PATH="${{ steps.prep_paths.outputs.wheel_path }}"
+          WHEEL_FILENAME="${{ steps.prep_paths.outputs.wheel_filename }}"
+          WHEEL_SIG_PATH="${{ steps.sign_wheel.outputs.signature_path }}"
+          VERIFY_DOC_PATH="docs/verify.md"
 
-      - name: Update Release Body with SHA256 Hash
-        env:
-          GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
-          VERSION: ${{ inputs.version }}
-          SHA256_HASH: ${{ steps.read_hash.outputs.sha256_hash }}
-        shell: bash
-        run: |
-          echo "Fetching current release body for v${VERSION}..."
-          EXISTING_BODY=$(gh release view "v$VERSION" --json body --jq .body)
+          echo "Release Tag: $TAG_NAME"
+          echo "Installer: $INSTALLER_PATH"
+          echo "Installer Sig: $INSTALLER_SIG_PATH"
+          echo "Wheel: $WHEEL_PATH"
+          echo "Wheel Sig: $WHEEL_SIG_PATH"
+          echo "Verification Doc: $VERIFY_DOC_PATH"
 
-          if [ -z "$SHA256_HASH" ]; then
-            echo "::error::SHA256_HASH is empty. Cannot update release body."
-            exit 1
-          fi
+          # Construct the verification section for the release body
+          # Use filenames from prep_paths step and hashes from calc_hashes step
+          HASH_TABLE=$(cat <<EOF
+          **Checksums:**
 
-          INSTALLER_BASENAME="MPSS_Setup_${VERSION}.exe"
+          | File                 | SHA256 Checksum                                  |
+          |----------------------|--------------------------------------------------|
+          | \`$INSTALLER_FILENAME\` | \`${{ steps.calc_hashes.outputs.exe_hash }}\`    |
+          | \`$WHEEL_FILENAME\`    | \`${{ steps.calc_hashes.outputs.whl_hash }}\`    |
 
-          SHA_TABLE=$(cat <<EOF
+          **Verification:**
 
-          | File                     | SHA256                                   |
-          | ------------------------ | ---------------------------------------- |
-          | ${INSTALLER_BASENAME}    | ${SHA256_HASH}                           |
+          Please follow the instructions in the [Verification Guide]($VERIFY_DOC_PATH) to verify the signatures and checksums of the downloaded files.
           EOF
           )
 
-          echo "Appending SHA256 table to release body..."
-          printf -v NEW_BODY "%s\n%s" "$EXISTING_BODY" "$SHA_TABLE"
+          # Check if release already exists
+          if gh release view "$TAG_NAME" --json id --jq .id &>/dev/null; then
+            echo "Release $TAG_NAME already exists. Updating notes and uploading artifacts."
+            EXISTING_BODY=$(gh release view "$TAG_NAME" --json body --jq .body)
+            # Simple strategy: Replace the whole body if it exists, otherwise use generated notes + hash table
+            # More sophisticated: Find a marker and replace only the verification section
+            # For now, let's append if the hash table isn't obviously there
+            if ! echo "$EXISTING_BODY" | grep -q "SHA256 Checksum"; then
+                echo "Appending verification info to existing notes..."
+                # Use printf for better control over newlines
+                NEW_BODY=$(printf "%s\n\n---\n\n%s" "$EXISTING_BODY" "$HASH_TABLE")
+                gh release edit "$TAG_NAME" --notes "$NEW_BODY"
+            else
+                echo "Verification table seems present. Consider manual review/update if needed."
+                # Potentially replace existing table here if needed
+            fi
+          else
+            echo "Creating new release $TAG_NAME..."
+            # Create a draft release first to capture generated notes
+            gh release create "$TAG_NAME" \
+              --title "Release $VERSION" \
+              --generate-notes \
+              --discussion-category "Releases" \
+              --draft
+            # Get the body of the draft (which includes generated notes)
+            DRAFT_BODY=$(gh release view "$TAG_NAME" --json body --jq .body)
+            # Construct the final body for the new release
+            NEW_BODY=$(printf "%s\n\n---\n\n%s" "$DRAFT_BODY" "$HASH_TABLE")
+            # Update the draft release with the full body and publish it
+            echo "Updating draft release with full notes and publishing..."
+            gh release edit "$TAG_NAME" --notes "$NEW_BODY" --draft=false
+          fi
 
-          echo "Updating release v${VERSION}..."
-          gh release edit "v$VERSION" --notes "$NEW_BODY"
-          echo "Release body updated successfully."
+          # Upload all required artifacts, overwriting if they exist
+          echo "Uploading artifacts..."
+          gh release upload "$TAG_NAME" "$INSTALLER_PATH" --clobber
+          gh release upload "$TAG_NAME" "$INSTALLER_SIG_PATH" --clobber
+          gh release upload "$TAG_NAME" "$VERIFY_DOC_PATH" --clobber
 
-      - name: Delete build artifacts
-        uses: geekyeggo/delete-artifact@v5
-        with:
-          name: |
-            python-package
+          echo "Artifact upload process complete for release $TAG_NAME."
+
+      # Optional: Keep or remove the delete-artifact step as needed
+      # - name: Delete build artifacts
+      #   uses: geekyeggo/delete-artifact@v5
+      #   with:
+      #     name: |
+      #       build-info
+      #       python-package
+      #       windows-installer
