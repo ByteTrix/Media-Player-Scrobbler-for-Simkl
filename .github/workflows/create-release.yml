@@ -238,7 +238,7 @@ jobs:
 
           **Verification:**
 
-          Please follow the instructions in the [Verification Guide](https://github.com/kavinthangavel/Media-Player-Scrobbler-for-Simkl/blob/main/docs/verify.md) to verify the signatures and checksums of the downloaded files.
+          Please follow the instructions in the [Verification Guide](https://github.com/kavinthangavel/Media-Player-Scrobbler-for-Simkl/releases/download/$TAG_NAME/verify.md) to verify the signatures and checksums of the downloaded files.
           EOF
           )
 
@@ -280,25 +280,6 @@ jobs:
           gh release upload "$TAG_NAME" "$INSTALLER_SIG_PATH" --clobber
           gh release upload "$TAG_NAME" "$VERIFY_DOC_PATH" --clobber
 
-          # Ensure verify.md is properly committed to the docs folder in the repository
-          # First fetch the latest changes to avoid non-fast-forward rejections
-          git config --global user.email "github-actions@github.com"
-          git config --global user.name "GitHub Actions"
-          
-          # Create a temporary branch for this change
-          git fetch origin
-          git checkout -b temp-verify-doc-branch origin/main || git checkout -b temp-verify-doc-branch origin/master
-          
-          # Copy the verify.md file to the docs folder
-          mkdir -p docs
-          cp "$VERIFY_DOC_PATH" docs/verify.md
-          
-          # Commit and push the change
-          git add docs/verify.md
-          git commit -m "Add verification guide for release $TAG_NAME"
-          git push origin temp-verify-doc-branch:main || git push origin temp-verify-doc-branch:master
-          
-          echo "Artifact upload process complete for release $TAG_NAME."
 
       # Optional: Keep or remove the delete-artifact step as needed
       - name: Delete build artifacts
