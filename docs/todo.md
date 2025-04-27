@@ -19,6 +19,7 @@ Tracks completed features and planned improvements for MPS for SIMKL.
 
 ## 🚧 In Progress
 - 💻 Cross-platform testing
+- ©️ Change Logic From Window Title Tracking to Filename Tracking 
 - 💾 Option to set/edit completion percentage
 
 ## 📝 Planned Features
