@@ -29,20 +29,33 @@ jobs:
           GPG_PUBLIC_KEY: ${{ secrets.GPG_PUBLIC_KEY }} 
         run: |
           echo "Verifying tag signature for v${{ inputs.version }}..."
+<<<<<<< Updated upstream
           
           # Import GPG public key
+=======
+          TAG_VERIFIED=false
+          
+          # Import GPG key if available
+>>>>>>> Stashed changes
           if [ -n "$GPG_PUBLIC_KEY" ]; then
             # Write the key to a file first to avoid shell interpretation issues
             echo "$GPG_PUBLIC_KEY" > /tmp/gpg_public_key.asc
             # Fix any potential line ending issues
             sed -i 's/\r$//' /tmp/gpg_public_key.asc
+<<<<<<< Updated upstream
             # Make sure the key file has proper GPG armor headers
+=======
+            
+            # Ensure key has proper PGP headers
+>>>>>>> Stashed changes
             if ! grep -q "^-----BEGIN PGP PUBLIC KEY BLOCK-----" /tmp/gpg_public_key.asc; then
+              echo "Adding PGP headers to key..."
               echo "-----BEGIN PGP PUBLIC KEY BLOCK-----" > /tmp/fixed_key.asc
               cat /tmp/gpg_public_key.asc >> /tmp/fixed_key.asc
               echo "-----END PGP PUBLIC KEY BLOCK-----" >> /tmp/fixed_key.asc
               mv /tmp/fixed_key.asc /tmp/gpg_public_key.asc
             fi
+<<<<<<< Updated upstream
             # Import the key from the file
             gpg --batch --import /tmp/gpg_public_key.asc || echo "::warning::Failed to import GPG key, but continuing..."
             echo "GPG Public Key import attempted."
@@ -50,10 +63,24 @@ jobs:
             gpg --list-keys # List keys for debugging
             # Clean up
             rm -f /tmp/gpg_public_key.asc
+=======
+            
+            # Import key with better error handling
+            gpg --batch --import /tmp/gpg_public_key.asc 2>/tmp/gpg_import_error || true
+            if [ -s /tmp/gpg_import_error ]; then
+              echo "::warning::GPG key import had issues:"
+              cat /tmp/gpg_import_error
+            fi
+            
+            echo "GPG Public Key imported. Available GPG keys:"
+            gpg --list-keys
+            rm -f /tmp/gpg_public_key.asc /tmp/gpg_import_error
+>>>>>>> Stashed changes
           else
-            echo "::warning:: GPG_PUBLIC_KEY secret not found. Cannot import key for tag verification."
+            echo "::warning::GPG_PUBLIC_KEY secret not found. Will skip signature verification."
           fi
           
+<<<<<<< Updated upstream
           # Check if tag exists in local repository
           if ! git tag -l "v${{ inputs.version }}" | grep -q "v${{ inputs.version }}"; then
             echo "Tag not found in local repository, attempting to fetch from remote..."
@@ -62,23 +89,50 @@ jobs:
           fi
           
           # Verify that the tag exists now
+=======
+          # Make sure tag exists
+          if ! git tag -l "v${{ inputs.version }}" | grep -q "v${{ inputs.version }}"; then
+            echo "Tag not found in local repository, attempting to fetch from remote..."
+            git fetch origin tag "v${{ inputs.version }}" --no-tags || echo "Could not fetch tag from remote"
+          fi
+          
+          # Check if tag exists
+>>>>>>> Stashed changes
           if ! git tag -l "v${{ inputs.version }}" | grep -q "v${{ inputs.version }}"; then
             echo "::error::Tag v${{ inputs.version }} not found in both local and remote repositories!"
             exit 1
           fi
           
+<<<<<<< Updated upstream
           # Attempt to verify the tag signature
           if git verify-tag "v${{ inputs.version }}" 2>&1 | grep -q "Good signature"; then
+=======
+          # Try signature verification (but don't fail if not signed)
+          echo "Attempting to verify tag signature..."
+          VERIFY_OUTPUT=$(git verify-tag "v${{ inputs.version }}" 2>&1) || true
+          echo "Verification output: $VERIFY_OUTPUT"
+          
+          if echo "$VERIFY_OUTPUT" | grep -q "Good signature"; then
+>>>>>>> Stashed changes
             echo "✅ Tag v${{ inputs.version }} has a valid GPG signature!"
+            TAG_VERIFIED=true
           else
-            echo "::warning::Tag v${{ inputs.version }} is not GPG-signed or has an invalid signature."
-            echo "For verified releases, please use a GPG-signed tag:"
+            echo "::warning::Tag v${{ inputs.version }} could not be verified with GPG signature."
+            echo "Continuing workflow but release will be marked as unverified."
+            echo "For fully verified releases, please use a GPG-signed tag:"
             echo "  git tag -s v${{ inputs.version }} -m \"Release version ${{ inputs.version }}\""
             echo "  git push origin v${{ inputs.version }}"
+<<<<<<< Updated upstream
             
             # Enforce signed tags for verified releases
             exit 1
+=======
+>>>>>>> Stashed changes
           fi
+          
+          # Set verification status for later steps
+          echo "tag_verified=$TAG_VERIFIED" >> $GITHUB_OUTPUT
+        id: verify_tag
 
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -176,16 +230,33 @@ jobs:
       - name: Create Release with Provenance
         env:
           GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          TAG_VERIFIED: ${{ steps.verify_tag.outputs.tag_verified }}
         run: |
           VERSION="${{ inputs.version }}"
           INSTALLER_PATH="${{ steps.find_installer.outputs.path }}" # Use path from previous step
           
           echo "Windows installer to upload: $INSTALLER_PATH"
           
+<<<<<<< Updated upstream
           # Check if release already exists
-          if gh release view "v$VERSION" &>/dev/null; then
-            echo "Release v$VERSION already exists. Skipping creation but will upload artifacts."
+=======
+          VERIFICATION_STATUS=""
+          if [ "$TAG_VERIFIED" = "true" ]; then
+            VERIFICATION_STATUS="✅ This release is signed with a verified GPG key."
           else
+            VERIFICATION_STATUS="⚠️ This release was not verified with a GPG signature."
+          fi
+
+>>>>>>> Stashed changes
+          if gh release view "v$VERSION" &>/dev/null; then
+            echo "Release v$VERSION already exists. Updating verification status and uploading artifacts."
+            EXISTING_BODY=$(gh release view "v$VERSION" --json body --jq .body)
+            if ! echo "$EXISTING_BODY" | grep -q "This release"; then
+              NEW_BODY="$VERIFICATION_STATUS\n\n$EXISTING_BODY"
+              gh release edit "v$VERSION" --notes "$NEW_BODY"
+            fi
+          else
+<<<<<<< Updated upstream
             # Create release with provenance, attaching the main artifact directly
             gh release create "v$VERSION" \
               "$INSTALLER_PATH" \
@@ -200,6 +271,24 @@ jobs:
           View the build: https://github.com/kavinthangavel/Media-Player-Scrobbler-for-Simkl/actions/runs/${{ github.run_id }}" \
               --generate-notes \
               --verify-tag \
+=======
+            NOTES=$(cat <<EOF
+$VERIFICATION_STATUS
+
+This is release version $VERSION of Media Player Scrobbler for Simkl.
+
+## Installation
+Download the Windows installer and run it to install the application.
+
+## Verification
+See the README.md in the release assets for information on how to verify this release.
+EOF
+)
+            gh release create "v$VERSION" \
+              "$INSTALLER_PATH" \
+              --title "Release $VERSION" \
+              --notes "$NOTES" \
+>>>>>>> Stashed changes
               --discussion-category "Releases"
             echo "Release created and Windows installer attached."
           fi
