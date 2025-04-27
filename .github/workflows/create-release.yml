@@ -29,23 +29,12 @@ jobs:
           GPG_PUBLIC_KEY: ${{ secrets.GPG_PUBLIC_KEY }}
         run: |
           echo "Verifying tag signature for v${{ inputs.version }}..."
-<<<<<<< Updated upstream
           
           # Import GPG public key
-=======
-          TAG_VERIFIED=false
-          
-          # Import GPG key if available
->>>>>>> Stashed changes
           if [ -n "$GPG_PUBLIC_KEY" ]; then
             echo "$GPG_PUBLIC_KEY" > /tmp/gpg_public_key.asc
             sed -i 's/\r$//' /tmp/gpg_public_key.asc
-<<<<<<< Updated upstream
             # Make sure the key file has proper GPG armor headers
-=======
-            
-            # Ensure key has proper PGP headers
->>>>>>> Stashed changes
             if ! grep -q "^-----BEGIN PGP PUBLIC KEY BLOCK-----" /tmp/gpg_public_key.asc; then
               echo "Adding PGP headers to key..."
               echo "-----BEGIN PGP PUBLIC KEY BLOCK-----" > /tmp/fixed_key.asc
@@ -53,31 +42,16 @@ jobs:
               echo "-----END PGP PUBLIC KEY BLOCK-----" >> /tmp/fixed_key.asc
               mv /tmp/fixed_key.asc /tmp/gpg_public_key.asc
             fi
-<<<<<<< Updated upstream
             # Import the key from the file
             gpg --batch --import /tmp/gpg_public_key.asc || echo "::warning::Failed to import GPG key, but continuing..."
             echo "GPG Public Key import attempted."
             echo "Available GPG keys:"
             gpg --list-keys
             rm -f /tmp/gpg_public_key.asc
-=======
-            
-            # Import key with better error handling
-            gpg --batch --import /tmp/gpg_public_key.asc 2>/tmp/gpg_import_error || true
-            if [ -s /tmp/gpg_import_error ]; then
-              echo "::warning::GPG key import had issues:"
-              cat /tmp/gpg_import_error
-            fi
-            
-            echo "GPG Public Key imported. Available GPG keys:"
-            gpg --list-keys
-            rm -f /tmp/gpg_public_key.asc /tmp/gpg_import_error
->>>>>>> Stashed changes
           else
             echo "::warning::GPG_PUBLIC_KEY secret not found. Will skip signature verification."
           fi
           
-<<<<<<< Updated upstream
           # Check if tag exists in local repository
           if ! git tag -l "v${{ inputs.version }}" | grep -q "v${{ inputs.version }}"; then
             echo "Tag not found in local repository, attempting to fetch from remote..."
@@ -85,31 +59,13 @@ jobs:
           fi
           
           # Verify that the tag exists now
-=======
-          # Make sure tag exists
-          if ! git tag -l "v${{ inputs.version }}" | grep -q "v${{ inputs.version }}"; then
-            echo "Tag not found in local repository, attempting to fetch from remote..."
-            git fetch origin tag "v${{ inputs.version }}" --no-tags || echo "Could not fetch tag from remote"
-          fi
-          
-          # Check if tag exists
->>>>>>> Stashed changes
           if ! git tag -l "v${{ inputs.version }}" | grep -q "v${{ inputs.version }}"; then
             echo "::error::Tag v${{ inputs.version }} not found in both local and remote repositories!"
             exit 1
           fi
           
-<<<<<<< Updated upstream
           # Attempt to verify the tag signature
           if git verify-tag "v${{ inputs.version }}" 2>&1 | grep -q "Good signature"; then
-=======
-          # Try signature verification (but don't fail if not signed)
-          echo "Attempting to verify tag signature..."
-          VERIFY_OUTPUT=$(git verify-tag "v${{ inputs.version }}" 2>&1) || true
-          echo "Verification output: $VERIFY_OUTPUT"
-          
-          if echo "$VERIFY_OUTPUT" | grep -q "Good signature"; then
->>>>>>> Stashed changes
             echo "✅ Tag v${{ inputs.version }} has a valid GPG signature!"
             TAG_VERIFIED=true
           else
@@ -118,12 +74,9 @@ jobs:
             echo "For fully verified releases, please use a GPG-signed tag:"
             echo "  git tag -s v${{ inputs.version }} -m \"Release version ${{ inputs.version }}\""
             echo "  git push origin v${{ inputs.version }}"
-<<<<<<< Updated upstream
             
             # Enforce signed tags for verified releases
             exit 1
-=======
->>>>>>> Stashed changes
           fi
           
           # Set verification status for later steps
