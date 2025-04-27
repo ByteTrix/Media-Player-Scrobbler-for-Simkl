@@ -184,6 +184,25 @@ class MovieScrobbler:
                 else:
                     logger.debug("MPC integration couldn't get position/duration data")
             # --- End MPC-HC/BE Integration ---
+            
+            # --- MPC-QT Integration ---
+            elif 'mpc-qt' in process_name_lower:
+                logger.debug(f"MPC-QT detected: {process_name}")
+                from simkl_mps.players.mpcqt import MPCQTIntegration
+                
+                # Lazily instantiate the MPC-QT integration
+                if not hasattr(self, '_mpcqt_integration'):
+                    self._mpcqt_integration = MPCQTIntegration()
+                
+                position, duration = self._mpcqt_integration.get_position_duration(process_name)
+                
+                if position is not None and duration is not None:
+                    logger.debug(f"Retrieved position data from MPC-QT: position={position}s, duration={duration}s")
+                    # Return directly if successful
+                    return position, duration
+                else:
+                    logger.debug("MPC-QT integration couldn't get position/duration data")
+            # --- End MPC-QT Integration ---
 
             # --- MPV Integration ---
             elif 'mpv' in process_name_lower:
@@ -199,10 +218,38 @@ class MovieScrobbler:
                 if position is not None and duration is not None:
                     logger.debug(f"Retrieved position data from MPV: position={position}s, duration={duration}s")
                     # Return directly if successful
-                    return position, duration # Already validated and rounded in MPVIntegration
+                    return position, duration 
                 else:
                     logger.debug("MPV integration couldn't get position/duration data")
             # --- End MPV Integration ---
+            
+            # --- MPV Wrapper Integration (Celluloid, MPV.net, SMPlayer, etc.) ---
+            else:
+                # Try to detect MPV wrapper players (need to check this explicitly since they 
+                # may not have 'mpv' in the process name)
+                from simkl_mps.players.mpv_wrappers import MPVWrapperIntegration
+                
+                # Lazily instantiate the MPV wrapper integration
+                if not hasattr(self, '_mpv_wrapper_integration'):
+                    self._mpv_wrapper_integration = MPVWrapperIntegration()
+                
+                # Check if this is a known MPV wrapper
+                if self._mpv_wrapper_integration.is_mpv_wrapper(process_name):
+                    logger.debug(f"MPV wrapper player detected: {process_name}")
+                    
+                    # Get wrapper details for better logging
+                    _, wrapper_name, _ = self._mpv_wrapper_integration.get_wrapper_info(process_name)
+                    wrapper_display = wrapper_name or process_name
+                    
+                    position, duration = self._mpv_wrapper_integration.get_position_duration(process_name)
+                    
+                    if position is not None and duration is not None:
+                        logger.debug(f"Retrieved position data from {wrapper_display}: position={position}s, duration={duration}s")
+                        # Return directly if successful
+                        return position, duration
+                    else:
+                        logger.debug(f"{wrapper_display} integration couldn't get position/duration data")
+            # --- End MPV Wrapper Integration ---
 
             # General validation (redundant for MPV, kept for safety/other players)
             if position is not None and duration is not None:

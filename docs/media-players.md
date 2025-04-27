@@ -20,6 +20,8 @@ graph TD
     style H fill:#fbbc05,stroke:#333,stroke-width:2px,color:#fff
 ```
 
+Follow the platform-specific instructions below to set up your preferred media player for the best tracking experience.
+
 ## 🗂️ Compatibility Matrix
 
 | Player                | Windows | macOS | Linux | Advanced Tracking | Configuration Difficulty |
@@ -27,10 +29,14 @@ graph TD
 | VLC                   | ✅      | ✅    | ✅    | ✅              | Easy                   |
 | MPV                   | ✅      | ✅    | ✅    | ✅              | Moderate               |
 | MPC-HC/BE             | ✅      | ❌    | ❌    | ✅              | Easy                   |
+| MPC-QT                | ✅      | ❌    | ✅    | ✅              | Easy                   |
 | Infuse                | ❌      | ✅    | ❌    | ✅              | Moderate               |
 | Windows Media Player  | ✅      | ❌    | ❌    | ❌              | Not Available          |
 | QuickTime             | ❌      | ✅    | ❌    | ❌              | Not Available          |
+| MPV Wrappers*         | ✅      | ✅    | ✅    | ✅              | Moderate               |
 | Other Players         | ✅      | ✅    | ✅    | ❌              | Not Available          |
+
+*MPV Wrappers: Celluloid, MPV.net, SMPlayer, IINA, Haruna, etc.
 
 > **Note**: The application currently supports **movie tracking only**. TV show support is planned for future updates.
 
@@ -79,6 +85,26 @@ graph TD
 - The scrobbler will connect to the pipe socket
 - Position data should be accurately tracked
 
+### MPV Wrapper Players (MPV.net, SMPlayer, etc.)
+
+**Windows Configuration:**
+1. Most MPV wrapper players use the same MPV backend configuration:
+   - For **MPV.net**: Configure in `%APPDATA%\mpv.net\mpv.conf`
+   - For **Haruna Player**: Configure in `%APPDATA%\haruna\mpv.conf`
+   - For **Celluloid**: Configure in `%APPDATA%\celluloid\mpv.conf`
+
+2. Add the following line to the appropriate configuration file:
+   ```
+   # Enable IPC socket for advanced tracking
+   input-ipc-server=\\.\pipe\mpvsocket
+   ```
+
+3. Save the file and restart the player
+
+**Verification:**
+- Play a movie in your MPV wrapper player
+- The scrobbler should connect and show accurate position data
+
 ### MPC-HC/BE (Media Player Classic)
 
 **Step-by-Step Configuration:**
@@ -91,6 +117,70 @@ graph TD
 **Verification:**
 - Play a movie in MPC
 - The scrobbler will connect to the web interface
+- Position data should be accurately tracked
+
+### MPC-QT (Media Player Classic Qute Theater)
+
+**Step-by-Step Configuration:**
+1. Open MPC-QT
+2. Navigate to **View → Options**
+3. Go to **Player → Web Interface**
+4. Check **Enable web server**
+5. Ensure port is set to **13579** (default)
+6. Uncheck the **Allow Access From Localhost Only**
+7. Click **OK** and restart MPC-QT
+
+**Verification:**
+- Play a movie in MPC-QT
+- The scrobbler will connect to the web interface
+- Position data should be accurately tracked
+
+### SMPlayer (MPV-based)
+
+SMPlayer is a versatile media player that can use MPV as its backend.
+
+**Configuration Steps:**
+1. Open SMPlayer
+2. Go to **Options → Preferences**
+3. Click on **Advanced** in the left sidebar
+4. Select the **MPlayer/MPV** tab
+5. In the **Options:** field, add: 
+   ```
+   --input-ipc-server=\\.\pipe\mpvsocket
+   ```
+   (for Windows) or
+   ```
+   --input-ipc-server=/tmp/mpvsocket
+   ```
+   (for Linux/macOS)
+6. Click **OK** and restart SMPlayer
+
+**Verification:**
+- Play a movie in SMPlayer
+- The scrobbler should connect to the MPV backend
+- Position data should be accurately tracked
+
+### Syncplay (with MPV)
+
+Syncplay allows synchronized playback across multiple users and can use MPV as its player.
+
+**Configuration Steps:**
+1. Open Syncplay
+2. In the configuration dialog, set **Media Player** to **mpv**
+3. In the **Player arguments:** field, add:
+   ```
+   --input-ipc-server=\\.\pipe\mpvsocket
+   ```
+   (for Windows) or
+   ```
+   --input-ipc-server=/tmp/mpvsocket
+   ```
+   (for Linux/macOS)
+4. Click **Save** and restart Syncplay
+
+**Verification:**
+- Start a Syncplay session and play a movie
+- The scrobbler should connect to the MPV backend
 - Position data should be accurately tracked
 
 ---
@@ -112,6 +202,26 @@ Follow the same configuration steps as shown in the Windows VLC section above.
    input-ipc-server=/tmp/mpvsocket
    ```
 4. Save and restart MPV
+
+### MPV Wrapper Players (IINA, etc.)
+
+**macOS Configuration:**
+1. For **IINA**: 
+   - IINA uses MPV as its backend
+   - Configure in `~/.config/mpv/mpv.conf` or 
+   - Configure in `~/Library/Application Support/io.iina.iina/mpv.conf`
+   
+2. Add the following line to the appropriate configuration file:
+   ```
+   # Enable IPC socket for advanced tracking
+   input-ipc-server=/tmp/mpvsocket
+   ```
+
+3. Save the file and restart IINA
+
+**Verification:**
+- Play a movie in your MPV wrapper player
+- The scrobbler should connect and show accurate position data
 
 ### Infuse (macOS)
 
@@ -149,6 +259,28 @@ Follow the same configuration steps as shown in the Windows VLC section above.
    ```
 4. Ensure the socket path has appropriate permissions
 5. Save and restart MPV
+
+### MPV Wrapper Players (Celluloid, SMPlayer, etc.)
+
+**Linux Configuration:**
+1. Configure the appropriate MPV config file:
+   - For **Celluloid**: Configure in `~/.config/mpv/mpv.conf`
+   - For **Haruna Player**: Configure in `~/.config/haruna/mpv.conf`
+
+   
+2. Add the following line to the appropriate configuration file:
+   ```
+   # Enable IPC socket for advanced tracking
+   input-ipc-server=/tmp/mpvsocket
+   ```
+
+3. Save the file and restart the player
+
+**For Celluloid (GNOME MPV):**
+1. Edit the MPV config as above
+2. In Celluloid, go to Preferences > MPV Configuration
+3. Add: `input-ipc-server=/tmp/mpvsocket`
+4. Restart Celluloid
 
 ---
 

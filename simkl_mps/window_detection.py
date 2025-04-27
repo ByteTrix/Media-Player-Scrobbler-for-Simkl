@@ -67,6 +67,9 @@ VIDEO_PLAYER_EXECUTABLES = {
         'kmplayer.exe',
         'GOM.exe',
         'MediaPlayerClassic.exe',
+        'mpvnet.exe',  
+        'mpc-qt.exe', 
+        'syncplay.exe',  
     ],
     'darwin': [  # macOS
         'VLC',
@@ -77,6 +80,10 @@ VIDEO_PLAYER_EXECUTABLES = {
         'Movist',
         'Movist Pro',
         'MPEG Streamclip',
+        # MPV Wrapper Players for macOS
+        'io.iina.IINA',  # IINA - alternative process name
+        'smplayer',  # SMPlayer
+        'syncplay',  # Syncplay
     ],
     'linux': [
         'vlc',
@@ -88,6 +95,11 @@ VIDEO_PLAYER_EXECUTABLES = {
         'parole',
         'kaffeine',
         'celluloid',
+        # MPV Wrapper Players for Linux
+        'haruna',  # Haruna Player
+        'mpc-qt',  # Media Player Classic Qute Theater
+        'mpv.net',  # MPV.net
+        'syncplay',  # Syncplay
     ]
 }
 
@@ -587,6 +599,13 @@ def parse_movie_title(window_title_or_info):
         r'^KMPlayer.*$',
         r'^GOM Player.*$',
         r'^Media Player Classic.*$',
+        # MPV Wrapper player-only window titles
+        r'^mpv\.net$',
+        r'^Celluloid$',
+        r'^IINA$',
+        r'^Haruna$',
+        r'^Syncplay.*$',
+        r'^MPC-QT$',
     ]
     
     for pattern in player_only_patterns:
@@ -610,6 +629,14 @@ def parse_movie_title(window_title_or_info):
         r'\s*-\s*KMPlayer.*$',
         r'\s*-\s*GOM Player.*$',
         r'\s*-\s*Media Player Classic.*$',
+        # MPV Wrapper Players patterns
+        r'\s*-\s*MPV\.net$',
+        r'\s*-\s*Celluloid$',
+        r'\s*-\s*IINA$',
+        r'\s*-\s*Haruna$',
+        r'\s*-\s*Syncplay.*$',
+        r'\s*-\s*MPC-QT$',
+        # Pause indicators
         r'\s*\[Paused\]$',
         r'\s*-\s*Paused$',
     ]
