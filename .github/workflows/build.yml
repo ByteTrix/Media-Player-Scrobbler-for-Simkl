@@ -9,9 +9,9 @@ on:
         description: 'Version to release (e.g., 1.2.3)'
         required: true
         type: string
-  push:
-    tags:
-      - 'v*'
+  # push:
+  #   tags:
+  #     - 'v*'
 
 permissions:
   contents: write
