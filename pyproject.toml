@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "simkl-mps"
-version = "2.0.3"
+version = "2.0.4"
 description = "Automatic Media Scrobbler for Simkl"
 authors = [
     "kavinthangavel <kavinthangavel.dev@gmail.com>",
@@ -61,7 +61,7 @@ markers = "sys_platform == 'linux' and python_version >= '3.9' and python_versio
 [tool.poetry.urls]
 "Linux System Dependencies" = "https://github.com/kavinthangavel/media-player-scrobbler-for-simkl/wiki/Installation#linux-installation"
 "Bug Reports" = "https://github.com/kavinthangavel/media-player-scrobbler-for-simkl/issues"
-"Documentation" = "https://github.com/kavinthangavel/media-player-scrobbler-for-simkl/wiki"
+Documentation = "https://github.com/kavinthangavel/media-player-scrobbler-for-simkl/wiki"
 
 [tool.poetry.group.dev.dependencies]
 pytest = ">=6.2.5"

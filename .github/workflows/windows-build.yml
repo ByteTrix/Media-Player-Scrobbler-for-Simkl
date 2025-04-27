@@ -55,7 +55,6 @@ jobs:
           SIMKL_CLIENT_SECRET: ${{ secrets.SIMKL_CLIENT_SECRET }}
         shell: bash
         run: |
-          # Check if secrets are available
           if [ -z "$SIMKL_CLIENT_ID" ]; then
             echo "::error::SIMKL_CLIENT_ID secret is not set."
             exit 1
@@ -65,7 +64,6 @@ jobs:
             exit 1
           fi
 
-          # Inject Client ID and Secret
           sed -i "s|SIMKL_CLIENT_ID_PLACEHOLDER|${SIMKL_CLIENT_ID}|g" simkl_mps/credentials.py
           sed -i "s|SIMKL_CLIENT_SECRET_PLACEHOLDER|${SIMKL_CLIENT_SECRET}|g" simkl_mps/credentials.py
 
@@ -77,13 +75,10 @@ jobs:
         run: |
           pip install pyinstaller
           
-          # Patch is now included directly in simkl-mps.spec
           python -m PyInstaller --clean simkl-mps.spec
           
-          # Make sure the destination directory exists before copying
           New-Item -Path "dist\simkl-mps" -ItemType Directory -Force
           
-          # Copy build_info.json to the PyInstaller dist directory
           Copy-Item -Path "build-info\build_info.json" -Destination "dist\simkl-mps\" -Force
 
       - name: Test PyInstaller build
@@ -94,16 +89,13 @@ jobs:
       - name: Build Installer with Inno Setup
         run: |
           $version = "${{ inputs.version }}"
-          # Replace version in setup.iss
           (Get-Content setup.iss) -replace '#define MyAppVersion "[^"]*"', "#define MyAppVersion `"$version`"" | Set-Content setup_temp.iss
           
-          # Find the end of the [Files] section and properly add the build_info.json entry
           $fileContent = Get-Content setup_temp.iss -Raw
           $filesPattern = "(\[Files\].*?)(^\[)"
           $newContent = $fileContent -replace $filesPattern, "`$1`r`nSource: `"build-info\build_info.json`"; DestDir: `"{app}`"; Flags: ignoreversion`r`n`r`n`$2" -replace '(?smi)'
           Set-Content -Path setup_temp.iss -Value $newContent
           
-          # Compile the setup
           & 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe' /Q setup_temp.iss
           
       - name: Rename and move installer
@@ -111,6 +103,32 @@ jobs:
           $version = "${{ inputs.version }}"
           mkdir -p artifacts
           Move-Item dist\installer\MPSS_Setup_$version.exe artifacts\MPSS_Setup_$version.exe
+
+      - name: Calculate SHA256 for EXE
+        id: hash_exe
+        shell: pwsh
+        run: |
+          $filePath = "artifacts/MPSS_Setup_${{ inputs.version }}.exe"
+          $hash = (Get-FileHash -Path $filePath -Algorithm SHA256).Hash
+          echo "sha256_hash=$hash" >> $env:GITHUB_OUTPUT
+          echo "Calculated hash: $hash for file: $filePath"
+
+      - name: Create SHA256 Hash File
+        id: create_hash_file
+        shell: pwsh
+        run: |
+          $hashValue = "${{ steps.hash_exe.outputs.sha256_hash }}"
+          $tempFilePath = Join-Path $env:RUNNER_TEMP "sha256_hash.txt"
+          Set-Content -Path $tempFilePath -Value $hashValue
+          echo "hash_file_path=$tempFilePath" >> $env:GITHUB_OUTPUT
+          echo "Created hash file at $tempFilePath"
+
+      - name: Upload SHA256 Hash Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sha256-hash # Name of the artifact
+          path: ${{ steps.create_hash_file.outputs.hash_file_path }} # Path from previous step
+          retention-days: 1 # Keep artifact for 1 day
 
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
