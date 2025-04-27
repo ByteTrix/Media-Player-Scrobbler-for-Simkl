@@ -7,15 +7,19 @@ changelog:
     - title: '🐛 Bug Fixes'
       labels:
         - 'bug'
+        - 'fix'
+        - 'hotfix'
     - title: '⚙️ Refactoring'
       labels:
         - 'refactor'
     - title: '🧩 UI/UX'
       labels:
         - 'UI/UX'
+        - 'ui'
     - title: '📚 Documentation'
       labels:
         - 'documentation'
+        - 'docs'
     - title: '🔒 Security'
       labels:
         - 'security'
