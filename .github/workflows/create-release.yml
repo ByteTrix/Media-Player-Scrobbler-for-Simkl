@@ -265,7 +265,6 @@ jobs:
               --title "Release $VERSION" \
               --generate-notes \
               --discussion-category "Releases" \
-              --draft
             # Get the body of the draft (which includes generated notes)
             DRAFT_BODY=$(gh release view "$TAG_NAME" --json body --jq .body)
             # Construct the final body for the new release
