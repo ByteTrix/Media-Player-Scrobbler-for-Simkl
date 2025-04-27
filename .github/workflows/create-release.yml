@@ -238,7 +238,7 @@ jobs:
 
           **Verification:**
 
-          Please follow the instructions in the [Verification Guide]($VERIFY_DOC_PATH) to verify the signatures and checksums of the downloaded files.
+          Please follow the instructions in the [Verification Guide](https://github.com/kavinthangavel/Media-Player-Scrobbler-for-Simkl/blob/main/docs/verify.md) to verify the signatures and checksums of the downloaded files.
           EOF
           )
 
@@ -278,15 +278,19 @@ jobs:
           echo "Uploading artifacts..."
           gh release upload "$TAG_NAME" "$INSTALLER_PATH" --clobber
           gh release upload "$TAG_NAME" "$INSTALLER_SIG_PATH" --clobber
-          gh release upload "$TAG_NAME" "$VERIFY_DOC_PATH" --clobber
+
+          # Ensure verify.md is also committed to the docs folder in the repository
+          git config --global user.email "github-actions@github.com"
+          git config --global user.name "GitHub Actions"
+          git add docs/verify.md
+          git commit -m "Add verification guide for release $TAG_NAME"
+          git push origin HEAD:main || git push origin HEAD:master
 
           echo "Artifact upload process complete for release $TAG_NAME."
 
       # Optional: Keep or remove the delete-artifact step as needed
-      # - name: Delete build artifacts
-      #   uses: geekyeggo/delete-artifact@v5
-      #   with:
-      #     name: |
-      #       build-info
-      #       python-package
-      #       windows-installer
+      - name: Delete build artifacts
+        uses: geekyeggo/delete-artifact@v5
+        with:
+          name: |
+            python-package
