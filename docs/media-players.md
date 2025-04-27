@@ -47,11 +47,11 @@ graph TD
 4. Navigate to **Interface → Main interfaces**
 5. Check the box for **Web** to enable the web interface
 6. Go to **Interface → Main interfaces → Lua**
-7. Set a password in the **Lua HTTP Password** field (remember this password)
+7. Set "simkl" as a password in the **Lua HTTP Password** field
 8. Optional: Change the port number (default is 8080)
 9. Click **Save** and restart VLC
 10. Visit http://localhost:8080/
-11. Enter Your Password (Set in Step 7) 
+11. Enter Your Password (hint: simkl) 
 
 > For Detailed Step by Step Config [Config with Images](https://github.com/azrafe7/vlc4youtube/blob/55946aaea09375cfa4dc0dbae0428ad13eb9e046/instructions/how-to-enable-vlc-web-interface.md) - Make Sure to set a Password
 
