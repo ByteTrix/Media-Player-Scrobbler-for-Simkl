@@ -17,16 +17,16 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      id-token: write  
+      id-token: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  
+          fetch-depth: 0
 
       - name: Verify signed tag
         env:
-          GPG_PUBLIC_KEY: ${{ secrets.GPG_PUBLIC_KEY }} 
+          GPG_PUBLIC_KEY: ${{ secrets.GPG_PUBLIC_KEY }}
         run: |
           echo "Verifying tag signature for v${{ inputs.version }}..."
 <<<<<<< Updated upstream
@@ -38,9 +38,7 @@ jobs:
           # Import GPG key if available
 >>>>>>> Stashed changes
           if [ -n "$GPG_PUBLIC_KEY" ]; then
-            # Write the key to a file first to avoid shell interpretation issues
             echo "$GPG_PUBLIC_KEY" > /tmp/gpg_public_key.asc
-            # Fix any potential line ending issues
             sed -i 's/\r$//' /tmp/gpg_public_key.asc
 <<<<<<< Updated upstream
             # Make sure the key file has proper GPG armor headers
@@ -60,8 +58,7 @@ jobs:
             gpg --batch --import /tmp/gpg_public_key.asc || echo "::warning::Failed to import GPG key, but continuing..."
             echo "GPG Public Key import attempted."
             echo "Available GPG keys:"
-            gpg --list-keys # List keys for debugging
-            # Clean up
+            gpg --list-keys
             rm -f /tmp/gpg_public_key.asc
 =======
             
@@ -84,7 +81,6 @@ jobs:
           # Check if tag exists in local repository
           if ! git tag -l "v${{ inputs.version }}" | grep -q "v${{ inputs.version }}"; then
             echo "Tag not found in local repository, attempting to fetch from remote..."
-            # Fetch the specific tag without overwriting existing ones
             git fetch origin tag "v${{ inputs.version }}" --no-tags
           fi
           
@@ -138,13 +134,31 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: release-artifacts
-          
+
+      - name: Download SHA256 Hash Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: sha256-hash
+          path: ./
+
+      - name: Read SHA256 Hash
+        id: read_hash
+        shell: pwsh
+        run: |
+          $hashPath = "./sha256_hash.txt"
+          if (Test-Path $hashPath) {
+            $hash = Get-Content -Path $hashPath -Raw
+            echo "sha256_hash=$hash" >> $env:GITHUB_OUTPUT
+            echo "Read hash: $hash"
+          } else {
+            echo "::error::SHA256 hash file not found at $hashPath"
+            exit 1
+          }
+
       - name: List downloaded artifacts
         run: |
           echo "All downloaded artifacts:"
           find release-artifacts -type f | sort
-          
-          # Show specific information for the Windows installer
           WINDOWS_INSTALLER=$(find release-artifacts/windows-installer -name "*.exe" | head -1)
           if [ -n "$WINDOWS_INSTALLER" ]; then
             echo "Found Windows installer: $WINDOWS_INSTALLER"
@@ -153,7 +167,7 @@ jobs:
             echo "Warning: No Windows installer found!"
           fi
 
-      - name: Find Windows Installer 
+      - name: Find Windows Installer
         id: find_installer
         run: |
           INSTALLER_PATH=$(find release-artifacts -name "MPSS_Setup_*.exe" -o -name "*.exe" | grep -i "setup" | head -1)
@@ -168,10 +182,11 @@ jobs:
             find release-artifacts -name "*.exe" || echo "No .exe files found"
             exit 1
           fi
-      - name: Install cosign 
+
+      - name: Install cosign
         uses: sigstore/cosign-installer@v3.4.0
 
-      - name: Sign Windows Installer with Cosign 
+      - name: Sign Windows Installer with Cosign
         id: sign_installer
         run: |
           INSTALLER_PATH="${{ steps.find_installer.outputs.path }}"
@@ -179,16 +194,15 @@ jobs:
           cosign sign-blob --yes "$INSTALLER_PATH" --output-signature "${INSTALLER_PATH}.sig"
           echo "Signature created at ${INSTALLER_PATH}.sig"
           echo "signature_path=${INSTALLER_PATH}.sig" >> $GITHUB_OUTPUT
-          
-      - name: Prepare verification information 
+
+      - name: Prepare verification information
         run: |
-          # Ensure verification-artifacts directory exists
           mkdir -p verification-info
-          
-          # Copy verification artifacts to a directory
           cp -r release-artifacts/verification-artifacts/* verification-info/ || echo "No verification artifacts found"
-          
-          # Create verification readme
+          INSTALLER_PATH="${{ steps.find_installer.outputs.path }}"
+          INSTALLER_FILENAME=$(basename "$INSTALLER_PATH")
+          CERT_IDENTITY="https://github.com/${{ github.repository }}/.github/workflows/build.yml@refs/tags/v${{ inputs.version }}"
+          CERT_ISSUER="https://token.actions.githubusercontent.com"
           cat > verification-info/README.md << EOF
           # Build Verification
 
@@ -204,16 +218,36 @@ jobs:
 
           ## Signature Verification
 
-          The checksums are signed using [Sigstore/cosign](https://github.com/sigstore/cosign). You can verify the signature with:
+          ### Checksum Signature
 
+          The checksums file (\`SHA256SUMS.txt\`) is signed using [Sigstore/cosign](https://github.com/sigstore/cosign). You can verify its signature with:
+
+          \`\`\`bash
+          cosign verify-blob \
+            --certificate-identity "$CERT_IDENTITY" \
+            --certificate-oidc-issuer "$CERT_ISSUER" \
+            --signature SHA256SUMS.txt.sig \
+            SHA256SUMS.txt
           \`\`\`
-          cosign verify-blob --signature SHA256SUMS.txt.sig SHA256SUMS.txt
+
+          ### Executable Signature
+
+          You can also verify the signature of the Windows executable file (\`$INSTALLER_FILENAME\`) directly:
+
+          \`\`\`bash
+          cosign verify-blob \
+            --certificate-identity "$CERT_IDENTITY" \
+            --certificate-oidc-issuer "$CERT_ISSUER" \
+            --signature "${INSTALLER_FILENAME}.sig" \
+            "$INSTALLER_FILENAME"
           \`\`\`
+
+          These commands verify that the signature was created by the expected GitHub Actions workflow (`build.yml`) for this specific tag (`v${{ inputs.version }}`).
 
           ## Build Provenance
 
           This build was created by GitHub Actions workflow run #${{ github.run_number }} (ID: ${{ github.run_id }}).
-          
+
           View the build: https://github.com/kavinthangavel/Media-Player-Scrobbler-for-Simkl/actions/runs/${{ github.run_id }}
           EOF
 
@@ -226,15 +260,14 @@ jobs:
             sudo apt update
             sudo apt install gh
           )
-          
-      - name: Create Release with Provenance
+
+      - name: Create Release and Upload Initial Artifacts
         env:
           GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
           TAG_VERIFIED: ${{ steps.verify_tag.outputs.tag_verified }}
         run: |
           VERSION="${{ inputs.version }}"
-          INSTALLER_PATH="${{ steps.find_installer.outputs.path }}" # Use path from previous step
-          
+          INSTALLER_PATH="${{ steps.find_installer.outputs.path }}"
           echo "Windows installer to upload: $INSTALLER_PATH"
           
 <<<<<<< Updated upstream
@@ -261,14 +294,6 @@ jobs:
             gh release create "v$VERSION" \
               "$INSTALLER_PATH" \
               --title "Release $VERSION" \
-              --notes "# MPSS Release $VERSION
-
-          ## Verification
-          
-          This release was built using GitHub Actions workflow run #${{ github.run_number }} (ID: ${{ github.run_id }}).
-          You can verify the authenticity of this build by checking the SHA256 checksums and signature files included with this release.
-          
-          View the build: https://github.com/kavinthangavel/Media-Player-Scrobbler-for-Simkl/actions/runs/${{ github.run_id }}" \
               --generate-notes \
               --verify-tag \
 =======
@@ -292,15 +317,13 @@ EOF
               --discussion-category "Releases"
             echo "Release created and Windows installer attached."
           fi
-          
-          # Upload verification info (checksums, checksum sig)
+
           echo "Uploading verification artifacts from verification-info/ ..."
           find verification-info -type f | while read file; do
             echo "Uploading $file..."
             gh release upload "v$VERSION" "$file" --clobber
           done
-          
-          # Upload the installer signature
+
           INSTALLER_SIG_PATH="${{ steps.sign_installer.outputs.signature_path }}"
           if [ -f "$INSTALLER_SIG_PATH" ]; then
             echo "Uploading installer signature: $INSTALLER_SIG_PATH"
@@ -309,8 +332,41 @@ EOF
             echo "::warning:: Installer signature file not found at $INSTALLER_SIG_PATH"
           fi
           echo "Verification artifacts uploaded."
-          
-      - name: Delete all workflow artifacts after release
+
+      - name: Update Release Body with SHA256 Hash
+        env:
+          GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          VERSION: ${{ inputs.version }}
+          SHA256_HASH: ${{ steps.read_hash.outputs.sha256_hash }}
+        shell: bash
+        run: |
+          echo "Fetching current release body for v${VERSION}..."
+          EXISTING_BODY=$(gh release view "v$VERSION" --json body --jq .body)
+
+          if [ -z "$SHA256_HASH" ]; then
+            echo "::error::SHA256_HASH is empty. Cannot update release body."
+            exit 1
+          fi
+
+          INSTALLER_BASENAME="MPSS_Setup_${VERSION}.exe"
+
+          SHA_TABLE=$(cat <<EOF
+
+          | File                     | SHA256                                   |
+          | ------------------------ | ---------------------------------------- |
+          | ${INSTALLER_BASENAME}    | ${SHA256_HASH}                           |
+          EOF
+          )
+
+          echo "Appending SHA256 table to release body..."
+          printf -v NEW_BODY "%s\n%s" "$EXISTING_BODY" "$SHA_TABLE"
+
+          echo "Updating release v${VERSION}..."
+          gh release edit "v$VERSION" --notes "$NEW_BODY"
+          echo "Release body updated successfully."
+
+      - name: Delete build artifacts
         uses: geekyeggo/delete-artifact@v5
         with:
-          name: '*'      
+          name: |
+            python-package

@@ -2,7 +2,7 @@
 Media Player Scrobbler for SIMKL package.
 """
 
-__version__ = "2.0.3"
+__version__ = "2.0.4"
 __author__ = "kavinthangavel"
 
 # Apply compatibility patches first, before any other imports
