@@ -164,8 +164,7 @@ a.datas = [d for d in a.datas if d is not None]
 
 # Include updater scripts in the distribution
 a.datas += [
-    ('utils/updater.ps1', 'simkl_mps/utils/updater.ps1', 'DATA'),
-    ('utils/updater.sh', 'simkl_mps/utils/updater.sh', 'DATA'),
+    ('utils/updater.ps1', 'simkl_mps/utils/updater.ps1', 'DATA')
 ]
 
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
@@ -184,7 +183,7 @@ exe = EXE(
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=False,
+    upx=True,
     upx_exclude=[],
     runtime_tmpdir=None,
     console=True,  # Set to False for a GUI-only app (no console window)
@@ -194,10 +193,6 @@ exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
     icon=icon_path if os.path.exists(icon_path) else None,
-    uac_admin=False,  # Explicitly disable UAC admin request
-    uac_uiaccess=False,  # Disable UI access privileges
-    # Add a requestedExecutionLevel that doesn't require admin
-    manifest='<assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0"><trustInfo xmlns="urn:schemas-microsoft-com:asm.v3"><security><requestedPrivileges><requestedExecutionLevel level="asInvoker" uiAccess="false"/></requestedPrivileges></security></trustInfo></assembly>',
 )
 
 # Tray application analysis
@@ -225,8 +220,7 @@ tray_a.datas = [d for d in tray_a.datas if d is not None]
 
 # Include updater scripts in the distribution
 tray_a.datas += [
-    ('utils/updater.ps1', 'simkl_mps/utils/updater.ps1', 'DATA'),
-    ('utils/updater.sh', 'simkl_mps/utils/updater.sh', 'DATA')
+    ('utils/updater.ps1', 'simkl_mps/utils/updater.ps1', 'DATA')
 ]
 
 tray_pyz = PYZ(tray_a.pure, tray_a.zipped_data, cipher=block_cipher)
@@ -242,7 +236,7 @@ tray_exe = EXE(
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=False,
+    upx=True,
     upx_exclude=[],
     runtime_tmpdir=None,
     console=False,  # No console for tray app
@@ -252,8 +246,4 @@ tray_exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
     icon=icon_path if os.path.exists(icon_path) else None,
-    uac_admin=False,  # Explicitly disable UAC admin request
-    uac_uiaccess=False,  # Disable UI access privileges
-    # Add a requestedExecutionLevel that doesn't require admin
-    manifest='<assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0"><trustInfo xmlns="urn:schemas-microsoft-com:asm.v3"><security><requestedPrivileges><requestedExecutionLevel level="asInvoker" uiAccess="false"/></requestedPrivileges></security></trustInfo></assembly>',
 )

@@ -9,9 +9,9 @@ on:
         description: 'Version to release (e.g., 1.2.3)'
         required: true
         type: string
-  # push:
-  #   tags:
-  #     - 'v*'
+  push:
+    tags:
+      - 'v*'
 
 permissions:
   contents: write
@@ -42,12 +42,6 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Using version: $VERSION"
 
-  build-verification:
-    needs: prepare-release
-    uses: ./.github/workflows/build-verification.yml
-    with:
-      version: ${{ needs.prepare-release.outputs.version }}
-
   publish-pypi:
     needs: prepare-release
     uses: ./.github/workflows/publish-pypi.yml
@@ -59,13 +53,19 @@ jobs:
       PYPI_API_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
 
   build-windows:
-    needs: [prepare-release, build-verification]
+    needs: prepare-release
     uses: ./.github/workflows/windows-build.yml
     with:
       version: ${{ needs.prepare-release.outputs.version }}
     secrets:
       SIMKL_CLIENT_ID: ${{ secrets.SIMKL_CLIENT_ID }}
       SIMKL_CLIENT_SECRET: ${{ secrets.SIMKL_CLIENT_SECRET }}
+  
+  build-verification:
+    needs: prepare-release
+    uses: ./.github/workflows/build-verification.yml
+    with:
+      version: ${{ needs.prepare-release.outputs.version }}
 
   create-github-release:
     needs: [prepare-release, publish-pypi, build-windows, build-verification]

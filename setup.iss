@@ -13,8 +13,6 @@
 #define MyLicense "GNU GPL v3"
 
 [Setup]
-; NOTE: The value of AppId uniquely identifies this application.
-; Do not use the same AppId value in installers for other applications.
 AppId={{3FF84A4E-B9C2-4F49-A8DE-5F7EA15F5D88}}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
@@ -26,29 +24,18 @@ AppUpdatesURL={#MyAppUpdateURL}
 DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppShortName}
 AllowNoIcons=yes
-; Privilege level settings - set to lowest for per-user installation 
-; and allow the user to choose to run as admin if needed
-PrivilegesRequired=lowest
-; 64-bit only application
+PrivilegesRequired=admin
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
-; Output settings
 OutputDir=dist\installer
 OutputBaseFilename=MPSS_Setup_{#MyAppVersion}
 SetupIconFile=simkl_mps\assets\simkl-mps.ico
-; Compression settings
 Compression=lzma2/ultra64
 SolidCompression=yes
-; Uninstall settings
 UninstallDisplayIcon={app}\{#MyAppExeName}.exe
-UninstallDisplayName={#MyAppShortName}
-; Modern UI settings
+UninstallDisplayName={#MyAppName}
 WizardStyle=modern
-WizardResizable=yes
-WizardSizePercent=120
-; This adds Windows 10/11 compatibility settings
 MinVersion=10.0.17763
-; App metadata
 AppCopyright={#MyAppCopyright}
 VersionInfoVersion={#MyAppVersion}
 VersionInfoDescription={#MyAppDescription}
@@ -56,9 +43,7 @@ VersionInfoCopyright={#MyAppCopyright}
 VersionInfoCompany={#MyAppPublisher}
 VersionInfoProductName={#MyAppName}
 VersionInfoProductVersion={#MyAppVersion}
-; Support info
 AppContact={#MyAppIssuesURL}
-; License and readme files
 LicenseFile=LICENSE
 SetupMutex={#MyAppName}Setup
 AlwaysRestart=no
@@ -66,6 +51,7 @@ RestartIfNeededByRun=yes
 DisableDirPage=auto
 DisableProgramGroupPage=auto
 UsedUserAreasWarning=no
+CreateUninstallRegKey=yes
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
@@ -130,58 +116,101 @@ Filename: "{app}\{#MyAppExeName}.exe"; Parameters: "exit"; Flags: runhidden skip
 ; Wait a moment before forcefully terminating
 Filename: "{sys}\cmd.exe"; Parameters: "/c timeout /t 2 /nobreak > nul"; Flags: runhidden; RunOnceId: "WaitForExit"
 ; Forcefully terminate any remaining processes
-Filename: "taskkill.exe"; Parameters: "/F /IM ""{#MyAppExeName}.exe"" /T"; Flags: runhidden skipifdoesntexist; RunOnceId: "KillMain"
-Filename: "taskkill.exe"; Parameters: "/F /IM ""MPS for Simkl.exe"" /T"; Flags: runhidden skipifdoesntexist; RunOnceId: "KillTray"
-; Add a Windows PowerShell command to find and kill all related processes - fix curly braces escaping
-Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -Command ""Get-Process | Where-Object {{$_.Path -like '*{{app}}*'}} | Stop-Process -Force"""; Flags: runhidden skipifdoesntexist runascurrentuser; RunOnceId: "KillAllRelated"
-; Final wait to ensure processes have terminated
-Filename: "{sys}\cmd.exe"; Parameters: "/c timeout /t 1 /nobreak > nul"; Flags: runhidden; RunOnceId: "FinalWait"
+Filename: "taskkill.exe"; Parameters: "/F /IM ""{#MyAppExeName}.exe"" /T"; Flags: runhidden skipifdoesntexist; RunOnceId: "KillMainApp"
+Filename: "taskkill.exe"; Parameters: "/F /IM ""MPS for Simkl.exe"" /T"; Flags: runhidden skipifdoesntexist; RunOnceId: "KillTrayApp"
 
 [Registry]
 ; Create a version information file for the about dialog
 Root: HKCU; Subkey: "Software\{#MyAppPublisher}\{#MyAppName}"; ValueType: string; ValueName: "Version"; ValueData: "{#MyAppVersion}"; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\{#MyAppPublisher}\{#MyAppName}"; ValueType: string; ValueName: "License"; ValueData: "{#MyLicense}"; Flags: uninsdeletekey
-
-; Custom app registration (for uninstall)
-Root: HKLM; Subkey: "Software\Microsoft\Windows\CurrentVersion\Uninstall\{{3FF84A4E-B9C2-4F49-A8DE-5F7EA15F5D88}_is1"; ValueType: string; ValueName: "DisplayIcon"; ValueData: "{app}\{#MyAppExeName}"; Flags: uninsdeletekey; Check: IsAdminInstallMode
-Root: HKLM; Subkey: "Software\Microsoft\Windows\CurrentVersion\Uninstall\{{3FF84A4E-B9C2-4F49-A8DE-5F7EA15F5D88}_is1"; ValueType: string; ValueName: "DisplayName"; ValueData: "{#MyAppShortName}"; Flags: uninsdeletekey; Check: IsAdminInstallMode
-Root: HKLM; Subkey: "Software\Microsoft\Windows\CurrentVersion\Uninstall\{{3FF84A4E-B9C2-4F49-A8DE-5F7EA15F5D88}_is1"; ValueType: string; ValueName: "DisplayVersion"; ValueData: "{#MyAppVersion}"; Flags: uninsdeletekey; Check: IsAdminInstallMode
-Root: HKLM; Subkey: "Software\Microsoft\Windows\CurrentVersion\Uninstall\{{3FF84A4E-B9C2-4F49-A8DE-5F7EA15F5D88}_is1"; ValueType: string; ValueName: "Publisher"; ValueData: "{#MyAppPublisher}"; Flags: uninsdeletekey; Check: IsAdminInstallMode
-Root: HKLM; Subkey: "Software\Microsoft\Windows\CurrentVersion\Uninstall\{{3FF84A4E-B9C2-4F49-A8DE-5F7EA15F5D88}_is1"; ValueType: string; ValueName: "URLInfoAbout"; ValueData: "{#MyAppURL}"; Flags: uninsdeletekey; Check: IsAdminInstallMode
-
-; Custom app registration for uninstall with explicit icon path
-Root: HKLM; Subkey: "Software\Microsoft\Windows\CurrentVersion\Uninstall\{{3FF84A4E-B9C2-4F49-A8DE-5F7EA15F5D88}_is1"; ValueType: string; ValueName: "UninstallString"; ValueData: """{uninstallexe}"""; Flags: uninsdeletekey; Check: IsAdminInstallMode
-Root: HKLM; Subkey: "Software\Microsoft\Windows\CurrentVersion\Uninstall\{{3FF84A4E-B9C2-4F49-A8DE-5F7EA15F5D88}_is1"; ValueType: string; ValueName: "DisplayIcon"; ValueData: "{app}\{#MyAppExeName}.exe"; Flags: uninsdeletekey; Check: IsAdminInstallMode
-Root: HKLM; Subkey: "Software\Microsoft\Windows\CurrentVersion\Uninstall\{{3FF84A4E-B9C2-4F49-A8DE-5F7EA15F5D88}_is1"; ValueType: string; ValueName: "DisplayName"; ValueData: "{#MyAppShortName}"; Flags: uninsdeletekey; Check: IsAdminInstallMode
-
-; User installation registry entries (non-admin installations)
-Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Uninstall\{{3FF84A4E-B9C2-4F49-A8DE-5F7EA15F5D88}_is1"; ValueType: string; ValueName: "DisplayIcon"; ValueData: "{app}\{#MyAppExeName}"; Flags: uninsdeletekey; Check: not IsAdminInstallMode
-Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Uninstall\{{3FF84A4E-B9C2-4F49-A8DE-5F7EA15F5D88}_is1"; ValueType: string; ValueName: "DisplayName"; ValueData: "{#MyAppShortName}"; Flags: uninsdeletekey; Check: not IsAdminInstallMode
-Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Uninstall\{{3FF84A4E-B9C2-4F49-A8DE-5F7EA15F5D88}_is1"; ValueType: string; ValueName: "DisplayVersion"; ValueData: "{#MyAppVersion}"; Flags: uninsdeletekey; Check: not IsAdminInstallMode
-Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Uninstall\{{3FF84A4E-B9C2-4F49-A8DE-5F7EA15F5D88}_is1"; ValueType: string; ValueName: "Publisher"; ValueData: "{#MyAppPublisher}"; Flags: uninsdeletekey; Check: not IsAdminInstallMode
-Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Uninstall\{{3FF84A4E-B9C2-4F49-A8DE-5F7EA15F5D88}_is1"; ValueType: string; ValueName: "URLInfoAbout"; ValueData: "{#MyAppURL}"; Flags: uninsdeletekey; Check: not IsAdminInstallMode
-
-; User installation registry entries with updated uninstaller name and icon
-Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Uninstall\{{3FF84A4E-B9C2-4F49-A8DE-5F7EA15F5D88}_is1"; ValueType: string; ValueName: "UninstallString"; ValueData: """{uninstallexe}"""; Flags: uninsdeletekey; Check: not IsAdminInstallMode
-Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Uninstall\{{3FF84A4E-B9C2-4F49-A8DE-5F7EA15F5D88}_is1"; ValueType: string; ValueName: "DisplayIcon"; ValueData: "{app}\{#MyAppExeName}.exe"; Flags: uninsdeletekey; Check: not IsAdminInstallMode
-Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Uninstall\{{3FF84A4E-B9C2-4F49-A8DE-5F7EA15F5D88}_is1"; ValueType: string; ValueName: "DisplayName"; ValueData: "{#MyAppShortName}"; Flags: uninsdeletekey; Check: not IsAdminInstallMode
-
-; Auto-update settings
 Root: HKCU; Subkey: "Software\{#MyAppPublisher}\{#MyAppName}"; ValueType: string; ValueName: "InstallPath"; ValueData: "{app}"; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\{#MyAppPublisher}\{#MyAppName}"; ValueType: dword; ValueName: "CheckUpdates"; ValueData: "1"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\{#MyAppPublisher}\{#MyAppName}"; ValueType: dword; ValueName: "FirstRun"; ValueData: "0"; Flags: uninsdeletekey
+
+; Admin installation - HKLM registry keys only for admin installs
 Root: HKLM; Subkey: "Software\{#MyAppPublisher}\{#MyAppName}"; ValueType: string; ValueName: "InstallPath"; ValueData: "{app}"; Flags: uninsdeletekey; Check: IsAdminInstallMode
 
-; Add to Apps & Features list for non-admin installs (Windows 10+)
-Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Uninstall\{{3FF84A4E-B9C2-4F49-A8DE-5F7EA15F5D88}_is1"; ValueType: string; ValueName: "InstallLocation"; ValueData: "{app}"; Flags: uninsdeletekey; Check: not IsAdminInstallMode
-Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Uninstall\{{3FF84A4E-B9C2-4F49-A8DE-5F7EA15F5D88}_is1"; ValueType: dword; ValueName: "EstimatedSize"; ValueData: "50000"; Flags: uninsdeletekey; Check: not IsAdminInstallMode
-; Add registry value to track first run state - will be used by tray app
-Root: HKCU; Subkey: "Software\{#MyAppPublisher}\{#MyAppName}"; ValueType: dword; ValueName: "FirstRun"; ValueData: "0"; Flags: uninsdeletekey
+[InstallDelete]
+; Make sure we delete any existing files to prevent conflicts - only if we're updating
+Type: filesandordirs; Name: "{app}\*.dll"; Check: not IsFirstInstall
+Type: filesandordirs; Name: "{app}\*.pyd"; Check: not IsFirstInstall
 
 [Code]
 const
   MyAppIdGuid = '{3FF84A4E-B9C2-4F49-A8DE-5F7EA15F5D88}'; // Define the AppId GUID as a script constant
   CONFIG_FOLDER = 'simkl-mps';
   TASK_NAME = 'kavinthangavel.MediaPlayerScrobblerForSIMKL.UpdateCheck';
+
+// Check if the app is currently running
+function IsAppRunning: Boolean;
+var
+  ResultCode: Integer;
+  AttemptsMade: Integer;
+  ProcessesClosed: Boolean;
+  WindowsProcKill: Boolean;
+begin
+  Result := False;
+  ProcessesClosed := False;
+  
+  // Try to gently terminate the app first - but only if we're updating
+  // (not during first installation where {app} isn't available yet)
+  Log('Checking for running instances...');
+  
+  // Check if processes are running regardless of installation status
+  AttemptsMade := 0;
+  while (AttemptsMade < 3) and (not ProcessesClosed) do
+  begin
+    AttemptsMade := AttemptsMade + 1;
+    Log('Process termination attempt #' + IntToStr(AttemptsMade));
+    
+    // Kill both executables with force
+    WindowsProcKill := Exec('taskkill.exe', '/F /IM "{#MyAppExeName}.exe" /T', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    Log('taskkill for {#MyAppExeName}.exe result: ' + IntToStr(ResultCode));
+    
+    WindowsProcKill := Exec('taskkill.exe', '/F /IM "{#MyAppTrayName}.exe" /T', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    Log('taskkill for {#MyAppTrayName}.exe result: ' + IntToStr(ResultCode));
+    
+    // Extra aggressive kill for any remaining app processes
+    Exec('powershell.exe', '-NoProfile -ExecutionPolicy Bypass -Command "Get-Process -Name "{#MyAppExeName}","MPS for Simkl" -ErrorAction SilentlyContinue | Stop-Process -Force"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    
+    // Wait between attempts
+    Sleep(1000);
+    
+    // Check if processes are still running
+    ProcessesClosed := True; // Assume success unless proven otherwise
+    Exec('powershell.exe', '-NoProfile -ExecutionPolicy Bypass -Command "$p = Get-Process -Name "{#MyAppExeName}","MPS for Simkl" -ErrorAction SilentlyContinue; if($p) { exit 1 } else { exit 0 }"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    if ResultCode <> 0 then
+    begin
+      ProcessesClosed := False;
+      Log('Processes still running after attempt #' + IntToStr(AttemptsMade));
+    end;
+  end;
+  
+  // Final check - return true if we believe processes are still running
+  if not ProcessesClosed then
+  begin
+    Log('WARNING: Could not terminate all instances after multiple attempts!');
+    Result := True;
+  end else
+    Log('Successfully terminated all app instances or none were running');
+  
+  // The function will automatically return the value of Result
+end;
+
+// Check if this is a first-time installation
+function IsFirstInstall: Boolean;
+begin
+  Result := not RegKeyExists(HKEY_LOCAL_MACHINE, 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{#SetupSetting("AppId")}_is1') and
+           not RegKeyExists(HKEY_CURRENT_USER, 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{#SetupSetting("AppId")}_is1');
+end;
+
+// Initialization function for setup
+function InitializeSetup: Boolean;
+begin
+  // Check if app is running and terminate it before setup begins
+  IsAppRunning();
+  Result := True;
+end;
 
 // Create the scheduled task for updates (optional, only if user selects the task)
 function CreateUpdateScheduledTask: Boolean;
@@ -262,11 +291,12 @@ var
   CleanupAll: Boolean;
   UserProfileDir, AppDataDir, LocalAppDataDir: String;
 begin
-  if CurUninstallStep = usPostUninstall then
-  begin
-    // Remove scheduled task
+  // Remove scheduled task as early as possible
+  if CurUninstallStep = usUninstall then
     RemoveUpdateScheduledTask();
     
+  if CurUninstallStep = usPostUninstall then
+  begin
     // Ask user about data removal
     CleanupAll := SuppressibleMsgBox('Do you want to remove all user settings, logs, and application data?', 
                                      mbConfirmation, MB_YESNO, IDNO) = IDYES;
@@ -291,9 +321,6 @@ begin
       ConfigDirs[4] := UserProfileDir + '\AppData\Local\' + CONFIG_FOLDER;
       ConfigDirs[5] := UserProfileDir + '\Documents\' + CONFIG_FOLDER;
       
-      // Log what directories we're checking
-      Log('Looking for configuration directories to clean up...');
-      
       // Loop through all possible locations and delete them if they exist
       for i := 0 to GetArrayLength(ConfigDirs) - 1 do
       begin
@@ -302,33 +329,28 @@ begin
           Log('Deleting configuration directory: ' + ConfigDirs[i]);
           if not DelTree(ConfigDirs[i], True, True, True) then
           begin
-            Log('Failed to delete directory with DelTree: ' + ConfigDirs[i]);
             // Try CMD as fallback for difficult directories
             Exec('cmd.exe', '/c rd /s /q "' + ConfigDirs[i] + '"', '', SW_HIDE, ewWaitUntilTerminated, i);
           end;
-        end else
-          Log('Directory not found: ' + ConfigDirs[i]);
+        end;
       end;
       
-      // Also clean registry entries
-      Log('Deleting application specific registry keys...');
+      // Clean registry entries
       RegDeleteKeyIncludingSubkeys(HKCU, 'Software\{#MyAppPublisher}\{#MyAppName}');
       if IsAdminInstallMode then
         RegDeleteKeyIncludingSubkeys(HKLM, 'Software\{#MyAppPublisher}\{#MyAppName}');
-
-      // Explicitly delete Uninstall registry keys for good measure
-      Log('Deleting Uninstall registry keys...');
-      RegDeleteKeyIncludingSubkeys(HKCU, 'Software\Microsoft\Windows\CurrentVersion\Uninstall\' + MyAppIdGuid + '_is1');
-      if IsAdminInstallMode then
-        RegDeleteKeyIncludingSubkeys(HKLM, 'Software\Microsoft\Windows\CurrentVersion\Uninstall\' + MyAppIdGuid + '_is1');
     end;
 
-    // Attempt to remove the main application directory as a final step
-    Log('Attempting to remove application directory: ' + ExpandConstant('{app}'));
-    if not DelTree(ExpandConstant('{app}'), True, True, True) then
-    begin
-      Log('Failed to remove application directory with DelTree: ' + ExpandConstant('{app}'));
-    end;
+    // Ensure Start Menu entries are removed
+    DelTree(ExpandConstant('{group}'), True, True, True);
+    
+    // Ensure Desktop shortcuts are removed
+    DeleteFile(ExpandConstant('{commondesktop}\{#MyAppShortName}.lnk'));
+    DeleteFile(ExpandConstant('{userdesktop}\{#MyAppShortName}.lnk'));
+    
+    // Ensure Startup entries are removed
+    DeleteFile(ExpandConstant('{commonstartup}\{#MyAppShortName}.lnk'));
+    DeleteFile(ExpandConstant('{userstartup}\{#MyAppShortName}.lnk'));
   end;
 end;
 
@@ -336,10 +358,10 @@ end;
 function InitializeUninstall(): Boolean;
 var
   ResultCode: Integer;
-  ProcessName: string;
+  WindowsProcKill: Boolean;
+  KillResult: String;
 begin
   // Ensure all application processes are terminated before continuing
-  ProcessName := ExtractFileName(ExpandConstant('{app}\{#MyAppExeName}.exe'));
   
   // Try graceful exit first
   Exec(ExpandConstant('{app}\{#MyAppExeName}.exe'), 'exit', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
@@ -348,12 +370,20 @@ begin
   Sleep(1000);
   
   // Forceful termination of any remaining processes
-  Exec('taskkill.exe', '/F /IM "' + ProcessName + '" /T', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-  Sleep(500);
+  WindowsProcKill := Exec('taskkill.exe', '/F /IM "{#MyAppExeName}.exe" /T', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  if WindowsProcKill then
+    KillResult := 'True'
+  else
+    KillResult := 'False';
+  Log('Forcefully terminating MPSS.exe: ' + KillResult);
   
   // Also try to terminate the tray application
-  Exec('taskkill.exe', '/F /IM "MPS for Simkl.exe" /T', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-  Sleep(500);
+  WindowsProcKill := Exec('taskkill.exe', '/F /IM "MPS for Simkl.exe" /T', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  if WindowsProcKill then
+    KillResult := 'True'
+  else
+    KillResult := 'False';
+  Log('Forcefully terminating MPS for Simkl.exe: ' + KillResult);
   
   // Success - let uninstallation proceed
   Result := True;
