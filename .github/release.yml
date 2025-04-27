@@ -26,13 +26,13 @@ changelog:
     - title: '🧰 GitHub Actions'
       labels:
         - 'github_actions'
+        - 'workflow'
     - title: 'Other Changes'
       labels:
         - "*"
   exclude:
     labels:
       - 'skip-changelog'
-      - github-actions
     authors:
       - octocat
       - renovate[bot]
