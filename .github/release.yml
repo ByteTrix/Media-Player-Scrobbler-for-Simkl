@@ -4,6 +4,7 @@ changelog:
       labels:
         - 'enhancement'
         - 'feat'
+        - 'feature'
     - title: '🐛 Bug Fixes'
       labels:
         - 'bug'
