@@ -113,16 +113,22 @@ jobs:
           echo "sha256_hash=$hash" >> $env:GITHUB_OUTPUT
           echo "Calculated hash: $hash for file: $filePath"
 
+      - name: Create SHA256 Hash File
+        id: create_hash_file
+        shell: pwsh
+        run: |
+          $hashValue = "${{ steps.hash_exe.outputs.sha256_hash }}"
+          $tempFilePath = Join-Path $env:RUNNER_TEMP "sha256_hash.txt"
+          Set-Content -Path $tempFilePath -Value $hashValue
+          echo "hash_file_path=$tempFilePath" >> $env:GITHUB_OUTPUT
+          echo "Created hash file at $tempFilePath"
+
       - name: Upload SHA256 Hash Artifact
         uses: actions/upload-artifact@v4
         with:
           name: sha256-hash # Name of the artifact
-          path: | # Create the file on the fly
-            ${{ runner.temp }}/sha256_hash.txt
+          path: ${{ steps.create_hash_file.outputs.hash_file_path }} # Path from previous step
           retention-days: 1 # Keep artifact for 1 day
-        env:
-          HASH_VALUE: ${{ steps.hash_exe.outputs.sha256_hash }}
-        run: echo "$HASH_VALUE" > ${{ runner.temp }}/sha256_hash.txt
 
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
