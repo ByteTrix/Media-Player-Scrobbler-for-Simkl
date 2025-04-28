@@ -995,7 +995,7 @@ Tips:
                    hasattr(self.scrobbler.monitor.scrobbler, 'completion_threshold'):
 
                     self.scrobbler.monitor.scrobbler.completion_threshold = threshold_value # Store as percentage
-                    logger.info(f"Updated running scrobbler instance threshold to {threshold_value}%") # Log percentage
+                    logger.debug(f"Updated running scrobbler instance threshold to {threshold_value}%") # Log percentage
                 else:
                     logger.warning("Could not update running scrobbler instance threshold (not found or not running).")
                     # No need for notification here, main one is sufficient
@@ -1028,7 +1028,7 @@ Tips:
                     parent=dialog_root, minvalue=1, maxvalue=100, initialvalue=current_threshold
                 )
                 result_queue.put(threshold)
-            except Exception as e:
+            except (tk.TclError, ValueError) as e:
                 logger.error(f"Error in Tkinter dialog thread: {e}", exc_info=True)
                 result_queue.put(None)
             finally:
