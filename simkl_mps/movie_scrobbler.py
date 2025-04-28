@@ -18,7 +18,7 @@ from collections import deque
 # Import is_internet_connected at the top level for broader use
 from simkl_mps.simkl_api import mark_as_watched, is_internet_connected
 from simkl_mps.backlog_cleaner import BacklogCleaner
-from simkl_mps.window_detection import parse_movie_title, is_video_player
+from simkl_mps.window_detection import parse_movie_title, parse_filename_from_path, is_video_player
 from simkl_mps.media_cache import MediaCache
 from simkl_mps.utils.constants import PLAYING, PAUSED, STOPPED, DEFAULT_POLL_INTERVAL
 
@@ -271,6 +271,98 @@ class MovieScrobbler:
 
         return None, None
 
+    def get_current_filepath(self, process_name):
+        """
+        Get the current filepath of the media being played from player integrations.
+        This is the preferred source for movie identification.
+        
+        Args:
+            process_name (str): The executable name of the player process
+            
+        Returns:
+            str: Full file path of the currently playing media, or None if unavailable
+        """
+        if not process_name:
+            return None
+            
+        process_name_lower = process_name.lower()
+        filepath = None
+        
+        try:
+            # VLC Integration
+            if 'vlc' in process_name_lower:
+                if not hasattr(self, '_vlc_integration'):
+                    from simkl_mps.players import VLCIntegration
+                    self._vlc_integration = VLCIntegration()
+                    
+                # Call get_current_filepath if the integration has it
+                if hasattr(self._vlc_integration, 'get_current_filepath'):
+                    filepath = self._vlc_integration.get_current_filepath(process_name)
+                    if filepath:
+                        logger.debug(f"Retrieved filepath from VLC: {filepath}")
+                        return filepath
+            
+            # MPC-HC/BE Integration
+            elif any(player in process_name_lower for player in ['mpc-hc.exe', 'mpc-hc64.exe', 'mpc-be.exe', 'mpc-be64.exe']):
+                if not hasattr(self, '_mpc_integration'):
+                    from simkl_mps.players.mpc import MPCIntegration
+                    self._mpc_integration = MPCIntegration()
+                    
+                # Call get_current_filepath if the integration has it
+                if hasattr(self._mpc_integration, 'get_current_filepath'):
+                    filepath = self._mpc_integration.get_current_filepath(process_name)
+                    if filepath:
+                        logger.debug(f"Retrieved filepath from MPC: {filepath}")
+                        return filepath
+            
+            # MPC-QT Integration
+            elif 'mpc-qt' in process_name_lower:
+                if not hasattr(self, '_mpcqt_integration'):
+                    from simkl_mps.players.mpcqt import MPCQTIntegration
+                    self._mpcqt_integration = MPCQTIntegration()
+                    
+                # Call get_current_filepath if the integration has it
+                if hasattr(self._mpcqt_integration, 'get_current_filepath'):
+                    filepath = self._mpcqt_integration.get_current_filepath(process_name)
+                    if filepath:
+                        logger.debug(f"Retrieved filepath from MPC-QT: {filepath}")
+                        return filepath
+            
+            # MPV Integration
+            elif 'mpv' in process_name_lower:
+                if not hasattr(self, '_mpv_integration'):
+                    from simkl_mps.players.mpv import MPVIntegration
+                    self._mpv_integration = MPVIntegration()
+                    
+                # Call get_current_filepath if the integration has it
+                if hasattr(self._mpv_integration, 'get_current_filepath'):
+                    filepath = self._mpv_integration.get_current_filepath(process_name)
+                    if filepath:
+                        logger.debug(f"Retrieved filepath from MPV: {filepath}")
+                        return filepath
+            
+            # MPV Wrapper Integration
+            else:
+                if not hasattr(self, '_mpv_wrapper_integration'):
+                    from simkl_mps.players.mpv_wrappers import MPVWrapperIntegration
+                    self._mpv_wrapper_integration = MPVWrapperIntegration()
+                    
+                # Check if this is a known MPV wrapper
+                if self._mpv_wrapper_integration.is_mpv_wrapper(process_name):
+                    # Call get_current_filepath if the integration has it
+                    if hasattr(self._mpv_wrapper_integration, 'get_current_filepath'):
+                        filepath = self._mpv_wrapper_integration.get_current_filepath(process_name)
+                        if filepath:
+                            _, wrapper_name, _ = self._mpv_wrapper_integration.get_wrapper_info(process_name)
+                            wrapper_display = wrapper_name or process_name
+                            logger.debug(f"Retrieved filepath from {wrapper_display}: {filepath}")
+                            return filepath
+                            
+        except Exception as e:
+            logger.error(f"Error getting filepath from {process_name}: {e}")
+            
+        return filepath
+
     def set_credentials(self, client_id, access_token):
         """Set API credentials"""
         self.client_id = client_id
@@ -283,26 +375,61 @@ class MovieScrobbler:
                 logger.info(f"Media playback ended: Player closed or changed")
                 self.stop_tracking()
             return None
-
-        movie_title = parse_movie_title(window_info.get('title', ''))
+        
+        # First try to get the filepath directly from the player (preferred method)
+        process_name = window_info.get('process_name')
+        filepath = None
+        movie_title = None
+        detection_source = "unknown"
+        detection_details = None
+        
+        if process_name:
+            # Try to get the current filepath from player integration
+            filepath = self.get_current_filepath(process_name)
+            
+            if filepath:
+                # Parse the filename from the filepath using our dedicated function
+                movie_title = parse_filename_from_path(filepath)
+                if movie_title:
+                    detection_source = "filename"
+                    detection_details = os.path.basename(filepath)
+        
+        # If no filepath was available or parsing failed, fall back to window title
+        if not movie_title:
+            movie_title = parse_movie_title(window_info.get('title', ''))
+            if movie_title:
+                detection_source = "window_title"
+                detection_details = window_info.get('title', '')
+        
+        # If we still don't have a title, stop tracking and return
         if not movie_title:
             if self.currently_tracking:
-                 logger.debug(f"Unable to identify media in '{window_info.get('title', '')}'")
-                 self.stop_tracking()
+                logger.debug(f"Unable to identify media in '{window_info.get('title', '')}'")
+                self.stop_tracking()
             return None
 
+        # If we're already tracking a different movie, stop tracking before starting the new one
         if self.currently_tracking and self.currently_tracking != movie_title:
-             logger.info(f"Media change detected: '{movie_title}' now playing")
-             self.stop_tracking()
+            logger.info(f"Media change detected: '{movie_title}' now playing")
+            self.stop_tracking()
              
+        # Start tracking the movie if not already tracking
         if not self.currently_tracking:
+            # Only log the detection source when we first start tracking
+            if detection_source == "filename":
+                logger.info(f"Detected movie from filename: '{movie_title}' (from: {detection_details})")
+            elif detection_source == "window_title":
+                logger.info(f"Detected movie from window title: '{movie_title}'")
             self._start_new_movie(movie_title)
-            
-        self._update_tracking(window_info)
+        
+        # Update tracking with current window info
+        track_info = self._update_tracking(window_info)
         
         return {
             "title": movie_title,
-            "simkl_id": self.simkl_id
+            "simkl_id": self.simkl_id,
+            "source": detection_source,
+            "detection_details": detection_details
         }
 
     def _start_new_movie(self, movie_title):
@@ -451,7 +578,6 @@ class MovieScrobbler:
                          else:
                              # If online but no ID, just log and wait for identification
                              logger.info(f"Completion threshold met for '{self.currently_tracking}', but Simkl ID not yet known. Deferring mark as watched.")
-                             # We don't set self.completed = True here, allowing mark_as_watched to be called later if the ID arrives.
 
             # Update the time of the last progress check regardless of outcome
             self.last_progress_check = current_time
@@ -809,19 +935,3 @@ class MovieScrobbler:
 
         if percentage is None:
             return False
-
-        is_past_threshold = percentage >= threshold
-
-        return is_past_threshold
-
-    def _log_no_internet_once(self, context):
-        """Log a warning about no internet only once per context until connection is restored."""
-        if not hasattr(self, '_no_internet_logged'):
-            self._no_internet_logged = {}
-        if not self._no_internet_logged.get(context, False):
-            logger.warning(f"No internet connection. {context}")
-            self._no_internet_logged[context] = True
-
-    def _reset_no_internet_log(self):
-        if hasattr(self, '_no_internet_logged'):
-            self._no_internet_logged = {}

@@ -187,6 +187,41 @@ class MPCIntegration:
                 
         return None  # Couldn't determine pause state
 
+    def get_current_filepath(self, process_name=None):
+        """
+        Get the filepath of the currently playing file in MPC.
+        
+        Args:
+            process_name: Optional process name for consistency with other integrations
+            
+        Returns:
+            str: Filepath of the current media, or None if unavailable
+        """
+        # First try the working port if we have one
+        if self.working_port:
+            variables = self.get_vars(self.working_port)
+            if variables and 'filepath' in variables:
+                filepath = variables.get('filepath', '')
+                if filepath:
+                    logger.debug(f"Retrieved filepath from MPC: {filepath}")
+                    return filepath
+                
+        # If no working port or it failed, try all default ports
+        for port in self.default_ports:
+            if port == self.working_port:
+                continue  # Already tried this one
+                
+            variables = self.get_vars(port)
+            if variables and 'filepath' in variables:
+                filepath = variables.get('filepath', '')
+                if filepath:
+                    logger.debug(f"Retrieved filepath from MPC on port {port}: {filepath}")
+                    self.working_port = port  # Remember this working port
+                    return filepath
+                    
+        logger.debug("Couldn't get filepath from MPC")
+        return None
+
 
 # Convenience class for direct import
 class MPCHCIntegration(MPCIntegration):

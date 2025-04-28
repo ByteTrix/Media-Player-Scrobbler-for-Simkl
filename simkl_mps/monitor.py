@@ -88,6 +88,9 @@ class Monitor:
         """Main monitoring loop"""
         logger.info("Media monitoring service initialized and running")
         # Removed unused check_count variable
+        
+        # Dictionary to track the last processed title for each player to reduce log spam
+        last_processed_titles = {}
 
         while self.running:
             try:
@@ -97,29 +100,40 @@ class Monitor:
                 for win in all_windows:
                     if is_video_player(win):
                         window_info = win
+                        process_name = win.get('process_name', '')
                         found_player = True
-                        logger.debug(f"Active media player detected: {win.get('title', 'Unknown')}")
                         
                         with self._lock:
                             scrobble_info = self.scrobbler.process_window(window_info)
                         
-                        if scrobble_info and self.search_callback and not scrobble_info.get("simkl_id"):
+                        # Check if we got a result and if it's different from the last one for this player
+                        if scrobble_info:
                             title = scrobble_info.get("title", "Unknown")
-                            current_time = time.time()
+                            source = scrobble_info.get("source", "unknown")
                             
-                            # Check if we've recently tried to search for this title
-                            last_attempt = self._last_search_attempts.get(title, 0)
-                            time_since_last_attempt = current_time - last_attempt
+                            # Only log once when we first detect the media or if it changes
+                            if process_name not in last_processed_titles or last_processed_titles[process_name] != title:
+                                last_processed_titles[process_name] = title
+                                logger.debug(f"Active media player detected: {win.get('title', 'Unknown')}")
+                                logger.info(f"Detected media '{title}' using {source}")
                             
-                            # Only attempt search if it hasn't been tried recently during offline mode
-                            if time_since_last_attempt >= self.offline_search_cooldown:
-                                logger.info(f"Media identification required: '{title}'")
-                                # Record this attempt time before calling search
-                                self._last_search_attempts[title] = current_time
-                                self.search_callback(title)
-                            else:
-                                # If in cooldown period, don't spam logs with the same message
-                                logger.debug(f"Skipping repeated search for '{title}' (cooldown: {int(self.offline_search_cooldown - time_since_last_attempt)}s remaining)")
+                            # Only trigger search if we don't have a Simkl ID yet
+                            if self.search_callback and not scrobble_info.get("simkl_id"):
+                                current_time = time.time()
+                                
+                                # Check if we've recently tried to search for this title
+                                last_attempt = self._last_search_attempts.get(title, 0)
+                                time_since_last_attempt = current_time - last_attempt
+                                
+                                # Only attempt search if it hasn't been tried recently during offline mode
+                                if time_since_last_attempt >= self.offline_search_cooldown:
+                                    logger.info(f"Media identification required: '{title}'")
+                                    # Record this attempt time before calling search
+                                    self._last_search_attempts[title] = current_time
+                                    self.search_callback(title)
+                                else:
+                                    # If in cooldown period, don't spam logs with the same message
+                                    logger.debug(f"Skipping repeated search for '{title}' (cooldown: {int(self.offline_search_cooldown - time_since_last_attempt)}s remaining)")
                         
                         break
                 
@@ -127,8 +141,9 @@ class Monitor:
                     logger.info("Media playback ended: No active players detected")
                     with self._lock:
                         self.scrobbler.stop_tracking()
+                        last_processed_titles.clear()  # Clear the processed titles when stopping
 
-                # check_count was incremented here but removed as unused
+                # Check backlog periodically
                 current_time = time.time()
                 if current_time - self.last_backlog_check > self.backlog_check_interval:
                     logger.debug("Performing backlog synchronization...")

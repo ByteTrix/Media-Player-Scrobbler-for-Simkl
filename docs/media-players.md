@@ -30,7 +30,6 @@ Follow the platform-specific instructions below to set up your preferred media p
 | MPV                   | ✅      | ✅    | ✅    | ✅              | Moderate               |
 | MPC-HC/BE             | ✅      | ❌    | ❌    | ✅              | Easy                   |
 | MPC-QT                | ✅      | ❌    | ✅    | ✅              | Easy                   |
-| Infuse                | ❌      | ✅    | ❌    | ✅              | Moderate               |
 | Windows Media Player  | ✅      | ❌    | ❌    | ❌              | Not Available          |
 | QuickTime             | ❌      | ✅    | ❌    | ❌              | Not Available          |
 | MPV Wrappers*         | ✅      | ✅    | ✅    | ✅              | Moderate               |
@@ -223,18 +222,6 @@ Follow the same configuration steps as shown in the Windows VLC section above.
 - Play a movie in your MPV wrapper player
 - The scrobbler should connect and show accurate position data
 
-### Infuse (macOS)
-
-Infuse is a popular media player for macOS (and iOS/Apple TV). To enable tracking with Infuse:
-
-1. Ensure Infuse is running on your Mac.
-2. Enable network sharing or remote control features in Infuse settings (if available).
-3. Make sure your Mac firewall allows connections from the scrobbler.
-4. The scrobbler will attempt to detect Infuse windows and parse titles for tracking.
-5. Advanced integration may require additional setup in future releases.
-
-> **Note:** Infuse support is experimental and may require further configuration or updates.
-
 ### QuickTime
 
 Basic window title tracking only. No advanced integration available.
@@ -379,12 +366,12 @@ graph TD
 
 ## 📊 Player Comparison
 
-| Feature | VLC | MPV | MPC-HC/BE | Infuse |
-|---------|-----|-----|-----------|--------|
-| Ease of configuration | ★★★★☆ | ★★☆☆☆ | ★★★★☆ | ★★★☆☆ |
-| Cross-platform | ✅ | ✅ | ❌ | ❌ |
-| Position accuracy | Very High | High | Very High | High |
-| Resource usage | Moderate | Low | Low | Moderate |
-| Recommended for | Beginners | Power users | Windows users | Mac users |
+| Feature | VLC | MPV | MPC-HC/BE |
+|---------|-----|-----|-----------|
+| Ease of configuration | ★★★★☆ | ★★☆☆☆ | ★★★★☆ |
+| Cross-platform | ✅ | ✅ | ❌ |
+| Position accuracy | Very High | High | Very High |
+| Resource usage | Moderate | Low | Low |
+| Recommended for | Beginners | Power users | Windows users |
 
 The best player for tracking depends on your platform and preferences, but properly configured **VLC** offers the most universal compatibility and reliable tracking.

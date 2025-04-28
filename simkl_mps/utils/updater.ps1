@@ -134,18 +134,25 @@ function Compare-Versions {
         $V2Parts = $Version2.Split('.')
         
         # Pad the shorter version with zeros
-        if ($V1Parts.Length -ne $V2Parts.Length) {
-            $MaxLength = [Math]::Max($V1Parts.Length, $V2Parts.Length)
-            if ($V1Parts.Length -lt $MaxLength) {
-                $V1Parts = $V1Parts + (0..($MaxLength - $V1Parts.Length - 1) | ForEach-Object { "0" })
-                $Version1 = [string]::Join(".", $V1Parts)
-            }
-            if ($V2Parts.Length -lt $MaxLength) {
-                $V2Parts = $V2Parts + (0..($MaxLength - $V2Parts.Length - 1) | ForEach-Object { "0" })
-                $Version2 = [string]::Join(".", $V2Parts)
-            }
-            Write-Log "Normalized versions for comparison: $Version1 vs $Version2"
+        $MaxLength = [Math]::Max($V1Parts.Length, $V2Parts.Length)
+        
+        # Convert each part to an integer array for proper comparison
+        $V1Normalized = @($V1Parts)
+        $V2Normalized = @($V2Parts)
+        
+        # Ensure both arrays are the same length by padding with zeros
+        while ($V1Normalized.Length -lt $MaxLength) {
+            $V1Normalized += "0"
         }
+        
+        while ($V2Normalized.Length -lt $MaxLength) {
+            $V2Normalized += "0"
+        }
+        
+        # Join back to version strings for System.Version parsing
+        $Version1 = [string]::Join(".", $V1Normalized)
+        $Version2 = [string]::Join(".", $V2Normalized)
+        Write-Log "Normalized versions for comparison: $Version1 vs $Version2"
         
         # Parse as System.Version for proper comparison
         $V1 = [System.Version]::Parse($Version1)

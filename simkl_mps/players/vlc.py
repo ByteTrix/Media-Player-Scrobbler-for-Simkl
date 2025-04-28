@@ -193,16 +193,19 @@ class VLCIntegration:
         
         return None, None
     
-    def get_current_filepath(self):
+    def get_current_filepath(self, process_name=None):
         """
         Get the filepath of the currently playing file in VLC.
         
+        Args:
+            process_name: Optional process name for consistency with other integrations
+            
         Returns:
             str: Filepath of the current media, or None if unavailable
         """
         if not self.last_successful_config:
             # Try to get position/duration first to establish a connection
-            self.get_position_duration()
+            self.get_position_duration(process_name)
             if not self.last_successful_config:
                 return None
         

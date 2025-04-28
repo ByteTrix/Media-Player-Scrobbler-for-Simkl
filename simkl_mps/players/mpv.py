@@ -450,8 +450,16 @@ class MPVIntegration:
             logger.debug(f"Error converting MPV position/duration: {e}")
             return None, None
 
-    def get_current_filepath(self) -> str | None:
-        """Get the filepath of the currently playing file in MPV."""
+    def get_current_filepath(self, process_name=None) -> str | None:
+        """
+        Get the filepath of the currently playing file in MPV.
+        
+        Args:
+            process_name: Optional process name for consistency with other integrations
+            
+        Returns:
+            str | None: Filepath of the current media, or None if unavailable
+        """
         props = self.get_properties(['path', 'working-directory'])
         
         fpath = props.get('path')
