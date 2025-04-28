@@ -16,10 +16,11 @@ Tracks completed features and planned improvements for MPS for SIMKL.
 - [x] 🎛️ Enhanced tray controls
 - [x] 🔔 Improved notifications
 - [x] ⛓️ Enhanced authentication
+- [x] ©️ Enhanced Media Name Tracking https://github.com/kavinthangavel/Media-Player-Scrobbler-for-Simkl/pull/44
 
 ## 🚧 In Progress
+
 - 💻 Cross-platform testing
-- ©️ Change Logic From Window Title Tracking to Filename Tracking 
 - 💾 Option to set/edit completion percentage
 
 ## 📝 Planned Features
