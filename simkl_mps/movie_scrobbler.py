@@ -21,6 +21,7 @@ from simkl_mps.backlog_cleaner import BacklogCleaner
 from simkl_mps.window_detection import parse_movie_title, parse_filename_from_path, is_video_player
 from simkl_mps.media_cache import MediaCache
 from simkl_mps.utils.constants import PLAYING, PAUSED, STOPPED, DEFAULT_POLL_INTERVAL
+from simkl_mps.config_manager import get_setting, DEFAULT_THRESHOLD # Import settings functions
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +60,7 @@ class MovieScrobbler:
         self.last_scrobble_time = 0
         self.media_cache = MediaCache(app_data_dir=self.app_data_dir)
         self.last_progress_check = 0
-        self.completion_threshold = 80
+        self.completion_threshold = get_setting('watch_completion_threshold', DEFAULT_THRESHOLD)
         self.completed = False
         self.current_position_seconds = 0
         self.total_duration_seconds = None
@@ -768,14 +769,17 @@ class MovieScrobbler:
         if not is_internet_connected():
             logger.info("[Offline Sync] No internet connection. Backlog sync deferred.")
             return 0
-            
+
         success_count = 0
+        failure_occurred = False # Track if any item failed
         pending = self.backlog_cleaner.get_pending()
-        
+        total_attempted = len(pending) # Total items we will try to process
+
         if not pending:
-            return 0
-            
-        logger.info(f"[Offline Sync] Processing {len(pending)} backlog entries...")
+            # Return detailed status even if empty
+            return {'processed': 0, 'attempted': 0, 'failed': False}
+
+        logger.info(f"[Offline Sync] Processing {total_attempted} backlog entries...")
         items_to_process = list(pending)
         
         for item in items_to_process:
@@ -811,9 +815,11 @@ class MovieScrobbler:
                         )
                     else:
                         logger.warning(f"[Offline Sync] Failed to mark '{title}' as watched after resolving ID. Will retry.")
+                        failure_occurred = True # Mark failure
                 else:
                     logger.warning(f"[Offline Sync] Could not resolve Simkl ID for '{title}'. Will retry.")
-            elif simkl_id:
+                    failure_occurred = True # Mark failure
+            elif simkl_id: # Item has a non-temporary ID
                 logger.info(f"[Offline Sync] Syncing '{title}' (ID: {simkl_id}) to Simkl...")
                 result = mark_as_watched(simkl_id, self.client_id, self.access_token)
                 if result:
@@ -829,15 +835,21 @@ class MovieScrobbler:
                     )
                 else:
                     logger.warning(f"[Offline Sync] Failed to mark '{title}' (ID: {simkl_id}) as watched. Will retry.")
+                    failure_occurred = True # Mark failure
             else:
                 logger.warning(f"[Offline Sync] Invalid backlog entry: {item}")
-                
+                failure_occurred = True # Mark failure
+
         if success_count > 0:
             logger.info(f"[Offline Sync] Backlog sync complete. {success_count} entries synced.")
         else:
-            logger.info("[Offline Sync] No entries were synced this cycle.")
-            
-        return success_count
+            # Log based on whether attempts were made
+            if total_attempted > 0:
+                logger.info("[Offline Sync] No entries were successfully synced this cycle (failures occurred or items remain).")
+            else:
+                 logger.info("[Offline Sync] No backlog entries found to process.")
+
+        return {'processed': success_count, 'attempted': total_attempted, 'failed': failure_occurred}
 
     def start_offline_sync_thread(self, interval_seconds=120):
         """Start a background thread to periodically sync backlog when online."""
