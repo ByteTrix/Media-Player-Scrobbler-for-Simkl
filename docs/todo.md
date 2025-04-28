@@ -13,11 +13,11 @@ Tracks completed features and planned improvements for MPS for SIMKL.
 - [x] 🧠 Smart movie detection
 - [x] 📦 PyPI package 
 - [x] 💻 Cross-platform testing
-- [x] 😍 New icon/logo https://github.com/kavinthangavel/Media-Player-Scrobbler-for-Simkl/pull/11
-- [x] 🎛️ Enhanced tray controls https://github.com/kavinthangavel/Media-Player-Scrobbler-for-Simkl/pull/3
-- [x] 🔔 Improved notifications https://github.com/kavinthangavel/Media-Player-Scrobbler-for-Simkl/pull/19
-- [x] ⛓️ Enhanced authentication https://github.com/kavinthangavel/Media-Player-Scrobbler-for-Simkl/pull/28
-- [x] ©️ Enhanced Media Name Tracking https://github.com/kavinthangavel/Media-Player-Scrobbler-for-Simkl/pull/44
+- [x] 😍 New icon/logo [#11](https://github.com/kavinthangavel/Media-Player-Scrobbler-for-Simkl/pull/11)
+- [x] 🎛️ Enhanced tray controls [#3](https://github.com/kavinthangavel/Media-Player-Scrobbler-for-Simkl/pull/3)
+- [x] 🔔 Improved notifications [#19](https://github.com/kavinthangavel/Media-Player-Scrobbler-for-Simkl/pull/19)
+- [x] ⛓️ Enhanced authentication [#28](https://github.com/kavinthangavel/Media-Player-Scrobbler-for-Simkl/pull/28)
+- [x] ©️ Enhanced Media Name Tracking [#44](https://github.com/kavinthangavel/Media-Player-Scrobbler-for-Simkl/pull/44)
 
 ## 🚧 In Progress
 
