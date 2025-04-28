@@ -141,15 +141,7 @@ class SimklScrobbler:
         # Set credentials in the monitor using the loaded values
         self.monitor.set_credentials(self.client_id, self.access_token)
 
-        logger.info("Processing scrobble backlog...")
-        try:
-            backlog_count = self.monitor.scrobbler.process_backlog()
-            if backlog_count > 0:
-                logger.info(f"Successfully processed {backlog_count} items from the backlog.")
-        except Exception as e:
-             logger.error(f"Error processing backlog during initialization: {e}", exc_info=True)
-
-        logger.info("Media Player Scrobbler for SIMKL initialization complete.")
+        logger.info("Media Player Scrobbler for SIMKL core initialization complete.")
         return True
 
     def start(self):
@@ -181,6 +173,11 @@ class SimklScrobbler:
              return False
 
         logger.info("Media player monitor thread started successfully.")
+
+        # Start background backlog sync *after* monitor is running
+        logger.info("Starting background backlog synchronization thread...")
+        self.monitor.scrobbler.start_offline_sync_thread() # Use default interval
+
         return True
 
     def stop(self):

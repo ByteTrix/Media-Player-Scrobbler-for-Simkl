@@ -45,7 +45,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.13'
           cache: pip
 
       - name: Install Poetry
@@ -55,6 +55,28 @@ jobs:
 
       - name: Update Poetry Lock File
         run: poetry lock
+
+      - name: Run Comprehensive Dependency Tests
+        id: dependency-tests
+        run: |
+          # Install dependencies
+          poetry install
+          
+          # Run the comprehensive dependency test script
+          python test_dependencies.py --ci
+          
+          if [ $? -ne 0 ]; then
+            echo "Dependency tests failed. Aborting."
+            echo "dependency_tests_passed=false" >> $GITHUB_OUTPUT
+            exit 1
+          else
+            echo "dependency_tests_passed=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run Project Tests
+        if: steps.dependency-tests.outputs.dependency_tests_passed == 'true'
+        run: |
+          poetry run pytest
 
       - name: Check for Changes
         id: git-diff

@@ -7,6 +7,7 @@ import os
 import sys
 import time
 import threading
+import queue # Added for thread-safe communication
 import logging
 import webbrowser
 import subprocess # Added for running updater script
@@ -14,12 +15,17 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 import pystray
 from plyer import notification
+import ctypes # Added for native Windows dialogs
+import tkinter as tk
+from tkinter import simpledialog
 
 # Import API and credential functions
 from simkl_mps.simkl_api import get_user_settings
 from simkl_mps.credentials import get_credentials
 # Import constants only, not the whole module
 from simkl_mps.main import APP_DATA_DIR, APP_NAME
+# Import settings functions
+from simkl_mps.config_manager import get_setting, set_setting, save_settings, DEFAULT_THRESHOLD # Reverted import
 
 logger = logging.getLogger(__name__)
 
@@ -89,7 +95,8 @@ class TrayApp:
             )
             logger.info("Tray icon setup successfully")
         except Exception as e:
-            logger.error(f"Error setting up tray icon: {e}")
+            # Log exception type and full traceback for better debugging
+            logger.error(f"Error setting up tray icon: {type(e).__name__} - {e}", exc_info=True)
             raise
     
     def update_status(self, new_status, details="", last_scrobbled=None):
@@ -198,6 +205,10 @@ class TrayApp:
 
     def create_menu(self):
         """Create the system tray menu with a professional layout"""
+        # Get current threshold for radio button state
+        current_threshold = get_setting('watch_completion_threshold', DEFAULT_THRESHOLD)
+        is_preset = lambda val: current_threshold == val
+
         # Start with basic items
         menu_items = [
             pystray.MenuItem("^_^ MPS for SIMKL", None),
@@ -215,12 +226,40 @@ class TrayApp:
             menu_items.append(pystray.MenuItem("Start Monitoring", self.start_monitoring))
         # Note: 'paused' state might need review if true pause/resume is implemented later
 
+        # --- Threshold Submenu ---
+        threshold_submenu = pystray.Menu(
+            pystray.MenuItem(
+                '65%',
+                lambda: self._set_preset_threshold(65),
+                checked=lambda item: is_preset(65),
+                radio=True
+            ),
+            pystray.MenuItem(
+                '80% (Default)',
+                lambda: self._set_preset_threshold(80),
+                checked=lambda item: is_preset(80),
+                radio=True
+            ),
+            pystray.MenuItem(
+                '90%',
+                lambda: self._set_preset_threshold(90),
+                checked=lambda item: is_preset(90),
+                radio=True
+            ),
+            pystray.Menu.SEPARATOR,
+            pystray.MenuItem(
+                'Custom...',
+                self.set_watch_threshold
+            )
+        )
+
         # Add Tools submenu
         menu_items.append(pystray.Menu.SEPARATOR)
         menu_items.append(pystray.MenuItem("Tools", pystray.Menu(
+            pystray.MenuItem("Watch Threshold (%)", threshold_submenu),
+            pystray.MenuItem("Process Backlog Now", self.process_backlog),
             pystray.MenuItem("Open Logs", self.open_logs),
             pystray.MenuItem("Open Config Directory", self.open_config_dir),
-            pystray.MenuItem("Process Backlog Now", self.process_backlog),
         )))
 
         # Add Online Services submenu
@@ -230,11 +269,10 @@ class TrayApp:
         )))
         menu_items.append(pystray.Menu.SEPARATOR)
 
-        # Always show "Check for Updates"
         menu_items.append(
             pystray.MenuItem(
                 "Check for Updates",
-                self.check_updates_thread # Link to check method
+                self.check_updates_thread 
             )
         )
 
@@ -368,7 +406,7 @@ Automatically track and scrobble your media to SIMKL."""
         """Show help information"""
         try:
             # Open documentation or show help dialog
-            help_url = "https://github.com/kavinthangavel/Media-Player-Scrobbler-for-Simkl#readme"
+            help_url = "https://github.com/kavinthangavel/Media-Player-Scrobbler-for-Simkl/wiki"
             webbrowser.open(help_url)
         except Exception as e:
             logger.error(f"Error showing help: {e}")
@@ -617,7 +655,7 @@ Tips:
         try:
             # Platform-specific considerations
             if sys.platform == "win32":
-                # Windows prefers ICO files, but can use high-res PNGs too
+                # Windows prefers ICO files, but can use high-res PNG too
                 preferred_formats = ["ico", "png"]
                 preferred_sizes = [256, 128, 64, 32]  # Ordered by preference (highest first)
             elif sys.platform == "darwin":
@@ -889,17 +927,26 @@ Tips:
         """Process the backlog from the tray menu"""
         def _process():
             try:
-                count = self.scrobbler.monitor.scrobbler.process_backlog()
-                if count > 0:
+                # Get detailed results from the scrobbler's backlog processing
+                result_dict = self.scrobbler.monitor.scrobbler.process_backlog()
+                processed_count = result_dict.get('processed', 0)
+                attempted_count = result_dict.get('attempted', 0)
+                failed_flag = result_dict.get('failed', False)
+
+                if processed_count > 0:
                     self.show_notification(
                         "simkl-mps",
-                        f"Processed {count} backlog items"
+                        f"Processed {processed_count} backlog items successfully."
+                    )
+                elif attempted_count > 0 and failed_flag:
+                    # Items were attempted, but none succeeded (failures occurred)
+                    self.show_notification(
+                        "simkl-mps Warning",
+                        "Error syncing backlog items. Will retry later. Check logs for details."
                     )
                 else:
-                    self.show_notification(
-                        "simkl-mps",
-                        "No backlog items to process"
-                    )
+                    # No items were attempted (backlog was empty)
+                    self.show_notification("simkl-mps", "No backlog items to process.")
             except Exception as e:
                 logger.error(f"Error processing backlog: {e}")
                 self.update_status("error")
@@ -931,6 +978,118 @@ Tips:
                 "simkl-mps Error",
                 f"Could not open log file: {e}"
             )
+
+    def _set_preset_threshold(self, threshold_value):
+        """Set watch threshold from a preset value and update"""
+        current_threshold = get_setting('watch_completion_threshold', DEFAULT_THRESHOLD)
+        if threshold_value != current_threshold:
+            try:
+                set_setting('watch_completion_threshold', threshold_value)
+                # save_settings() is called internally by set_setting
+                logger.info(f"Watch completion threshold set to {threshold_value}% via preset")
+                self.show_notification("Settings Updated", f"Watch threshold set to {threshold_value}%")
+
+                # Attempt to update the running scrobbler instance
+                if self.scrobbler and hasattr(self.scrobbler, 'monitor') and \
+                   hasattr(self.scrobbler.monitor, 'scrobbler') and \
+                   hasattr(self.scrobbler.monitor.scrobbler, 'completion_threshold'):
+
+                    self.scrobbler.monitor.scrobbler.completion_threshold = threshold_value # Store as percentage
+                    logger.debug(f"Updated running scrobbler instance threshold to {threshold_value}%") # Log percentage
+                else:
+                    logger.warning("Could not update running scrobbler instance threshold (not found or not running).")
+                    # No need for notification here, main one is sufficient
+
+                self.update_icon() # Refresh menu to show new checkmark
+
+            except Exception as e:
+                logger.error(f"Error setting preset watch threshold: {e}", exc_info=True)
+                self.show_notification("Error", f"Failed to set watch threshold: {e}")
+        else:
+            logger.debug(f"Preset threshold {threshold_value}% is already selected.")
+        return 0
+
+    def set_watch_threshold(self, _=None):
+        """Prompt user for threshold in a separate thread and process the result."""
+        current_threshold = get_setting('watch_completion_threshold', DEFAULT_THRESHOLD)
+        result_queue = queue.Queue()
+
+        def _ask_threshold_in_thread():
+            """Runs the Tkinter dialog in a separate thread."""
+            dialog_root = None
+            try:
+                dialog_root = tk.Tk()
+                dialog_root.withdraw()
+                dialog_root.attributes("-topmost", True)
+                dialog_root.focus_force()
+                threshold = simpledialog.askinteger(
+                    "Set Watch Threshold",
+                    f"Enter watch completion threshold (%):\n(Current: {current_threshold}%)",
+                    parent=dialog_root, minvalue=1, maxvalue=100, initialvalue=current_threshold
+                )
+                result_queue.put(threshold)
+            except (tk.TclError, ValueError) as e:
+                logger.error(f"Error in Tkinter dialog thread: {e}", exc_info=True)
+                result_queue.put(None)
+            finally:
+                if dialog_root:
+                    try:
+                        dialog_root.after(0, dialog_root.destroy)
+                    except Exception as e:
+                        logger.debug(f"Error destroying Tkinter root (might be already closed): {e}")
+
+        def _process_threshold_result():
+            """Waits for the result from the queue and processes it."""
+            try:
+                # Block until the result is available from the dialog thread
+                new_threshold = result_queue.get()
+
+                if new_threshold is not None and new_threshold != current_threshold:
+                    try:
+                        set_setting('watch_completion_threshold', new_threshold)
+                        # save_settings() is called internally by set_setting
+                        logger.info(f"Watch completion threshold set to {new_threshold}% via custom input")
+                        self.show_notification("Settings Updated", f"Watch threshold set to {new_threshold}%")
+                        
+                        # Update running scrobbler instance
+                        if self.scrobbler and hasattr(self.scrobbler, 'monitor') and \
+                           hasattr(self.scrobbler.monitor, 'scrobbler') and \
+                           hasattr(self.scrobbler.monitor.scrobbler, 'completion_threshold'):
+                            self.scrobbler.monitor.scrobbler.completion_threshold = new_threshold # Store as percentage
+                            logger.info(f"Updated running scrobbler instance threshold to {new_threshold}%") # Log percentage
+                        else:
+                            logger.warning("Could not update running scrobbler instance threshold (not found or not running).")
+                        
+                        self.update_icon() # Refresh menu state
+
+                    except Exception as e:
+                        logger.error(f"Error setting custom watch threshold: {e}", exc_info=True)
+                        self.show_notification("Error", f"Failed to set watch threshold: {e}")
+                        self.update_icon() # Still update icon on error
+                elif new_threshold is None:
+                    logger.debug("User cancelled setting watch threshold or dialog failed.")
+                    self.update_icon() # Refresh menu state even on cancel/failure
+                else: # Threshold is the same as current
+                    logger.debug("Watch threshold not changed.")
+                    self.update_icon() # Refresh menu state even if not changed
+
+            except queue.Empty:
+                 logger.warning("Threshold result queue was empty (unexpected).")
+                 self.update_icon() # Refresh menu state
+            except Exception as e:
+                 logger.error(f"Error processing threshold result: {e}", exc_info=True)
+                 self.update_icon() # Refresh menu state
+
+        # Start the thread to show the dialog
+        dialog_thread = threading.Thread(target=_ask_threshold_in_thread, daemon=True)
+        dialog_thread.start()
+
+        # Start the thread to process the result from the queue
+        processing_thread = threading.Thread(target=_process_threshold_result, daemon=True)
+        processing_thread.start()
+
+        logger.info("Started threads to ask for and process custom watch threshold.")
+        # The menu action returns immediately, work happens in background threads.
 
     def exit_app(self, _=None):
         """Exit the application"""
@@ -1078,7 +1237,8 @@ def run_tray_app():
         app = TrayApp()
         app.run()
     except Exception as e:
-        logger.error(f"Critical error in tray app: {e}")
+        # Log the full traceback for critical startup errors
+        logger.error(f"Critical error preventing tray app startup: {type(e).__name__} - {e}", exc_info=True)
         print(f"Failed to start in tray mode: {e}")
         print("Falling back to console mode.")
         
