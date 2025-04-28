@@ -5,12 +5,6 @@
 [![Python Versions](https://img.shields.io/pypi/pyversions/simkl-mps)](https://pypi.org/project/simkl-mps/)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-blue.svg)]()
 
-<div align="center">
-  <img src="../simkl_mps/assets/simkl-mps.png" alt="SIMKL MPS Logo" width="120"/>
-  <br/>
-  <em>Automatic movie tracking for all your media players</em>
-</div>
-
 ## What is MPS for SIMKL?
 
 MPS for SIMKL (Media Player Scrobbler) is a cross-platform app that automatically tracks your movie watching in popular media players and syncs your progress to your SIMKL account. It runs in the background or system tray, requires minimal setup, and supports Windows, macOS (experimental), and Linux.
