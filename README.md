@@ -24,7 +24,7 @@
 
 - **Windows:** Use the [Windows Guide](docs/windows-guide.md) (EXE installer, tray app, no commands needed).
 - **Linux:** Use the [Linux Guide](docs/linux-guide.md) (pipx recommended, tray app, setup command needed).
-- **macOS:** Use the [Mac Guide](docs/mac-guide.md) (pip install, tray app, setup command needed, experimental/untested).
+- **macOS:** Use the [Mac Guide](docs/mac-guide.md) (pip install, tray app, setup command needed, untested).
 
 After installation, authenticate with SIMKL and **configure your media players** using the [Media Players Guide](docs/media-players.md) (this step is critical for accurate tracking).
 
