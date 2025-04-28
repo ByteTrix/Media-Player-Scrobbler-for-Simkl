@@ -704,3 +704,50 @@ def parse_movie_title(window_title_or_info):
     except Exception as e:
          logger.error(f"Error using guessit for title parsing '{cleaned_title}': {e}")
          return cleaned_title.strip()
+
+def parse_filename_from_path(filepath):
+    """
+    Extract and parse a movie title from a file path.
+    Uses the filename portion (without extension) as input to guessit.
+    
+    Args:
+        filepath (str): Full file path from player API
+        
+    Returns:
+        str: Cleaned movie title or None if parsing fails
+    """
+    if not filepath:
+        return None
+        
+    try:
+        # Extract just the filename from the path
+        filename = os.path.basename(filepath)
+        logger.debug(f"Extracted filename: '{filename}' from path: '{filepath}'")
+        
+        # Skip non-video files
+        common_video_extensions = ['.mp4', '.mkv', '.avi', '.mov', '.wmv', '.flv', 
+                                  '.webm', '.m4v', '.mpg', '.mpeg', '.ts', '.vob']
+        file_ext = os.path.splitext(filename.lower())[1]
+        
+        if file_ext and file_ext not in common_video_extensions:
+            logger.debug(f"Skipping non-video file extension: {file_ext}")
+            return None
+            
+        # Use guessit on the filename (which typically has better format than window titles)
+        guess = guessit(filename)
+        
+        if 'title' in guess:
+            if 'type' in guess and guess['type'] == 'movie':
+                if 'year' in guess and isinstance(guess['year'], int):
+                    logger.debug(f"Parsed movie: '{guess['title']} ({guess['year']})' from filename")
+                    return f"{guess['title']} ({guess['year']})"
+                else:
+                    logger.debug(f"Parsed movie: '{guess['title']}' from filename")
+                    return guess['title']
+            elif 'episode' not in guess and 'season' not in guess:
+                logger.debug(f"Parsed likely movie: '{guess['title']}' from filename")
+                return guess['title']
+    except Exception as e:
+        logger.error(f"Error parsing filename '{filepath}': {e}")
+    
+    return None

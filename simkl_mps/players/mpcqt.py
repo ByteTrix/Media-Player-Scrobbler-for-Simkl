@@ -177,10 +177,13 @@ class MPCQTIntegration:
                 
         return None  # Couldn't determine pause state
     
-    def get_current_filepath(self):
+    def get_current_filepath(self, process_name=None):
         """
         Get the currently playing file path from MPC-QT
         
+        Args:
+            process_name: Optional process name for consistency with other integrations
+            
         Returns:
             str or None: The file path if available, None otherwise
         """
@@ -189,6 +192,7 @@ class MPCQTIntegration:
             if variables:
                 filepath = variables.get('filepath', '')
                 if filepath:
+                    logger.debug(f"Retrieved filepath from MPC-QT: {filepath}")
                     return filepath
         
         # If working port didn't work, try all default ports
@@ -200,6 +204,8 @@ class MPCQTIntegration:
             if variables:
                 filepath = variables.get('filepath', '')
                 if filepath:
+                    logger.debug(f"Retrieved filepath from MPC-QT on port {port}: {filepath}")
+                    self.working_port = port  # Remember working port
                     return filepath
         
         return None
