@@ -11,17 +11,17 @@ Tracks completed features and planned improvements for MPS for SIMKL.
 - [x] 📥 System tray app
 - [x] ⛔ Offline mode with backlog
 - [x] 🧠 Smart movie detection
-- [x] 📦 PyPI package
-- [x] 😍 New icon/logo
-- [x] 🎛️ Enhanced tray controls
-- [x] 🔔 Improved notifications
-- [x] ⛓️ Enhanced authentication
+- [x] 📦 PyPI package 
+- [x] 💻 Cross-platform testing
+- [x] 😍 New icon/logo https://github.com/kavinthangavel/Media-Player-Scrobbler-for-Simkl/pull/11
+- [x] 🎛️ Enhanced tray controls https://github.com/kavinthangavel/Media-Player-Scrobbler-for-Simkl/pull/3
+- [x] 🔔 Improved notifications https://github.com/kavinthangavel/Media-Player-Scrobbler-for-Simkl/pull/19
+- [x] ⛓️ Enhanced authentication https://github.com/kavinthangavel/Media-Player-Scrobbler-for-Simkl/pull/28
 - [x] ©️ Enhanced Media Name Tracking https://github.com/kavinthangavel/Media-Player-Scrobbler-for-Simkl/pull/44
 
 ## 🚧 In Progress
 
-- 💻 Cross-platform testing
-- 💾 Option to set/edit completion percentage
+- 💾 Option to set/edit completion percentage in tray app
 
 ## 📝 Planned Features
 
@@ -32,7 +32,7 @@ Tracks completed features and planned improvements for MPS for SIMKL.
 </svg> Discord Rich Presence (Shows what media you are currently watching in your discord profile)
 - [ ] 😈 Auto download and install latest Update
 - [ ] 🧪 Create comprehensive automated test suite
-- [ ] 🔎 Add option to manually correct misidentified movies
+- [ ] 🔎 Add option for mark as watched history (Local)
 
 
 ### Medium Term
