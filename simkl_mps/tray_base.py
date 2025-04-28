@@ -142,7 +142,7 @@ class TrayAppBase:
         try:
             # Platform-specific considerations
             if sys.platform == "win32":
-                # Windows prefers ICO files, but can use high-res PNGs too
+                # Windows prefers ICO files, but can use high-res PNG too
                 preferred_formats = ["ico", "png"]
                 preferred_sizes = [256, 128, 64, 32]  # Ordered by preference (highest first)
             elif sys.platform == "darwin":
