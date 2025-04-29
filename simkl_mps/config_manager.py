@@ -125,28 +125,18 @@ def set_setting(key, value):
              log.error(f"Attempted to set non-integer watch_completion_threshold: {value}.")
              return # Do not save invalid value
     
-    # Special handling for user_subdir - update paths if changed
     if key == 'user_subdir' and value != get_setting('user_subdir'):
         log.info(f"Updating user subdirectory from '{get_setting('user_subdir')}' to '{value}'")
-        # Save the new value before reinitializing paths to ensure it's recorded
-        settings = load_settings()
-        settings[key] = value
-        save_settings(settings)
-        
         # Reinitialize paths with the new user_subdir
         initialize_paths(value)
         
-        # Now we need to reload and save settings to the new location
+        # Now we need to reload settings to get all the settings from the new location
         settings = load_settings()  # This will now load from (or create at) the new location
+        settings[key] = value # set the new value
         save_settings(settings)     # This will save to the new location
         
         log.info(f"Updated app data directory to: {APP_DATA_DIR}")
         return
-    
-    # Normal handling for other settings
-    settings = load_settings()
-    settings[key] = value
-    save_settings(settings)
 
 def get_app_data_dir():
     """Returns the current app data directory path."""

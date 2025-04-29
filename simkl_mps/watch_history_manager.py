@@ -22,6 +22,15 @@ class WatchHistoryManager:
         self.app_data_dir = app_data_dir
         self.history_file = self.app_data_dir / history_file
         self.history = self._load_history()
+        if self.history is None:
+            logger.error("Failed to load history, initializing to empty list.")
+            self.history = []
+        
+        # Make sure we have the viewer files in the app_data_dir
+        self._ensure_viewer_exists()
+        self.app_data_dir = app_data_dir
+        self.history_file = self.app_data_dir / history_file
+        self.history = self._load_history()
         
         # Make sure we have the viewer files in the app_data_dir
         self._ensure_viewer_exists()
@@ -173,45 +182,64 @@ class WatchHistoryManager:
     def _ensure_viewer_exists(self):
         """
         Make sure the watch history viewer files exist in the app_data_dir
-        Copies them from the installed package if they don't exist or if they're outdated
+        Copies them from the installed package only if they don't exist or are outdated
         """
         try:
             # Target directory for the viewer files
             viewer_dir = self.app_data_dir / "watch-history-viewer"
             if not viewer_dir.exists():
                 os.makedirs(viewer_dir, exist_ok=True)
-                logger.info(f"Created watch history viewer directory: {viewer_dir}")
-                
+            logger.info(f"Created watch history viewer directory: {viewer_dir}")
+            
             # Find the source files
             source_dir = self._get_source_dir()
             
             if source_dir and source_dir.exists():
+            # Files we need to check
+                required_files = ["index.html", "style.css", "script.js"]
+                needs_update = False
+            
+            # Check if any required files are missing or outdated
+            for file in required_files:
+                source_file = source_dir / file
+                target_file = viewer_dir / file
+                
+                if not target_file.exists():
+                    needs_update = True
+                    logger.debug(f"File {file} missing in target directory")
+                    break
+                
+                if source_file.exists() and os.path.getmtime(source_file) > os.path.getmtime(target_file):
+                    needs_update = True
+                    logger.debug(f"File {file} is outdated in target directory")
+                    break
+            
+            if needs_update:
                 logger.info(f"Updating watch history viewer files from {source_dir}")
                 
-                # Files we need to copy
-                required_files = ["index.html", "style.css", "script.js"]
-                
-                # Copy all the files, overwriting existing ones
+                # Copy all the files that need updating
                 for file in required_files:
                     source_file = source_dir / file
                     target_file = viewer_dir / file
-                    
-                    if source_file.exists():
-                        shutil.copy2(source_file, target_file)
-                        logger.debug(f"Copied {file} to {viewer_dir}")
-                    else:
-                        logger.warning(f"Source file {source_file} not found")
                 
-                # Copy any asset files if they exist
+                if source_file.exists():
+                    shutil.copy2(source_file, target_file)
+                    logger.debug(f"Copied {file} to {viewer_dir}")
+                else:
+                    logger.warning(f"Source file {source_file} not found")
+                
+                # Update asset files if needed
                 source_assets = source_dir / "assets"
                 if source_assets.exists() and source_assets.is_dir():
                     target_assets = viewer_dir / "assets"
-                    if not target_assets.exists():
-                        os.makedirs(target_assets, exist_ok=True)
-                    
-                    # Copy all files from assets directory
-                    for asset_file in source_assets.iterdir():
-                        if asset_file.is_file():
+                if not target_assets.exists():
+                    os.makedirs(target_assets, exist_ok=True)
+                
+                # Copy only new or modified asset files
+                for asset_file in source_assets.iterdir():
+                    if asset_file.is_file():
+                        target_asset = target_assets / asset_file.name
+                    if not target_asset.exists() or os.path.getmtime(asset_file) > os.path.getmtime(target_asset):
                             shutil.copy2(asset_file, target_assets / asset_file.name)
                             logger.debug(f"Copied asset {asset_file.name} to {target_assets}")
                 
