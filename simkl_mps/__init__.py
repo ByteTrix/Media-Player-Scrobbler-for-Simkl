@@ -10,7 +10,7 @@ import simkl_mps.compatibility_patches
 simkl_mps.compatibility_patches.apply_patches()
 
 from simkl_mps.main import SimklScrobbler, run_as_background_service, main
-from simkl_mps.tray_app import run_tray_app
+from simkl_mps.tray_win import run_tray_app
 __all__ = [
     'SimklScrobbler',
     'run_as_background_service',

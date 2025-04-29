@@ -862,14 +862,31 @@ class MovieScrobbler:
             while True:
                 try:
                     if is_internet_connected():
-                        logger.info("[Offline Sync] Internet detected. Processing backlog...")
-                        synced = self.process_backlog()
-                        if synced > 0:
-                            logger.info(f"[Offline Sync] Synced {synced} backlog entries to Simkl.")
+                        # Check if there are any pending items before logging
+                        pending_items = self.backlog_cleaner.get_pending()
+                        if pending_items:
+                            logger.info(f"[Offline Sync] Internet detected. Processing {len(pending_items)} backlog items...")
+                            result = self.process_backlog()
+                            
+                            # Handle both dictionary and integer return types
+                            if isinstance(result, dict):
+                                # New format - dictionary with detailed info
+                                processed_count = result.get('processed', 0)
+                                attempted_count = result.get('attempted', 0)
+                                
+                                if processed_count > 0:
+                                    logger.info(f"[Offline Sync] Synced {processed_count} of {attempted_count} backlog entries to Simkl.")
+                                elif attempted_count > 0:
+                                    logger.info(f"[Offline Sync] Attempted to sync {attempted_count} items but none succeeded.")
+                            elif result > 0:  # Legacy format - integer count
+                                logger.info(f"[Offline Sync] Synced {result} backlog entries to Simkl.")
+                        else:
+                            # Only log at debug level when no items are in backlog
+                            logger.debug("[Offline Sync] No items in backlog to process.")
                     else:
                         logger.debug("[Offline Sync] Still offline. Will retry later.")
                 except Exception as e:
-                    logger.error(f"[Offline Sync] Error during backlog sync: {e}")
+                    logger.error(f"[Offline Sync] Error during backlog sync: {e}", exc_info=True)
                 time.sleep(interval_seconds)
                 
         self._offline_sync_thread = threading.Thread(target=sync_loop, daemon=True)

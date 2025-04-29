@@ -7,17 +7,22 @@ import os
 import sys
 import time
 import threading
+import queue # Added for thread-safe communication for custom threshold dialog
 import logging
 import webbrowser
 import subprocess
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
+import abc
+import pystray
 
 # Import API and credential functions
 from simkl_mps.simkl_api import get_user_settings
 from simkl_mps.credentials import get_credentials
 # Import constants only, not the whole module
 from simkl_mps.main import APP_DATA_DIR, APP_NAME
+# Import settings functions
+from simkl_mps.config_manager import get_setting, set_setting, DEFAULT_THRESHOLD
 
 logger = logging.getLogger(__name__)
 
@@ -26,9 +31,52 @@ def get_simkl_scrobbler():
     from simkl_mps.main import SimklScrobbler
     return SimklScrobbler
 
-class TrayAppBase:
+class TrayAppBase(abc.ABC): # Inherit from ABC for abstract methods
     """Base system tray application for simkl-mps"""
     
+    @abc.abstractmethod
+    def update_icon(self):
+        """Update the tray icon - must be implemented by platform-specific classes"""
+        pass
+        
+    @abc.abstractmethod
+    def show_notification(self, title, message):
+        """Show a desktop notification - must be implemented by platform-specific classes"""
+        pass
+        
+    @abc.abstractmethod
+    def show_about(self, _=None):
+        """Show about dialog - must be implemented by platform-specific classes"""
+        pass
+        
+    @abc.abstractmethod
+    def show_help(self, _=None):
+        """Show help - must be implemented by platform-specific classes"""
+        pass
+        
+    @abc.abstractmethod
+    def exit_app(self, _=None):
+        """Exit the application - must be implemented by platform-specific classes"""
+        pass
+        
+    @abc.abstractmethod
+    def run(self):
+        """Run the tray application - must be implemented by platform-specific classes"""
+        pass
+        
+    @abc.abstractmethod
+    def _ask_custom_threshold_dialog(self, current_threshold: int) -> int | None:
+        """
+        Platform-specific method to display a dialog asking the user for a custom threshold.
+        
+        Args:
+            current_threshold: The currently configured threshold value.
+            
+        Returns:
+            The new threshold value (int) entered by the user, or None if cancelled.
+        """
+        pass
+
     def __init__(self):
         self.scrobbler = None
         self.monitoring_active = False
@@ -397,17 +445,42 @@ class TrayAppBase:
         """Process the backlog from the tray menu"""
         def _process():
             try:
-                count = self.scrobbler.monitor.scrobbler.process_backlog()
-                if count > 0:
-                    self.show_notification(
-                        "simkl-mps",
-                        f"Processed {count} backlog items"
-                    )
+                result = self.scrobbler.monitor.scrobbler.process_backlog()
+                
+                # Handle both the old integer return type and new dictionary return type
+                if isinstance(result, dict):
+                    count_value = result.get('processed', 0)
+                    attempted = result.get('attempted', 0)
+                    failures = result.get('failed', False)
+                    
+                    if count_value > 0:
+                        self.show_notification(
+                            "simkl-mps",
+                            f"Processed {count_value} of {attempted} backlog items"
+                        )
+                    elif attempted > 0 and failures:
+                        self.show_notification(
+                            "simkl-mps",
+                            f"No backlog items processed successfully. {attempted} items will be retried later."
+                        )
+                    else:
+                        self.show_notification(
+                            "simkl-mps",
+                            "No backlog items to process"
+                        )
                 else:
-                    self.show_notification(
-                        "simkl-mps",
-                        "No backlog items to process"
-                    )
+                    # Legacy integer return type
+                    count = result
+                    if count > 0:
+                        self.show_notification(
+                            "simkl-mps",
+                            f"Processed {count} backlog items"
+                        )
+                    else:
+                        self.show_notification(
+                            "simkl-mps",
+                            "No backlog items to process"
+                        )
             except Exception as e:
                 logger.error(f"Error processing backlog: {e}")
                 self.update_status("error")
@@ -419,31 +492,177 @@ class TrayAppBase:
         threading.Thread(target=_process, daemon=True).start()
         return 0
 
+    # --- Watch Threshold Logic ---
+
+    def _apply_threshold_change(self, new_threshold: int):
+        """Applies the threshold change: saves, updates scrobbler, notifies, updates UI."""
+        current_threshold = get_setting('watch_completion_threshold', DEFAULT_THRESHOLD)
+        if new_threshold is not None and new_threshold != current_threshold:
+            try:
+                set_setting('watch_completion_threshold', new_threshold)
+                logger.info(f"Watch completion threshold set to {new_threshold}%")
+                self.show_notification("Settings Updated", f"Watch threshold set to {new_threshold}%")
+
+                # Attempt to update the running scrobbler instance
+                if self.scrobbler and hasattr(self.scrobbler, 'monitor') and \
+                   hasattr(self.scrobbler.monitor, 'scrobbler') and \
+                   hasattr(self.scrobbler.monitor.scrobbler, 'completion_threshold'):
+
+                    self.scrobbler.monitor.scrobbler.completion_threshold = new_threshold # Store as percentage
+                    logger.debug(f"Updated running scrobbler instance threshold to {new_threshold}%")
+                else:
+                    logger.warning("Could not update running scrobbler instance threshold (not found or not running).")
+
+                self.update_icon() # Refresh menu to show new checkmark/state
+
+            except Exception as e:
+                logger.error(f"Error applying watch threshold change: {e}", exc_info=True)
+                self.show_notification("Error", f"Failed to set watch threshold: {e}")
+                self.update_icon() # Still update icon on error
+        elif new_threshold is None:
+             logger.debug("Threshold change cancelled or dialog failed.")
+             self.update_icon() # Refresh menu state even on cancel/failure
+        else: # Threshold is the same as current
+             logger.debug("Watch threshold not changed.")
+             self.update_icon() # Refresh menu state even if not changed
+
+    def _set_preset_threshold(self, threshold_value: int):
+        """Set watch threshold from a preset value and update."""
+        current_threshold = get_setting('watch_completion_threshold', DEFAULT_THRESHOLD)
+        if threshold_value != current_threshold:
+            logger.info(f"Preset threshold {threshold_value}% selected.")
+            self._apply_threshold_change(threshold_value)
+        else:
+            logger.debug(f"Preset threshold {threshold_value}% is already selected.")
+        return 0 # Return value expected by some tray libraries for menu actions
+
+    def set_custom_watch_threshold(self, _=None):
+        """Handles prompting the user for a custom threshold via platform-specific dialog."""
+        current_threshold = get_setting('watch_completion_threshold', DEFAULT_THRESHOLD)
+        result_queue = queue.Queue()
+
+        def _ask_in_thread():
+            """Runs the platform-specific dialog in a separate thread."""
+            try:
+                # Call the abstract method implemented by the subclass
+                threshold = self._ask_custom_threshold_dialog(current_threshold)
+                result_queue.put(threshold)
+            except Exception as e:
+                logger.error(f"Error in custom threshold dialog thread: {e}", exc_info=True)
+                result_queue.put(None) # Ensure queue gets an item even on error
+
+        def _process_result():
+            """Waits for the result from the queue and processes it."""
+            try:
+                # Block until the result is available from the dialog thread
+                new_threshold = result_queue.get(timeout=60) # Add timeout
+            except queue.Empty:
+                 logger.warning("Timeout waiting for custom threshold dialog result.")
+                 new_threshold = None # or some default value
+                 self.show_notification("Timeout", "Custom threshold dialog timed out.")
+            except queue.Empty:
+                 logger.warning("Timeout waiting for custom threshold dialog result.")
+                 self.update_icon() # Refresh menu state on timeout
+            except Exception as e:
+                 logger.error(f"Error processing threshold result: {e}", exc_info=True)
+                 self.update_icon() # Refresh menu state on error
+
+        # Start the thread to show the dialog
+        dialog_thread = threading.Thread(target=_ask_in_thread, daemon=True)
+        dialog_thread.start()
+
+        # Start the thread to process the result from the queue
+        processing_thread = threading.Thread(target=_process_result, daemon=True)
+        processing_thread.start()
+
+        logger.info("Started threads to ask for and process custom watch threshold.")
+        # The menu action returns immediately, work happens in background threads.
+        return 0 # Return value expected by some tray libraries
+
+    # --- End Watch Threshold Logic ---
+
     def check_first_run(self):
         """Check if this is the first time the app is being run"""
         # Platform-specific implementation required
-        self.is_first_run = False
+        self.is_first_run = False # Default value, should be overridden
+        
+    def _build_pystray_menu_items(self):
+        """Builds the list of pystray menu items common to multiple platforms."""
+        # Get current threshold for radio button state
+        current_threshold = get_setting('watch_completion_threshold', DEFAULT_THRESHOLD)
+        is_preset = lambda val: current_threshold == val
 
-    def update_icon(self):
-        """Update the tray icon - to be implemented by platform-specific classes"""
-        pass
-        
-    def show_notification(self, title, message):
-        """Show a desktop notification - to be implemented by platform-specific classes"""
-        pass
-        
-    def show_about(self, _=None):
-        """Show about dialog - to be implemented by platform-specific classes"""
-        pass
-        
-    def show_help(self, _=None):
-        """Show help - to be implemented by platform-specific classes"""
-        pass
-        
-    def exit_app(self, _=None):
-        """Exit the application - to be implemented by platform-specific classes"""
-        pass
-        
-    def run(self):
-        """Run the tray application - to be implemented by platform-specific classes"""
-        pass
+        # Start with basic items
+        menu_items = [
+            pystray.MenuItem("^_^ MPS for SIMKL", None),
+            pystray.Menu.SEPARATOR,
+            pystray.MenuItem(lambda item: f"Status: {self.get_status_text()}", None, enabled=False), # Use lambda for dynamic text
+            pystray.Menu.SEPARATOR,
+        ]
+
+        # Add Start/Stop item dynamically
+        if self.status == "running":
+            menu_items.append(pystray.MenuItem("Stop Monitoring", self.stop_monitoring))
+        else: # Covers "stopped", "paused", "error"
+            menu_items.append(pystray.MenuItem("Start Monitoring", self.start_monitoring))
+
+        # --- Threshold Submenu ---
+        threshold_submenu = pystray.Menu(
+            pystray.MenuItem(
+                '65%',
+                lambda: self._set_preset_threshold(65),
+                checked=lambda item: is_preset(65),
+                radio=True
+            ),
+            pystray.MenuItem(
+                '80% (Default)',
+                lambda: self._set_preset_threshold(80),
+                checked=lambda item: is_preset(80),
+                radio=True
+            ),
+            pystray.MenuItem(
+                '90%',
+                lambda: self._set_preset_threshold(90),
+                checked=lambda item: is_preset(90),
+                radio=True
+            ),
+            pystray.Menu.SEPARATOR,
+            pystray.MenuItem(
+                'Custom...',
+                self.set_custom_watch_threshold # Call base class method
+            )
+        )
+
+        # Add Tools submenu
+        menu_items.append(pystray.Menu.SEPARATOR)
+        menu_items.append(pystray.MenuItem("Tools", pystray.Menu(
+            pystray.MenuItem("Watch Threshold (%)", threshold_submenu),
+            pystray.MenuItem("Process Backlog Now", self.process_backlog),
+            pystray.MenuItem("Open Logs", self.open_logs),
+            pystray.MenuItem("Open Config Directory", self.open_config_dir),
+        )))
+
+        # Add Online Services submenu
+        menu_items.append(pystray.MenuItem("Online Services", pystray.Menu(
+            pystray.MenuItem("SIMKL Website", self.open_simkl),
+            pystray.MenuItem("View Watch History", self.open_simkl_history),
+        )))
+        menu_items.append(pystray.Menu.SEPARATOR)
+
+        # Check for Updates (Platform-specific action, but item is common)
+        # The actual check logic might differ, but the menu item itself can be defined here.
+        # The platform-specific check_updates_thread method will be called.
+        menu_items.append(
+            pystray.MenuItem(
+                "Check for Updates",
+                # Assuming each subclass implements check_updates_thread or similar
+                lambda: self.check_updates_thread() if hasattr(self, 'check_updates_thread') else None
+            )
+        )
+
+        # Add final items
+        menu_items.append(pystray.MenuItem("About", self.show_about))
+        menu_items.append(pystray.MenuItem("Help", self.show_help))
+        menu_items.append(pystray.MenuItem("Exit", self.exit_app))
+
+        return menu_items

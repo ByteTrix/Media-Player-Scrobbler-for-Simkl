@@ -14,7 +14,10 @@ import subprocess
 from pathlib import Path
 from PIL import Image
 
+from typing import Optional # For type hinting
+
 from simkl_mps.tray_base import TrayAppBase, get_simkl_scrobbler, logger
+from simkl_mps.config_manager import get_setting, DEFAULT_THRESHOLD # Import for menu state and dialog
 
 # Enhance detection for Ubuntu GNOME environment
 def detect_environment():
@@ -154,10 +157,38 @@ class AppIndicatorTray:
             # Add separator
             menu.append(Gtk.SeparatorMenuItem())
             
+            # --- Threshold Submenu (AppIndicator) ---
+            threshold_item = Gtk.MenuItem(label="Watch Threshold (%)")
+            threshold_submenu = Gtk.Menu()
+            threshold_group = [] # For radio buttons
+
+            current_threshold = get_setting('watch_completion_threshold', DEFAULT_THRESHOLD)
+
+            def create_preset_item(value, label):
+                item = Gtk.CheckMenuItem(label=label, group=threshold_group)
+                threshold_group.append(item) # Add to group for radio behavior
+                item.set_active(current_threshold == value)
+                item.connect("activate", lambda w, v=value: self._wrap_callback(lambda: self.app._set_preset_threshold(v))())
+                return item
+
+            threshold_submenu.append(create_preset_item(65, "65%"))
+            threshold_submenu.append(create_preset_item(80, "80% (Default)"))
+            threshold_submenu.append(create_preset_item(90, "90%"))
+            threshold_submenu.append(Gtk.SeparatorMenuItem())
+
+            custom_item = Gtk.MenuItem(label="Custom...")
+            custom_item.connect("activate", self._wrap_callback(self.app.set_custom_watch_threshold))
+            threshold_submenu.append(custom_item)
+
+            threshold_item.set_submenu(threshold_submenu)
+            # --- End Threshold Submenu ---
+
             # Tools submenu
             tools_item = Gtk.MenuItem(label="Tools")
             tools_submenu = Gtk.Menu()
-            
+
+            tools_submenu.append(threshold_item) # Add threshold submenu to Tools
+
             logs_item = Gtk.MenuItem(label="Open Logs")
             logs_item.connect("activate", self._wrap_callback(self.app.open_logs))
             tools_submenu.append(logs_item)
@@ -258,14 +289,14 @@ class AppIndicatorTray:
             logger.error(f"Error stopping GTK main loop: {e}")
 
 
-class TrayApp(TrayAppBase):
+class TrayAppLinux(TrayAppBase):
     """Linux system tray application for simkl-mps"""
     
     def __init__(self):
         super().__init__()
         
         # Set up the appropriate tray implementation based on availability
-        if USE_APP_INDICATOR:
+        if (USE_APP_INDICATOR):
             self.indicator_tray = AppIndicatorTray(self)
             self.using_appindicator = True
             self.tray_icon = None
@@ -294,111 +325,42 @@ class TrayApp(TrayAppBase):
             raise
     
     def load_icon_for_status(self):
-        """Load the appropriate icon for the current status"""
-        try:
-            # Try multiple icon formats and fallbacks
-            icon_format = "png"  # PNG is preferred on Linux
-            
-            # First try to find high-resolution icons
-            sizes = [128, 64, 32]
-            for size in sizes:
-                status_icon = self.assets_dir / f"simkl-mps-{self.status}-{size}.{icon_format}"
-                if status_icon.exists():
-                    logger.info(f"Using high-res status icon: {status_icon}")
-                    return Image.open(status_icon)
-                    
-                generic_icon = self.assets_dir / f"simkl-mps-{size}.{icon_format}"
-                if generic_icon.exists():
-                    logger.info(f"Using high-res generic icon: {generic_icon}")
-                    return Image.open(generic_icon)
-            
-            # List of possible icon files to check in order of preference
-            icon_paths = [
-                # Status-specific icons
-                self.assets_dir / f"simkl-mps-{self.status}.{icon_format}",
-                self.assets_dir / f"simkl-mps-{self.status}.ico",  # ICO fallback
-                
-                # Generic icons
-                self.assets_dir / f"simkl-mps.{icon_format}",
-                self.assets_dir / f"simkl-mps.ico",   # ICO fallback
-                
-                # Look in parent directory as well (common issue in some package setups)
-                Path(self.assets_dir).parent / f"simkl-mps.{icon_format}",
-                Path(self.assets_dir).parent / f"simkl-mps.ico"
-            ]
-            
-            # Verbose logging to help debug icon loading issues
-            logger.debug(f"Looking for icon files in: {self.assets_dir}")
-            for path in icon_paths:
-                logger.debug(f"Checking for icon at: {path}")
-                if path.exists():
-                    logger.info(f"Found and loading tray icon: {path}")
-                    return Image.open(path)
-            
-            logger.error(f"No suitable icon found in assets directory: {self.assets_dir}")
-            logger.error(f"Expected one of: {[p.name for p in icon_paths]}")
-            logger.info("Creating fallback icon...")
-            return self._create_fallback_image(size=128)
-                
-        except FileNotFoundError as e:
-            logger.error(f"Icon file not found: {e}", exc_info=True)
-            logger.info("Creating fallback icon after FileNotFoundError...")
-            return self._create_fallback_image(size=128)
-        except Exception as e:
-            logger.error(f"Error loading status icon: {e}", exc_info=True)
-            logger.info("Creating fallback icon after Exception...")
-            return self._create_fallback_image(size=128)
+        """Load the appropriate icon PIL.Image for the current status using the base class path finder (for pystray fallback)."""
+        # This method is only used when AppIndicator is NOT available.
+        icon_path_str = self._get_icon_path(status=self.status) # Use base class method
+
+        if icon_path_str:
+            try:
+                icon_path = Path(icon_path_str)
+                if icon_path.exists():
+                    logger.debug(f"Loading pystray icon from base path: {icon_path}")
+                    # Load the image using PIL
+                    img = Image.open(icon_path)
+                    img.load() # Explicitly load image data
+                    return img
+                else:
+                    logger.error(f"Icon path returned by base class does not exist: {icon_path}")
+            except FileNotFoundError:
+                logger.error(f"Icon file not found at path from base class: {icon_path_str}", exc_info=True)
+            except Exception as e:
+                # Catch potential PIL errors (e.g., UnidentifiedImageError)
+                logger.error(f"Error loading icon from path {icon_path_str} with PIL: {type(e).__name__} - {e}", exc_info=True)
+        else:
+             logger.warning(f"Base class _get_icon_path did not return a path for status '{self.status}'.")
+
+        # Fallback if base method fails or loading fails
+        logger.warning("Falling back to generated image for pystray icon.")
+        return self._create_fallback_image(size=128) # Use a reasonable size for Linux tray
 
     def create_menu(self):
-        """Create the system tray menu with a professional layout"""
+        """Create the pystray menu using the base class helper (only for pystray fallback)."""
         # This is used only for pystray implementation
         if self.using_appindicator:
-            return None
-            
-        # Start with basic items
-        menu_items = [
-            pystray.MenuItem("^_^ MPS for SIMKL", None),
-            pystray.Menu.SEPARATOR,
-            pystray.MenuItem(f"Status: {self.get_status_text()}", None, enabled=False),
-            pystray.Menu.SEPARATOR,
-        ]
+            return None # AppIndicator uses its own GTK menu
 
-        # Add Start/Stop item
-        if self.status == "running":
-            # If running, show "Stop"
-            menu_items.append(pystray.MenuItem("Stop Monitoring", self.stop_monitoring))
-        elif self.status == "stopped" or self.status == "error" or self.status == "paused":
-            # If stopped, paused, or error, show "Start"
-            menu_items.append(pystray.MenuItem("Start Monitoring", self.start_monitoring))
-
-        # Add Tools submenu
-        menu_items.append(pystray.Menu.SEPARATOR)
-        menu_items.append(pystray.MenuItem("Tools", pystray.Menu(
-            pystray.MenuItem("Open Logs", self.open_logs),
-            pystray.MenuItem("Open Config Directory", self.open_config_dir),
-            pystray.MenuItem("Process Backlog Now", self.process_backlog),
-        )))
-
-        # Add Online Services submenu
-        menu_items.append(pystray.MenuItem("Online Services", pystray.Menu(
-            pystray.MenuItem("SIMKL Website", self.open_simkl),
-            pystray.MenuItem("View Watch History", self.open_simkl_history),
-        )))
-        menu_items.append(pystray.Menu.SEPARATOR)
-
-        # Always show "Check for Updates"
-        menu_items.append(
-            pystray.MenuItem(
-                "Check for Updates",
-                self.check_updates_thread
-            )
-        )
-
-        # Add final items
-        menu_items.append(pystray.MenuItem("About", self.show_about))
-        menu_items.append(pystray.MenuItem("Help", self.show_help))
-        menu_items.append(pystray.MenuItem("Exit", self.exit_app))
-
+        # Build the list of menu items using the base class method
+        menu_items = self._build_pystray_menu_items()
+        # Create the pystray Menu object from the list
         return pystray.Menu(*menu_items)
 
     def update_icon(self):
@@ -794,10 +756,67 @@ Automatically track and scrobble your media to SIMKL."""
             self.show_notification("Update Error", f"Failed to start update installation: {e}")
             return False
 
+    # --- Watch Threshold Implementation ---
+
+    def _ask_custom_threshold_dialog(self, current_threshold: int) -> Optional[int]:
+        """Ask user for custom threshold using zenity."""
+        logger.debug("Attempting to ask for custom threshold using zenity.")
+        try:
+            # Check if zenity is available
+            if subprocess.run(['which', 'zenity'], stdout=subprocess.PIPE, stderr=subprocess.PIPE).returncode != 0:
+                logger.warning("zenity command not found. Cannot ask for custom threshold.")
+                self.show_notification("Cannot Set Custom Threshold", "zenity command not found. Please install zenity.")
+                return None
+
+            # Use zenity to get input
+            process = subprocess.run(
+                [
+                    'zenity', '--entry',
+                    '--title=Set Watch Threshold',
+                    f'--text=Enter watch completion threshold (%):\n(Current: {current_threshold}%)',
+                    f'--entry-text={current_threshold}'
+                ],
+                capture_output=True,
+                text=True,
+                check=False # Don't raise error on non-zero exit (e.g., cancel)
+            )
+
+            if process.returncode == 0: # 0 means OK was pressed
+                try:
+                    value = int(process.stdout.strip())
+                    if 1 <= value <= 100:
+                        logger.info(f"User entered custom threshold: {value}")
+                        return value
+                    else:
+                        logger.warning(f"User entered invalid threshold value: {value}")
+                        self.show_notification("Invalid Input", "Threshold must be between 1 and 100.")
+                        return None
+                except ValueError:
+                    logger.warning(f"User entered non-integer value: {process.stdout.strip()}")
+                    self.show_notification("Invalid Input", "Please enter a number between 1 and 100.")
+                    return None
+            else: # User cancelled or closed the dialog
+                logger.debug("User cancelled custom threshold input via zenity.")
+                return None
+
+        except FileNotFoundError:
+            logger.error("zenity command not found, even after 'which' check (unexpected).")
+            self.show_notification("Error", "zenity command not found.")
+            return None
+        except Exception as e:
+            logger.error(f"Error using zenity for threshold input: {e}", exc_info=True)
+            self.show_notification("Error", f"Could not get custom threshold: {e}")
+            return None
+
+    # _set_preset_threshold is handled by base class
+    # set_custom_watch_threshold is handled by base class
+
+    # --- End Watch Threshold Implementation ---
+
 def run_tray_app():
     """Run the application in tray mode"""
     try:
-        app = TrayApp()
+        app = TrayAppLinux()
         app.run()
     except Exception as e:
         logger.error(f"Critical error in tray app: {e}")
