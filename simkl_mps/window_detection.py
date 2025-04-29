@@ -751,3 +751,109 @@ def parse_filename_from_path(filepath):
         logger.error(f"Error parsing filename '{filepath}': {e}")
     
     return None
+
+def get_file_metadata(file_path):
+    """
+    Extract metadata from a media file including file size, resolution, and other properties.
+    
+    Args:
+        file_path (str): Path to the media file
+        
+    Returns:
+        dict: Dictionary containing file metadata
+    """
+    metadata = {}
+    
+    if not file_path or not os.path.exists(file_path):
+        return metadata
+        
+    try:
+        # Get file size
+        file_stat = os.stat(file_path)
+        file_size = file_stat.st_size
+        metadata["file_size"] = file_size
+        metadata["formatted_file_size"] = format_file_size(file_size)
+        
+        # Extract file name and use guessit to determine resolution
+        filename = os.path.basename(file_path)
+        guess = guessit(filename)
+        
+        # Get resolution from guessit
+        if 'screen_size' in guess:
+            resolution = str(guess['screen_size'])
+            
+            # Map common resolutions to more descriptive formats
+            resolution_map = {
+                '4K': '4K (2160p)',
+                '2160p': '4K (2160p)',
+                '1080p': 'Full HD (1080p)',
+                '720p': 'HD (720p)',
+                '480p': 'SD (480p)',
+                '540p': 'qHD (540p)'
+            }
+            
+            metadata["resolution"] = resolution_map.get(resolution, resolution)
+        else:
+            # Fallback to filename pattern matching if guessit didn't find resolution
+            filename_lower = filename.lower()
+            if "2160p" in filename_lower or "4k" in filename_lower or "uhd" in filename_lower:
+                metadata["resolution"] = "4K (2160p)"
+            elif "1080p" in filename_lower or "fullhd" in filename_lower or "fhd" in filename_lower:
+                metadata["resolution"] = "Full HD (1080p)"
+            elif "720p" in filename_lower or "hd" in filename_lower:
+                metadata["resolution"] = "HD (720p)"
+            elif "480p" in filename_lower or "sd" in filename_lower:
+                metadata["resolution"] = "SD (480p)"
+            elif "540p" in filename_lower:
+                metadata["resolution"] = "qHD (540p)"
+            else:
+                metadata["resolution"] = "Unknown"
+        
+        # Get file extension
+        _, file_ext = os.path.splitext(file_path)
+        if file_ext:
+            metadata["file_format"] = file_ext.lstrip('.').upper()
+        
+        # Get parent directory name
+        parent_dir = os.path.basename(os.path.dirname(file_path))
+        if parent_dir:
+            metadata["folder"] = parent_dir
+            
+        # Get file creation and modification time
+        metadata["created_at"] = datetime.fromtimestamp(file_stat.st_ctime).isoformat()
+        metadata["modified_at"] = datetime.fromtimestamp(file_stat.st_mtime).isoformat()
+            
+    except Exception as e:
+        logger.error(f"Error getting file metadata for {file_path}: {e}")
+        
+    return metadata
+
+def format_file_size(size_bytes):
+    """
+    Format file size to human-readable format
+    
+    Args:
+        size_bytes (int): Size in bytes
+        
+    Returns:
+        str: Formatted size string (e.g., "3.45 GB")
+    """
+    if size_bytes is None:
+        return "Unknown"
+        
+    # Define units and thresholds
+    units = ['B', 'KB', 'MB', 'GB', 'TB']
+    if size_bytes == 0:
+        return "0 B"
+        
+    # Calculate the appropriate unit
+    i = 0
+    while size_bytes >= 1024 and i < len(units) - 1:
+        size_bytes /= 1024
+        i += 1
+        
+    # Format with 2 decimal places if not bytes
+    if i == 0:
+        return f"{int(size_bytes)} {units[i]}"
+    else:
+        return f"{size_bytes:.2f} {units[i]}"

@@ -249,6 +249,28 @@ def get_movie_details(simkl_id, client_id, access_token):
             title = movie_details.get('title', 'N/A')
             year = movie_details.get('year', 'N/A')
             runtime = movie_details.get('runtime', 'N/A')
+            
+            # Ensure essential fields exist for watch history
+            movie_details['simkl_id'] = simkl_id  # Add simkl_id explicitly for the history
+            
+            # Get IMDb ID if available
+            if 'ids' in movie_details:
+                imdb_id = movie_details['ids'].get('imdb')
+                if imdb_id:
+                    # Store IMDb ID directly in the movie_details for easy access
+                    movie_details['imdb_id'] = imdb_id
+                    logger.info(f"Simkl API: Retrieved IMDb ID: {imdb_id} for '{title}'")
+            
+            # Get poster URL if available
+            if 'poster' not in movie_details and 'images' in movie_details:
+                if movie_details['images'].get('poster'):
+                    movie_details['poster'] = f"https://simkl.in/posters/{movie_details['images']['poster']}_m.jpg"
+                    logger.info(f"Added poster URL for {title}")
+            
+            # Ensure type is set for history filtering
+            if 'type' not in movie_details:
+                movie_details['type'] = 'movie'
+
             logger.info(f"Simkl API: Retrieved details for '{title}' ({year}), Runtime: {runtime} min.")
             if not movie_details.get('runtime'):
                 logger.warning(f"Simkl API: Runtime information missing for '{title}' (ID: {simkl_id}).")

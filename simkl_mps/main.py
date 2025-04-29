@@ -13,6 +13,8 @@ import logging
 from simkl_mps.monitor import Monitor
 from simkl_mps.simkl_api import search_movie, get_movie_details, is_internet_connected
 from simkl_mps.credentials import get_credentials
+from simkl_mps.config_manager import get_app_data_dir, initialize_paths, get_setting, APP_NAME
+from simkl_mps.watch_history_manager import WatchHistoryManager # Added import
 
 # Import platform-specific tray implementation
 def get_tray_app():
@@ -29,11 +31,10 @@ class ConfigurationError(Exception):
     """Custom exception for configuration loading errors."""
     pass
 
-APP_NAME = "simkl-mps"
-USER_SUBDIR = "kavinthangavel"
+# Use the configuration manager to get our app data directory
+APP_DATA_DIR = get_app_data_dir()
 
 try:
-    APP_DATA_DIR = pathlib.Path.home() / USER_SUBDIR / APP_NAME
     APP_DATA_DIR.mkdir(parents=True, exist_ok=True)
 except Exception as e:
     print(f"CRITICAL: Failed to create application data directory: {e}", file=sys.stderr)
@@ -63,6 +64,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 logger.info("="*20 + " Application Start " + "="*20)
 logger.info(f"Using Application Data Directory: {APP_DATA_DIR}")
+logger.info(f"User subdirectory: {get_setting('user_subdir')}")
 if file_handler:
     logger.info(f"Logging to file: {log_file_path}")
 else:
@@ -111,6 +113,7 @@ class SimklScrobbler:
         self.client_id = None
         self.access_token = None
         self.monitor = Monitor(app_data_dir=APP_DATA_DIR)
+        self.watch_history_manager = None # Added instance variable
         logger.debug("SimklScrobbler instance created.")
 
     def initialize(self):
@@ -140,6 +143,14 @@ class SimklScrobbler:
 
         # Set credentials in the monitor using the loaded values
         self.monitor.set_credentials(self.client_id, self.access_token)
+
+        # Initialize Watch History Manager early
+        try:
+            self.watch_history_manager = WatchHistoryManager(APP_DATA_DIR)
+            logger.info("Watch History Manager initialized.")
+        except Exception as e:
+            logger.error(f"Failed to initialize Watch History Manager: {e}", exc_info=True)
+            # Non-critical for core scrobbling, log and continue
 
         logger.info("Media Player Scrobbler for SIMKL core initialization complete.")
         return True

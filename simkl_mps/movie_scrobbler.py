@@ -16,12 +16,13 @@ import threading
 from collections import deque
 
 # Import is_internet_connected at the top level for broader use
-from simkl_mps.simkl_api import mark_as_watched, is_internet_connected
+from simkl_mps.simkl_api import mark_as_watched, is_internet_connected, get_movie_details
 from simkl_mps.backlog_cleaner import BacklogCleaner
 from simkl_mps.window_detection import parse_movie_title, parse_filename_from_path, is_video_player
 from simkl_mps.media_cache import MediaCache
 from simkl_mps.utils.constants import PLAYING, PAUSED, STOPPED, DEFAULT_POLL_INTERVAL
 from simkl_mps.config_manager import get_setting, DEFAULT_THRESHOLD # Import settings functions
+from simkl_mps.watch_history_manager import WatchHistoryManager # Import WatchHistoryManager
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +65,7 @@ class MovieScrobbler:
         self.completed = False
         self.current_position_seconds = 0
         self.total_duration_seconds = None
+        self.current_filepath = None # Added to store the last known filepath
         self._last_connection_error_log = {}
 
         self.playback_log_file = self.app_data_dir / 'playback_log.jsonl'
@@ -371,6 +373,9 @@ class MovieScrobbler:
 
     def process_window(self, window_info):
         """Process the current window and update scrobbling state"""
+        # Store the window info for later use when retrieving file paths
+        self._last_window_info = window_info
+        
         if not is_video_player(window_info):
             if self.currently_tracking:
                 logger.info(f"Media playback ended: Player closed or changed")
@@ -448,6 +453,7 @@ class MovieScrobbler:
         self.state = PLAYING
         self.simkl_id = None
         self.movie_name = None
+        self.current_filepath = None # Reset filepath on new movie
 
         # Notify user that tracking has started (Offline Only)
         self._send_notification(
@@ -474,7 +480,19 @@ class MovieScrobbler:
         process_name = window_info.get('process_name') if window_info else None
         pos, dur = None, None
         if process_name:
+            # Attempt to get position/duration
             pos, dur = self.get_player_position_duration(process_name)
+            # Attempt to get and store the filepath on each update
+            try:
+                filepath = self.get_current_filepath(process_name)
+                if filepath:
+                    if self.current_filepath != filepath:
+                         logger.debug(f"Updated current filepath to: {filepath}")
+                         self.current_filepath = filepath
+                # else: # Don't clear if not found, keep the last known good one
+                #     self.current_filepath = None
+            except Exception as e:
+                 logger.error(f"Error getting filepath during update: {e}", exc_info=False) # Log less verbosely
 
         position_updated = False
         if pos is not None and dur is not None and dur > 0:
@@ -661,6 +679,7 @@ class MovieScrobbler:
         self.simkl_id = None
         self.movie_name = None
         self.completed = False
+        self.current_filepath = None # Reset filepath on stop
 
         return final_scrobble_info
 
@@ -680,6 +699,10 @@ class MovieScrobbler:
         """
         display_title = movie_name or title
         
+        # Initialize watch history manager
+        if not hasattr(self, 'watch_history'):
+            self.watch_history = WatchHistoryManager(self.app_data_dir)
+        
         if self.testing_mode:
             logger.info(f"TEST MODE: Simulating marking '{display_title}' (ID: {simkl_id}) as watched")
             self.completed = True
@@ -690,6 +713,10 @@ class MovieScrobbler:
                 "Movie Marked as Watched (Test Mode)",
                 f"'{display_title}' was marked as watched (test mode)"
             )
+            
+            # Store in watch history even in test mode
+            self._store_in_watch_history(simkl_id, title, movie_name)
+            
             return True
 
         if not self.client_id or not self.access_token:
@@ -717,6 +744,10 @@ class MovieScrobbler:
                     f"'{display_title}' will be marked as watched when back online."
                     # No explicit offline_only=True needed as this code path only runs when offline
                 )
+                
+                # Store in local watch history even when offline
+                self._store_in_watch_history(simkl_id, title, movie_name)
+                
                 return False
 
             # --- Online Scenario ---
@@ -725,6 +756,9 @@ class MovieScrobbler:
                 logger.info(f"Successfully marked '{display_title}' as watched on Simkl")
                 self.completed = True
                 self._log_playback_event("marked_as_watched_api_success")
+                
+                # Store in watch history
+                self._store_in_watch_history(simkl_id, title, movie_name)
                 
                 # Online Success Notification (Online Only)
                 self._send_notification(
@@ -757,6 +791,94 @@ class MovieScrobbler:
                 f"An error occurred trying to mark '{display_title}'. Added to backlog. Error: {e}"
             )
             return False
+            
+    def _store_in_watch_history(self, simkl_id, title, movie_name=None):
+        """
+        Store watched media information in the local watch history
+        
+        Args:
+            simkl_id: The Simkl ID of the media
+            title: Original title from window or filename
+            movie_name: Official title from Simkl API (optional)
+        """
+        try:
+            if not hasattr(self, 'watch_history'):
+                self.watch_history = WatchHistoryManager(self.app_data_dir)
+                
+            # Prepare media info dictionary
+            media_info = {
+                'simkl_id': simkl_id,
+                'title': movie_name or title,  # Use official name if available
+                'original_title': title,       # Store original title for reference
+                'type': 'movie'                # Default type is movie
+            }
+            
+            # Add additional metadata if available
+            if self.total_duration_seconds:
+                media_info['runtime'] = round(self.total_duration_seconds / 60)  # Convert to minutes
+            
+            # Use the stored file path if available
+            media_file_path = self.current_filepath
+            if media_file_path:
+                logger.info(f"Using stored filepath for watch history: {media_file_path}")
+            else:
+                logger.info("No stored filepath available for watch history.")
+
+            # Try to get more details from the media cache
+            cached_info = self.media_cache.get(title)
+            if cached_info:
+                # Add any additional cached metadata
+                if 'year' in cached_info:
+                    media_info['year'] = cached_info['year']
+                if 'overview' in cached_info:
+                    media_info['overview'] = cached_info['overview']
+                if 'poster' in cached_info: # Check cache for 'poster'
+                    media_info['poster'] = cached_info['poster'] # Store as 'poster'
+                    
+            # If we have API credentials and online, try to get more details
+            if self.client_id and self.access_token and is_internet_connected():
+                try:
+                    details = get_movie_details(simkl_id, self.client_id, self.access_token)
+                    if details:
+                        # Update with more accurate info from the API
+                        if 'title' in details:
+                            media_info['title'] = details['title']
+                        if 'year' in details:
+                            media_info['year'] = details['year']
+                        if 'overview' in details:
+                            media_info['overview'] = details['overview']
+                        if 'runtime' in details:
+                            media_info['runtime'] = details['runtime']
+                        if 'poster' in details:
+                            media_info['poster'] = details['poster'] # Store as 'poster'
+                            
+                        # Update the media cache with these details for future use
+                        cached_data = {
+                            "simkl_id": simkl_id,
+                            "movie_name": details.get('title', movie_name or title),
+                            "year": details.get('year'),
+                            "overview": details.get('overview'),
+                            "poster": details.get('poster') # Cache as 'poster' for consistency
+                        }
+                        if 'runtime' in details:
+                            cached_data["duration_seconds"] = details['runtime'] * 60
+                        self.media_cache.set(title, cached_data)
+                except Exception as e:
+                    logger.warning(f"Failed to fetch additional details for watch history: {e}")
+            
+            # Add to watch history, passing the file path if available
+            if media_file_path:
+                success = self.watch_history.add_entry(media_info, media_file_path=media_file_path)
+                logger.info(f"Added '{media_info['title']}' to local watch history with file path")
+            else:
+                success = self.watch_history.add(media_info)
+                logger.info(f"Added '{media_info['title']}' to local watch history without file path")
+            
+            if not success:
+                logger.warning(f"Failed to add '{media_info['title']}' to local watch history")
+                
+        except Exception as e:
+            logger.error(f"Error storing media in watch history: {e}", exc_info=True)
 
     def process_backlog(self):
         """Process pending backlog items, resolving temp IDs if needed."""
