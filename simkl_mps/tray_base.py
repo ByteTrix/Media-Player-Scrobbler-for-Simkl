@@ -323,6 +323,49 @@ class TrayAppBase(abc.ABC): # Inherit from ABC for abstract methods
             logger.error(f"Error opening SIMKL history: {e}", exc_info=True)
             self.show_notification("Error", f"Failed to open SIMKL history: {e}")
 
+    def open_watch_history(self, _=None):
+        """Open the local watch history page in the browser"""
+        logger.info("Attempting to open local watch history page...")
+        try:
+            # Check if the scrobbler and its history manager are initialized
+            if self.scrobbler and hasattr(self.scrobbler, 'watch_history_manager') and self.scrobbler.watch_history_manager:
+                watch_history = self.scrobbler.watch_history_manager
+                
+                # Open the history page in browser using the existing instance
+                if watch_history.open_history():
+                    self.show_notification(
+                        "simkl-mps",
+                        "Watch history page opened in your browser"
+                    )
+                    logger.info("Successfully opened watch history page")
+                else:
+                    # This specific error case might indicate a problem within open_history() itself
+                    logger.error("watch_history.open_history() returned False.")
+                    self.show_notification(
+                        "simkl-mps Error",
+                        "Failed to open watch history page (internal error)."
+                    )
+                    return 1 # Indicate failure
+            else:
+                # This case means the manager wasn't ready
+                logger.error("Cannot open watch history: Scrobbler or WatchHistoryManager not initialized.")
+                self.show_notification(
+                    "simkl-mps Error",
+                    "Watch History Manager is not ready. Please ensure monitoring is started."
+                )
+                return 1 # Indicate failure
+
+        except Exception as e:
+            # Catch any other unexpected errors
+            logger.error(f"Error opening watch history: {e}", exc_info=True)
+            self.show_notification(
+                "simkl-mps Error",
+                f"Could not open watch history: {e}"
+            )
+            return 1 # Indicate failure
+            
+        return 0 # Indicate success
+
     def _get_updater_path(self, filename):
         """Get the path to the updater script (ps1 or sh)"""
         import sys
@@ -645,7 +688,8 @@ class TrayAppBase(abc.ABC): # Inherit from ABC for abstract methods
         # Add Online Services submenu
         menu_items.append(pystray.MenuItem("Online Services", pystray.Menu(
             pystray.MenuItem("SIMKL Website", self.open_simkl),
-            pystray.MenuItem("View Watch History", self.open_simkl_history),
+            pystray.MenuItem("SIMKL Watch History", self.open_simkl_history),
+            pystray.MenuItem("Local Watch History", self.open_watch_history),
         )))
         menu_items.append(pystray.Menu.SEPARATOR)
 
