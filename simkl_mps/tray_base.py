@@ -556,7 +556,10 @@ class TrayAppBase(abc.ABC): # Inherit from ABC for abstract methods
             try:
                 # Block until the result is available from the dialog thread
                 new_threshold = result_queue.get(timeout=60) # Add timeout
-                self._apply_threshold_change(new_threshold)
+            except queue.Empty:
+                 logger.warning("Timeout waiting for custom threshold dialog result.")
+                 new_threshold = None # or some default value
+                 self.show_notification("Timeout", "Custom threshold dialog timed out.")
             except queue.Empty:
                  logger.warning("Timeout waiting for custom threshold dialog result.")
                  self.update_icon() # Refresh menu state on timeout
