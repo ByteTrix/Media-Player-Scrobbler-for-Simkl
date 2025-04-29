@@ -147,11 +147,25 @@ class Monitor:
                 current_time = time.time()
                 if current_time - self.last_backlog_check > self.backlog_check_interval:
                     logger.debug("Performing backlog synchronization...")
-                    with self._lock:
-                        synced_count = self.scrobbler.process_backlog()
+                    try:
+                        with self._lock:
+                            synced_result = self.scrobbler.process_backlog()
+                        
+                        # Handle both int and dict return types for backward compatibility
+                        if isinstance(synced_result, dict):
+                            # If it's a dictionary, extract the count from it
+                            count_value = synced_result.get('count', 0)
+                            if count_value > 0:
+                                logger.info(f"Backlog sync completed: {count_value} items successfully synchronized")
+                        elif isinstance(synced_result, int) and synced_result > 0:
+                            # Legacy behavior - synced_result is an integer
+                            logger.info(f"Backlog sync completed: {synced_result} items successfully synchronized")
+                    except TypeError as e:
+                        logger.error(f"[Offline Sync] Error processing backlog result: {e}", exc_info=True)
+                    except Exception as e:
+                        logger.error(f"[Offline Sync] Error during backlog sync: {e}", exc_info=True)
                     
-                    if synced_count > 0:
-                        logger.info(f"Backlog sync completed: {synced_count} items successfully synchronized")
+                    # Always update the last check time even if there was an error
                     self.last_backlog_check = current_time
 
                 time.sleep(self.poll_interval)

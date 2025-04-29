@@ -16,8 +16,9 @@ import pystray
 from plyer import notification
 
 from simkl_mps.tray_base import TrayAppBase, get_simkl_scrobbler, logger
+from simkl_mps.config_manager import get_setting, DEFAULT_THRESHOLD # Import for threshold menu
 
-class TrayApp(TrayAppBase):
+class TrayAppMac(TrayAppBase):
     """macOS system tray application for simkl-mps"""
     
     def __init__(self):
@@ -43,92 +44,37 @@ class TrayApp(TrayAppBase):
             raise
     
     def load_icon_for_status(self):
-        """Load the appropriate icon for the current status, optimized for macOS"""
-        try:
-            # macOS prefers high-quality PNG images
-            icon_format = "png"
-            
-            # List of possible icon files to check in order of preference
-            # macOS typically performs better with larger icons that it can scale down
-            icon_paths = [
-                # Status-specific high-resolution icons first
-                self.assets_dir / f"simkl-mps-{self.status}-512.{icon_format}",
-                self.assets_dir / f"simkl-mps-{self.status}-256.{icon_format}",
-                self.assets_dir / f"simkl-mps-{self.status}.{icon_format}",
-                
-                # Generic high-resolution icons
-                self.assets_dir / f"simkl-mps-512.{icon_format}",
-                self.assets_dir / f"simkl-mps-256.{icon_format}",
-                self.assets_dir / f"simkl-mps.{icon_format}",
-                
-                # Fallback to ICO format as last resort
-                self.assets_dir / f"simkl-mps-{self.status}.ico",
-                self.assets_dir / f"simkl-mps.ico"
-            ]
-            
-            # Use the first icon that exists
-            for icon_path in icon_paths:
+        """Load the appropriate icon PIL.Image for the current status using the base class path finder."""
+        icon_path_str = self._get_icon_path(status=self.status) # Use base class method
+
+        if icon_path_str:
+            try:
+                icon_path = Path(icon_path_str)
                 if icon_path.exists():
-                    logger.debug(f"Loading tray icon: {icon_path}")
-                    return Image.open(icon_path)
-            
-            logger.error(f"No suitable icon found in assets directory: {self.assets_dir}")
-            logger.error(f"Expected one of: {[p.name for p in icon_paths]}")
-            return self._create_fallback_image()
-            
-        except FileNotFoundError as e:
-            logger.error(f"Icon file not found: {e}", exc_info=True)
-            return self._create_fallback_image()
-        except Exception as e:
-            logger.error(f"Error loading status icon: {e}", exc_info=True)
-            return self._create_fallback_image()
+                    logger.debug(f"Loading tray icon from base path: {icon_path}")
+                    # Load the image using PIL
+                    img = Image.open(icon_path)
+                    img.load() # Explicitly load image data
+                    return img
+                else:
+                    logger.error(f"Icon path returned by base class does not exist: {icon_path}")
+            except FileNotFoundError:
+                logger.error(f"Icon file not found at path from base class: {icon_path_str}", exc_info=True)
+            except Exception as e:
+                # Catch potential PIL errors (e.g., UnidentifiedImageError)
+                logger.error(f"Error loading icon from path {icon_path_str} with PIL: {type(e).__name__} - {e}", exc_info=True)
+        else:
+             logger.warning(f"Base class _get_icon_path did not return a path for status '{self.status}'.")
+
+        # Fallback if base method fails or loading fails
+        logger.warning("Falling back to generated image for tray icon.")
+        return self._create_fallback_image()
 
     def create_menu(self):
-        """Create the system tray menu with a macOS-friendly layout"""
-        # Start with basic items
-        menu_items = [
-            pystray.MenuItem("^_^ MPS for SIMKL", None),
-            pystray.Menu.SEPARATOR,
-            pystray.MenuItem(f"Status: {self.get_status_text()}", None, enabled=False),
-            pystray.Menu.SEPARATOR,
-        ]
-
-        # Add Start/Stop item
-        if self.status == "running":
-            # If running, show "Stop"
-            menu_items.append(pystray.MenuItem("Stop Monitoring", self.stop_monitoring))
-        elif self.status == "stopped" or self.status == "error" or self.status == "paused":
-            # If stopped, paused, or error, show "Start"
-            menu_items.append(pystray.MenuItem("Start Monitoring", self.start_monitoring))
-
-        # Add Tools submenu
-        menu_items.append(pystray.Menu.SEPARATOR)
-        menu_items.append(pystray.MenuItem("Tools", pystray.Menu(
-            pystray.MenuItem("Open Logs", self.open_logs),
-            pystray.MenuItem("Open Config Directory", self.open_config_dir),
-            pystray.MenuItem("Process Backlog Now", self.process_backlog),
-        )))
-
-        # Add Online Services submenu
-        menu_items.append(pystray.MenuItem("Online Services", pystray.Menu(
-            pystray.MenuItem("SIMKL Website", self.open_simkl),
-            pystray.MenuItem("View Watch History", self.open_simkl_history),
-        )))
-        menu_items.append(pystray.Menu.SEPARATOR)
-
-        # Always show "Check for Updates"
-        menu_items.append(
-            pystray.MenuItem(
-                "Check for Updates",
-                self.check_updates_thread
-            )
-        )
-
-        # Add final items
-        menu_items.append(pystray.MenuItem("About", self.show_about))
-        menu_items.append(pystray.MenuItem("Help", self.show_help))
-        menu_items.append(pystray.MenuItem("Exit", self.exit_app))
-
+        """Create the pystray menu using the base class helper."""
+        # Build the list of menu items using the base class method
+        menu_items = self._build_pystray_menu_items()
+        # Create the pystray Menu object from the list
         return pystray.Menu(*menu_items)
 
     def update_icon(self):
@@ -501,10 +447,50 @@ Automatically track and scrobble your media to SIMKL."""
         except Exception as e:
             logger.error(f"Error setting up macOS auto-updates: {e}")
 
+    def _ask_custom_threshold_dialog(self, current_threshold: int) -> int | None:
+        """macOS-specific implementation to ask for threshold using AppleScript."""
+        try:
+            # Use AppleScript to ask for a number input
+            cmd = f'''osascript -e '
+                set answer to text returned of (display dialog "Enter watch completion threshold (%):" \\
+                default answer "{current_threshold}" \\
+                with title "Set Watch Threshold" \\
+                buttons {{"Cancel", "OK"}} default button "OK")
+                return answer
+            ' '''
+            
+            # Run the AppleScript and get the result
+            result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+            if result.returncode == 0 and result.stdout.strip():
+                try:
+                    # Try to convert the input to an integer
+                    value = int(result.stdout.strip())
+                    if 1 <= value <= 100:
+                        logger.info(f"User entered custom threshold: {value}")
+                        return value
+                    else:
+                        # Show error for out of range value
+                        self.show_notification("Invalid Input", "Threshold must be between 1 and 100.")
+                        logger.warning(f"User entered out of range threshold: {value}")
+                        return None
+                except ValueError:
+                    # Show error for non-numeric input
+                    self.show_notification("Invalid Input", "Please enter a number between 1 and 100.")
+                    logger.warning(f"User entered non-numeric threshold: {result.stdout.strip()}")
+                    return None
+            else:
+                # User cancelled or dialog failed
+                logger.debug("User cancelled custom threshold input.")
+                return None
+        except Exception as e:
+            logger.error(f"Error showing AppleScript threshold dialog: {e}", exc_info=True)
+            self.show_notification("Error", f"Could not get custom threshold: {e}")
+            return None
+
 def run_tray_app():
     """Run the application in tray mode"""
     try:
-        app = TrayApp()
+        app = TrayAppMac()
         app.run()
     except Exception as e:
         logger.error(f"Critical error in tray app: {e}")
