@@ -523,42 +523,69 @@ def is_video_player(window_info):
             
     return False
 
-def is_movie(window_title):
-    """Determine if the media is likely a movie using guessit."""
-    if not window_title:
-        return False
+def get_media_type(window_title_or_path):
+    """
+    Determine the type of media (movie, episode, anime) using guessit.
+    This is a replacement for is_movie() that handles all media types.
+
+    Args:
+        window_title_or_path (str): The window title or file path to analyze
+
+    Returns:
+        str: Media type ('movie', 'episode', or 'unknown')
+    """
+    if not window_title_or_path:
+        return 'unknown'
 
     # Skip titles that are just "Audio" or similar generic names
-    if window_title.lower() in ["audio", "video", "media", "no file"]:
-        logger.debug(f"Ignoring generic media title: '{window_title}'")
-        return False
+    if window_title_or_path.lower() in ["audio", "video", "media", "no file"]:
+        logger.debug(f"Ignoring generic media title: '{window_title_or_path}'")
+        return 'unknown'
 
     try:
-        guess = guessit(window_title)
+        guess = guessit(window_title_or_path)
         media_type = guess.get('type')
 
         if media_type == 'movie':
-            if 'episode' not in guess and 'season' not in guess:
-                 return True
+            logger.debug(f"Guessit identified '{window_title_or_path}' as movie")
+            return 'movie'
+        elif media_type == 'episode':
+            # Check for anime-specific indicators
+            if 'anime' in guess or (
+                guess.get('episode_title') and 
+                any(word in window_title_or_path.lower() for word in ['anime', 'sub', 'dub', 'jpn'])
+            ):
+                logger.debug(f"Guessit identified '{window_title_or_path}' as anime")
+                return 'anime'
             else:
-                 logger.debug(f"Guessit identified as movie but found episode/season: {guess}")
-                 return False
+                logger.debug(f"Guessit identified '{window_title_or_path}' as TV episode")
+                return 'episode'
+        else:
+            logger.debug(f"Guessit couldn't determine media type for '{window_title_or_path}'")
     except Exception as e:
-        logger.error(f"Error using guessit on title '{window_title}': {e}")
+        logger.error(f"Error using guessit on '{window_title_or_path}': {e}")
 
-    return False
+    return 'unknown'
 
-
-def parse_movie_title(window_title_or_info):
+def is_movie(window_title):
     """
-    Extract a clean movie title from the window title or info dictionary.
-    Tries to remove player-specific clutter and episode info.
+    Legacy method that determines if the media is likely a movie using guessit.
+    Now delegates to get_media_type for more accurate detection.
+    """
+    media_type = get_media_type(window_title)
+    return media_type == 'movie'
+
+def parse_media_title(window_title_or_info):
+    """
+    Extract a clean media title from the window title or info dictionary.
+    Works for movies, TV shows and anime - replaces parse_movie_title.
 
     Args:
         window_title_or_info (str or dict): The window title string or info dict.
 
     Returns:
-        str: A cleaned movie title, or None if parsing fails or it's not likely a movie.
+        dict: Dictionary with 'title', 'type', 'season', 'episode' and other metadata
+              or None if parsing fails.
     """
     if isinstance(window_title_or_info, dict):
         window_title = window_title_or_info.get('title', '')
@@ -573,6 +600,7 @@ def parse_movie_title(window_title_or_info):
     if not window_title:
         return None
 
+    # Filter out non-media titles
     non_video_patterns = [
         r'\.txt\b',
         r'\.doc\b',
@@ -588,6 +616,7 @@ def parse_movie_title(window_title_or_info):
         if re.search(pattern, window_title, re.IGNORECASE):
             return None
             
+    # Filter out player-only titles without media info
     player_only_patterns = [
         r'^VLC( media player)?$',
         r'^MPC-HC$',
@@ -613,9 +642,7 @@ def parse_movie_title(window_title_or_info):
             logger.debug(f"Ignoring player-only window title: '{window_title}'")
             return None
 
-    if not is_movie(window_title):
-         return None
-
+    # Clean up the title by removing player specific information
     cleaned_title = window_title
 
     player_patterns = [
@@ -686,35 +713,83 @@ def parse_movie_title(window_title_or_info):
         return None
 
     try:
-        # Final guessit call on the chosen title string
+        # Use guessit for final parsing and media type identification
         guess = guessit(title_to_guess)
+        
+        result = {
+            'raw_title': window_title,
+            'cleaned_title': cleaned_title,
+        }
+
+        # Add detected media type
+        if 'type' in guess:
+            result['type'] = guess['type']
+        else:
+            result['type'] = 'unknown'
+
+        # Add main title
         if 'title' in guess:
-             if len(guess['title']) > 2:
-                  if 'year' in guess:
-                       if isinstance(guess['year'], int) and 1880 < guess['year'] < datetime.now().year + 2:
-                            return f"{guess['title']} ({guess['year']})"
-                       else:
-                            return guess['title']
-                  else:
-                       return guess['title']
-             else:
-                  logger.debug(f"Guessit title '{guess['title']}' too short, using cleaned title.")
-        return cleaned_title.strip()
+            result['title'] = guess['title']
+        else:
+            result['title'] = cleaned_title.strip()
+
+        # Add year if available
+        if 'year' in guess:
+            result['year'] = guess['year']
+
+        # Add TV show specific information
+        if guess.get('type') == 'episode':
+            if 'season' in guess:
+                result['season'] = guess['season']
+            if 'episode' in guess:
+                result['episode'] = guess['episode']
+            if 'episode_title' in guess:
+                result['episode_title'] = guess['episode_title']
+
+        # Format display title for human-readable output
+        display_title = result['title']
+        if 'year' in result and isinstance(result['year'], int):
+            display_title += f" ({result['year']})"
+        result['display_title'] = display_title
+
+        # Add formatted episode info for display
+        if guess.get('type') == 'episode' and 'season' in guess and 'episode' in guess:
+            result['formatted_episode'] = f"S{guess['season']:02d}E{guess['episode']:02d}"
+            result['display_title'] += f" {result['formatted_episode']}"
+
+        logger.debug(f"Parsed media: {result}")
+        return result
 
     except Exception as e:
-         logger.error(f"Error using guessit for title parsing '{cleaned_title}': {e}")
-         return cleaned_title.strip()
+        logger.error(f"Error parsing media title '{cleaned_title}': {e}")
+        # Return basic info in case of error
+        return {
+            'raw_title': window_title,
+            'title': cleaned_title.strip(),
+            'display_title': cleaned_title.strip(),
+            'type': 'unknown'
+        }
+
+def parse_movie_title(window_title_or_info):
+    """
+    Legacy function kept for backward compatibility.
+    Delegates to parse_media_title but returns just the title string.
+    """
+    media_info = parse_media_title(window_title_or_info)
+    if media_info:
+        return media_info.get('display_title')
+    return None
 
 def parse_filename_from_path(filepath):
     """
-    Extract and parse a movie title from a file path.
+    Extract and parse media information from a file path.
     Uses the filename portion (without extension) as input to guessit.
     
     Args:
         filepath (str): Full file path from player API
         
     Returns:
-        str: Cleaned movie title or None if parsing fails
+        str: Cleaned media title or None if parsing fails
     """
     if not filepath:
         return None
@@ -733,20 +808,13 @@ def parse_filename_from_path(filepath):
             logger.debug(f"Skipping non-video file extension: {file_ext}")
             return None
             
-        # Use guessit on the filename (which typically has better format than window titles)
-        guess = guessit(filename)
+        # Use parse_media_title to get all media information
+        media_info = parse_media_title(filename)
         
-        if 'title' in guess:
-            if 'type' in guess and guess['type'] == 'movie':
-                if 'year' in guess and isinstance(guess['year'], int):
-                    logger.debug(f"Parsed movie: '{guess['title']} ({guess['year']})' from filename")
-                    return f"{guess['title']} ({guess['year']})"
-                else:
-                    logger.debug(f"Parsed movie: '{guess['title']}' from filename")
-                    return guess['title']
-            elif 'episode' not in guess and 'season' not in guess:
-                logger.debug(f"Parsed likely movie: '{guess['title']}' from filename")
-                return guess['title']
+        if media_info:
+            # Return the display title which includes year and episode if present
+            return media_info['display_title']
+        
     except Exception as e:
         logger.error(f"Error parsing filename '{filepath}': {e}")
     

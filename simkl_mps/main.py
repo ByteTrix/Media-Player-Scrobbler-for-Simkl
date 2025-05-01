@@ -11,7 +11,7 @@ import threading
 import pathlib
 import logging
 from simkl_mps.monitor import Monitor
-from simkl_mps.simkl_api import search_movie, get_movie_details, is_internet_connected
+from simkl_mps.simkl_api import search_movie, search_file, get_movie_details, is_internet_connected
 from simkl_mps.credentials import get_credentials
 from simkl_mps.config_manager import get_app_data_dir, initialize_paths, get_setting, APP_NAME
 from simkl_mps.watch_history_manager import WatchHistoryManager # Added import
@@ -209,13 +209,13 @@ class SimklScrobbler:
 
     def _search_and_cache_movie(self, title):
         """
-        Callback function provided to the Monitor for movie identification.
+        Callback function provided to the Monitor for media identification.
 
-        Searches Simkl for the movie title, retrieves details (like runtime),
-        and caches the information via the Monitor's scrobbler.
+        Searches Simkl for the title, retrieves details, and caches the information
+        via the Monitor's scrobbler. Works for movies, TV shows, and anime.
 
         Args:
-            title (str): The movie title extracted by the monitor.
+            title (str): The media title extracted by the monitor.
         """
         if not title:
             logger.warning("Search Callback: Received empty title.")
@@ -233,54 +233,161 @@ class SimklScrobbler:
             return
 
         try:
-            # Search for the movie using the API
+            # Check if we have filepath information in the scrobbler
+            filepath = self.monitor.scrobbler.current_filepath
+            current_media_type = self.monitor.scrobbler.media_type
+            
+            # First attempt: If we have a filepath, try search_file API which works better for TV/anime
+            if filepath:
+                logger.info(f"Search Callback: Attempting file-based search for '{title}' using filepath: {filepath}")
+                import os
+                filename = os.path.basename(filepath)
+                search_result = search_file(filepath, self.client_id)
+                
+                if search_result:
+                    logger.info(f"Search Callback: File search returned: {search_result}")
+                    # Process file search result
+                    self._process_file_search_result(title, search_result, filepath)
+                    return
+                    
+            # Fallback to movie search (can also return shows sometimes)
             search_result = search_movie(title, self.client_id, self.access_token)
             if not search_result:
                 logger.warning(f"Search Callback: No Simkl match found for '{title}'.")
-                # Optionally cache the negative result to avoid repeated searches?
-                # self.monitor.cache_movie_info(title, None, None, None) # Consider adding this
                 return
 
             # Extract Simkl ID and official title
             simkl_id = None
-            movie_name = title # Default to original title
+            display_name = title # Default to original title
             runtime_minutes = None
+            media_type = 'movie'  # Default type
 
             # Handle different possible structures of the search result
-            ids_dict = search_result.get('ids') or search_result.get('movie', {}).get('ids')
-            if ids_dict:
-                simkl_id = ids_dict.get('simkl') or ids_dict.get('simkl_id')
+            if 'movie' in search_result:
+                # Standard movie result
+                ids_dict = search_result.get('movie', {}).get('ids')
+                if ids_dict:
+                    simkl_id = ids_dict.get('simkl') or ids_dict.get('simkl_id')
+                    display_name = search_result.get('movie', {}).get('title', title)
+                    media_type = 'movie'
+            elif 'show' in search_result:
+                # TV show result
+                ids_dict = search_result.get('show', {}).get('ids')
+                if ids_dict:
+                    simkl_id = ids_dict.get('simkl') or ids_dict.get('simkl_id')
+                    display_name = search_result.get('show', {}).get('title', title)
+                    media_type = search_result.get('show', {}).get('type', 'show')
+                    
+                # Extract episode info if available
+                season = None
+                episode = None
+                if 'episode' in search_result:
+                    season = search_result['episode'].get('season')
+                    episode = search_result['episode'].get('number')
+            elif 'ids' in search_result:
+                # Direct ID structure
+                ids_dict = search_result.get('ids')
+                if ids_dict:
+                    simkl_id = ids_dict.get('simkl') or ids_dict.get('simkl_id')
+                    display_name = search_result.get('title', title)
+                    media_type = search_result.get('type', 'movie')
 
-                if simkl_id:
-                    # Use the title from the Simkl result if available
-                    movie_name = search_result.get('title') or search_result.get('movie', {}).get('title', title)
-                    logger.info(f"Search Callback: Found Simkl ID {simkl_id} for '{movie_name}'. Fetching details...")
-
-                    # Fetch detailed information (including runtime)
+            if simkl_id:
+                logger.info(f"Search Callback: Found Simkl ID {simkl_id} for '{display_name}' (Type: {media_type}).")
+                
+                # Fetch detailed information (including runtime) for movies
+                if media_type == 'movie':
                     try:
                         details = get_movie_details(simkl_id, self.client_id, self.access_token)
                         if details:
                             runtime_minutes = details.get('runtime')
                             if runtime_minutes:
-                                logger.info(f"Search Callback: Retrieved runtime: {runtime_minutes} minutes for ID {simkl_id}.")
+                                logger.info(f"Search Callback: Retrieved runtime: {runtime_minutes} minutes for movie ID {simkl_id}.")
                             else:
-                                logger.warning(f"Search Callback: Runtime missing or zero in details for ID {simkl_id}.")
+                                logger.warning(f"Search Callback: Runtime missing or zero in details for movie ID {simkl_id}.")
                         else:
-                            logger.warning(f"Search Callback: Could not retrieve details for ID {simkl_id}.")
+                            logger.warning(f"Search Callback: Could not retrieve details for movie ID {simkl_id}.")
                     except Exception as detail_error:
-                        logger.error(f"Search Callback: Error fetching details for ID {simkl_id}: {detail_error}", exc_info=True)
+                        logger.error(f"Search Callback: Error fetching details for movie ID {simkl_id}: {detail_error}", exc_info=True)
 
-                    # Cache the found information (original title -> simkl info)
-                    self.monitor.cache_movie_info(title, simkl_id, movie_name, runtime_minutes)
-                    logger.info(f"Search Callback: Cached info: '{title}' -> '{movie_name}' (ID: {simkl_id}, Runtime: {runtime_minutes})")
+                # Cache the found information based on media type
+                if media_type in ['show', 'anime'] and 'season' in locals() and 'episode' in locals() and season is not None and episode is not None:
+                    # TV Show/Anime with episode information
+                    self.monitor.cache_media_info(title, simkl_id, display_name, media_type, season, episode)
+                    logger.info(f"Search Callback: Cached {media_type} info: '{title}' -> '{display_name}' S{season}E{episode} (ID: {simkl_id})")
                 else:
-                    logger.warning(f"Search Callback: No Simkl ID could be extracted from search result for '{title}'.")
-                    # Optionally cache negative result here too
-                    # self.monitor.cache_movie_info(title, None, None, None)
+                    # Movie or show without episode info
+                    self.monitor.cache_media_info(title, simkl_id, display_name, media_type, runtime=runtime_minutes)
+                    logger.info(f"Search Callback: Cached {media_type} info: '{title}' -> '{display_name}' (ID: {simkl_id})")
+            else:
+                logger.warning(f"Search Callback: No Simkl ID could be extracted from search result for '{title}'.")
 
         except Exception as e:
             # Catch unexpected errors during the API interaction or processing
             logger.exception(f"Search Callback: Unexpected error during search/cache for '{title}': {e}")
+            
+    def _process_file_search_result(self, title, result, filepath):
+        """
+        Process the results from search_file API and cache appropriately.
+        
+        Args:
+            title (str): Original title
+            result (dict): Result from search_file API
+            filepath (str): File path that was searched
+        """
+        try:
+            media_info = None
+            media_type = 'movie'  # Default
+            simkl_id = None
+            display_name = title
+            
+            # Extract correct fields based on result type
+            if 'movie' in result:
+                media_info = result['movie']
+                media_type = 'movie'
+            elif 'show' in result:
+                media_info = result['show']
+                media_type = media_info.get('type', 'show')  # Could be 'show' or 'anime'
+            
+            if not media_info or not 'ids' in media_info:
+                logger.warning(f"File search: Invalid or incomplete result for '{filepath}'")
+                return
+                
+            simkl_id = media_info['ids'].get('simkl')
+            if not simkl_id:
+                logger.warning(f"File search: No Simkl ID in result for '{filepath}'")
+                return
+                
+            display_name = media_info.get('title', title)
+            year = media_info.get('year')
+            
+            # Extract episode details if available
+            season = None
+            episode = None
+            if 'episode' in result:
+                season = result['episode'].get('season')
+                episode = result['episode'].get('number')
+            
+            # Get runtime for movies
+            runtime_minutes = None
+            if media_type == 'movie':
+                try:
+                    details = get_movie_details(simkl_id, self.client_id, self.access_token)
+                    if details:
+                        runtime_minutes = details.get('runtime')
+                except Exception as e:
+                    logger.error(f"Error getting movie details for ID {simkl_id}: {e}")
+            
+            # Cache the information
+            if media_type in ['show', 'anime'] and season is not None and episode is not None:
+                self.monitor.cache_media_info(title, simkl_id, display_name, media_type, season, episode, year)
+                logger.info(f"File search: Cached {media_type} '{display_name}' S{season}E{episode} (ID: {simkl_id})")
+            else:
+                self.monitor.cache_media_info(title, simkl_id, display_name, media_type, runtime=runtime_minutes, year=year)
+                logger.info(f"File search: Cached {media_type} '{display_name}' (ID: {simkl_id})")
+                
+        except Exception as e:
+            logger.error(f"Error processing file search result: {e}", exc_info=True)
 
 def run_as_background_service():
     """

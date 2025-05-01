@@ -257,33 +257,34 @@ class WatchHistoryManager:
             base_dir = pathlib.Path(sys.executable).parent
             possible_dirs = [
                 base_dir / "simkl_mps" / "watch-history-viewer",
-                base_dir / "watch-history-viewer",
-                # User specific paths
-                pathlib.Path.home() / "kavinthangavel" / "simkl-mps" / "watch-history-viewer",
+                base_dir / "watch-history-viewer"
+                # Removed hardcoded user-specific path
             ]
         else:
             # If we're running from source
-            module_dir = pathlib.Path(__file__).parent
-            possible_dirs = [
-                module_dir / "watch-history-viewer",
-                # User specific paths
-                pathlib.Path.home() / "kavinthangavel" / "simkl-mps" / "watch-history-viewer",
-            ]
-            
-        # Log all paths being checked for debugging
-        logger.debug(f"Checking the following paths for watch-history-viewer:")
-        for path in possible_dirs:
-            logger.debug(f"  - {path}")
-            
-        # Check each possible location
-        for d in possible_dirs:
-            if d.exists() and (d / "index.html").exists():
-                logger.info(f"Found watch-history-viewer directory at: {d}")
-                return d
-                
-        # If we can't find the directory, log a warning
-        logger.warning(f"Could not find watch-history-viewer directory in any of the expected locations")
-        return None
+            try:
+                # Get the absolute path to the directory containing this script
+                module_dir = pathlib.Path(__file__).resolve().parent
+                source_viewer_dir = module_dir / "watch-history-viewer"
+                logger.debug(f"Running from source. Checking for viewer dir at: {source_viewer_dir}")
+
+                # Directly check the expected location relative to this file
+                if source_viewer_dir.is_dir() and (source_viewer_dir / "index.html").is_file():
+                    logger.info(f"Found watch-history-viewer directory at: {source_viewer_dir}")
+                    return source_viewer_dir
+                else:
+                    # Log specific failure reason if possible
+                    if not source_viewer_dir.is_dir():
+                        logger.warning(f"Expected source viewer directory not found or not a directory: {source_viewer_dir}")
+                    elif not (source_viewer_dir / "index.html").is_file():
+                        logger.warning(f"index.html not found in expected source viewer directory: {source_viewer_dir}")
+                    else:
+                         logger.warning(f"Could not verify expected source viewer directory: {source_viewer_dir}")
+                    return None # Explicitly return None if not found at the expected source location
+
+            except Exception as e:
+                logger.error(f"Error determining source directory path: {e}", exc_info=True)
+                return None # Return None on unexpected error
     
     def open_history(self):
         """Open the history page in the default web browser"""

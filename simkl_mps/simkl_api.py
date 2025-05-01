@@ -170,24 +170,77 @@ def _fallback_search_movie(title, client_id, access_token):
         logger.error(f"Simkl API: Network error during fallback search for '{title}': {e}", exc_info=True)
         return None
 
-def mark_as_watched(simkl_id, client_id, access_token):
+def search_file(file_path, client_id, part=None):
     """
-    Marks a movie as watched on Simkl.
+    Searches for media based on a file path using the Simkl /search/file endpoint.
 
     Args:
-        simkl_id (int | str): The Simkl ID of the movie.
+        file_path (str): The full path to the media file.
+        client_id (str): Simkl API client ID.
+        part (int, optional): The part number (e.g., for multi-part files). Defaults to None.
+
+    Returns:
+        dict | None: The parsed JSON response from Simkl, or None if an error occurs.
+    """
+    if not is_internet_connected():
+        logger.warning(f"Simkl API: Cannot search for file '{file_path}', no internet connection.")
+        return None
+    if not client_id:
+        logger.error("Simkl API: Missing Client ID for file search.")
+        return None
+
+    headers = {
+        'Content-Type': 'application/json',
+        'simkl-api-key': client_id
+    }
+    headers = _add_user_agent(headers)
+    data = {'file': file_path}
+    if part is not None:
+        data['part'] = part
+
+    logger.info(f"Simkl API: Searching by file: '{file_path}' (Part: {part if part else 'N/A'})...")
+    try:
+        response = requests.post(f'{SIMKL_API_BASE_URL}/search/file', headers=headers, json=data)
+
+        if response.status_code != 200:
+            error_details = ""
+            try:
+                error_details = response.json()
+            except requests.exceptions.JSONDecodeError:
+                error_details = response.text
+            logger.error(f"Simkl API: File search failed for '{file_path}'. Status: {response.status_code}. Response: {error_details}")
+            return None
+
+        results = response.json()
+        logger.info(f"Simkl API: File search successful for '{file_path}'.")
+        return results
+
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Simkl API: Network error during file search for '{file_path}': {e}", exc_info=True)
+        return None
+
+def add_to_history(payload, client_id, access_token):
+    """
+    Adds items (movies, shows, episodes) to the user's Simkl watch history.
+
+    Args:
+        payload (dict): The data payload conforming to the Simkl /sync/history API.
+                        Example: {'movies': [...], 'shows': [...]}
         client_id (str): Simkl API client ID.
         access_token (str): Simkl API access token.
 
     Returns:
-        bool: True if successfully marked as watched, False otherwise.
+        dict | None: The parsed JSON response from Simkl on success, None otherwise.
     """
     if not is_internet_connected():
-        logger.warning(f"Simkl API: Cannot mark movie ID {simkl_id} as watched, no internet connection.")
-        return False
+        logger.warning("Simkl API: Cannot add item to history, no internet connection.")
+        return None
     if not client_id or not access_token:
-        logger.error("Simkl API: Missing Client ID or Access Token for marking as watched.")
-        return False
+        logger.error("Simkl API: Missing Client ID or Access Token for adding to history.")
+        return None
+    if not payload:
+        logger.error("Simkl API: Empty payload provided for adding to history.")
+        return None
 
     headers = {
         'Content-Type': 'application/json',
@@ -195,26 +248,44 @@ def mark_as_watched(simkl_id, client_id, access_token):
         'Authorization': f'Bearer {access_token}'
     }
     headers = _add_user_agent(headers)
-    data = {'movies': [{'ids': {'simkl': simkl_id}, 'status': 'completed'}]}
 
-    logger.info(f"Simkl API: Marking movie ID {simkl_id} as watched...")
+    # Determine item type for logging (best effort)
+    item_description = "item(s)"
+    if 'movies' in payload and payload['movies']:
+        item_description = f"movie(s): {[m.get('ids', {}).get('simkl', 'N/A') for m in payload['movies']]}"
+    elif 'shows' in payload and payload['shows']:
+        item_description = f"show(s)/episode(s): {[s.get('ids', {}).get('simkl', 'N/A') for s in payload['shows']]}"
+    elif 'episodes' in payload and payload['episodes']:
+         item_description = f"episode(s): {[e.get('ids', {}).get('simkl', 'N/A') for e in payload['episodes']]}"
+
+
+    logger.info(f"Simkl API: Adding {item_description} to history...")
     try:
-        response = requests.post(f'{SIMKL_API_BASE_URL}/sync/history', headers=headers, json=data)
-        
+        response = requests.post(f'{SIMKL_API_BASE_URL}/sync/history', headers=headers, json=payload)
+
         if 200 <= response.status_code < 300:
-            logger.info(f"Simkl API: Successfully marked movie ID {simkl_id} as watched.")
-            return True
+            logger.info(f"Simkl API: Successfully added {item_description} to history.")
+            try:
+                return response.json()
+            except requests.exceptions.JSONDecodeError:
+                 logger.warning("Simkl API: History update successful but response was not valid JSON.")
+                 return {"status": "success", "message": "Non-JSON response received but status code indicated success."} # Return a success indicator
         else:
-            logger.error(f"Simkl API: Failed to mark movie ID {simkl_id} as watched. Status: {response.status_code}")
-            response.raise_for_status()
-            return False
+            error_details = ""
+            try:
+                error_details = response.json()
+            except requests.exceptions.JSONDecodeError:
+                error_details = response.text
+            logger.error(f"Simkl API: Failed to add {item_description} to history. Status: {response.status_code}. Response: {error_details}")
+            # Don't raise_for_status here, allow caller to handle based on None return
+            return None
     except requests.exceptions.ConnectionError as e:
-        logger.error(f"Simkl API: Connection error marking movie ID {simkl_id} as watched: {e}")
-        logger.info(f"Simkl API: Movie ID {simkl_id} will be added to backlog for future syncing.")
-        return False
+        logger.error(f"Simkl API: Connection error adding {item_description} to history: {e}")
+        logger.info(f"Simkl API: Item(s) {item_description} will be added to backlog for future syncing.")
+        return None # Indicate failure but allow backlog processing
     except requests.exceptions.RequestException as e:
-        logger.error(f"Simkl API: Error marking movie ID {simkl_id} as watched: {e}", exc_info=True)
-        return False
+        logger.error(f"Simkl API: Error adding {item_description} to history: {e}", exc_info=True)
+        return None
 
 def get_movie_details(simkl_id, client_id, access_token):
     """

@@ -14,7 +14,7 @@ from .window_detection import (
     get_all_windows_info,
     is_video_player
 )
-from simkl_mps.movie_scrobbler import MovieScrobbler
+from simkl_mps.media_scrobbler import MediaScrobbler # Updated import
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +33,7 @@ class Monitor:
         self.running = False
         self.monitor_thread = None
         self._lock = threading.RLock()
-        self.scrobbler = MovieScrobbler(
+        self.scrobbler = MediaScrobbler( # Updated instantiation
             app_data_dir=self.app_data_dir,
             client_id=self.client_id,
             access_token=self.access_token,
@@ -46,6 +46,8 @@ class Monitor:
         self._last_search_attempts = {}
         # Search cooldown period when offline (60 seconds)
         self.offline_search_cooldown = 60
+        # Debug field to track cycles without detection
+        self._debug_cycles = 0
 
     def set_search_callback(self, callback):
         """Set the callback function for movie search"""
@@ -97,11 +99,26 @@ class Monitor:
                 found_player = False
                 all_windows = get_all_windows_info()
                 
+                # Debug counter
+                self._debug_cycles += 1
+                if self._debug_cycles % 3 == 0:  # Log every 3rd cycle to avoid spam
+                    logger.debug(f"Monitor loop cycle: {self._debug_cycles}, Found {len(all_windows)} windows")
+                    
                 for win in all_windows:
                     if is_video_player(win):
                         window_info = win
                         process_name = win.get('process_name', '')
                         found_player = True
+                        
+                        # Log more detailed info about the found player
+                        logger.info(f"Found video player: {process_name} - '{win.get('title', 'Unknown')}'")
+                        
+                        # Check if we can get filepath directly from the player
+                        filepath = self.scrobbler.get_current_filepath(process_name)
+                        if filepath:
+                            logger.info(f"Retrieved filepath from player: {filepath}")
+                        else:
+                            logger.info(f"No filepath available from {process_name}")
                         
                         with self._lock:
                             scrobble_info = self.scrobbler.process_window(window_info)
@@ -134,7 +151,8 @@ class Monitor:
                                 else:
                                     # If in cooldown period, don't spam logs with the same message
                                     logger.debug(f"Skipping repeated search for '{title}' (cooldown: {int(self.offline_search_cooldown - time_since_last_attempt)}s remaining)")
-                        
+                        else:
+                            logger.warning(f"No scrobble info returned from process_window for {process_name}")
                         break
                 
                 if not found_player and self.scrobbler.currently_tracking:
@@ -142,6 +160,9 @@ class Monitor:
                     with self._lock:
                         self.scrobbler.stop_tracking()
                         last_processed_titles.clear()  # Clear the processed titles when stopping
+                elif not found_player and self._debug_cycles % 10 == 0:
+                    # Periodically log if we're not finding any players
+                    logger.debug(f"No video players detected (cycle {self._debug_cycles})")
 
                 # Check backlog periodically
                 current_time = time.time()
@@ -182,6 +203,14 @@ class Monitor:
         self.access_token = access_token
         self.scrobbler.set_credentials(client_id, access_token)
 
+    def cache_media_info(self, title, simkl_id, display_name, media_type='movie', season=None, episode=None, year=None, runtime=None):
+        """Cache media info to avoid repeated searches for any media type"""
+        logger.info(f"Caching media info for '{title}': ID={simkl_id}, Display='{display_name}', Type={media_type}" +
+                   (f", Season={season}" if season is not None else "") +
+                   (f", Episode={episode}" if episode is not None else ""))
+        self.scrobbler.cache_media_info(title, simkl_id, display_name, media_type, season, episode, year, runtime)
+        
     def cache_movie_info(self, title, simkl_id, movie_name, runtime=None):
-        """Cache movie info to avoid repeated searches"""
-        self.scrobbler.cache_movie_info(title, simkl_id, movie_name, runtime)
+        """Legacy method for backward compatibility, delegates to cache_media_info"""
+        logger.debug(f"Using legacy cache_movie_info method for '{movie_name}'")
+        self.cache_media_info(title, simkl_id, movie_name, 'movie', runtime=runtime)
