@@ -48,7 +48,10 @@ class Monitor:
         self.offline_search_cooldown = 60
         # Debug field to track cycles without detection
         self._debug_cycles = 0
-
+        # State tracking for logging verbosity
+        self.last_known_player_process = None
+        self.last_known_filepath = None
+ 
     def set_search_callback(self, callback):
         """Set the callback function for movie search"""
         self.search_callback = callback
@@ -110,15 +113,19 @@ class Monitor:
                         process_name = win.get('process_name', '')
                         found_player = True
                         
-                        # Log more detailed info about the found player
-                        logger.info(f"Found video player: {process_name} - '{win.get('title', 'Unknown')}'")
+                        # Log only if the player process is new or changed
+                        if process_name != self.last_known_player_process:
+                            logger.info(f"Found video player: {process_name} - '{win.get('title', 'Unknown')}'")
                         
                         # Check if we can get filepath directly from the player
                         filepath = self.scrobbler.get_current_filepath(process_name)
-                        if filepath:
+                        
+                        # Log only if filepath is available AND (filepath changed OR player changed)
+                        if filepath and (filepath != self.last_known_filepath or process_name != self.last_known_player_process):
                             logger.info(f"Retrieved filepath from player: {filepath}")
-                        else:
-                            logger.info(f"No filepath available from {process_name}")
+                        elif not filepath and self.last_known_filepath is not None and process_name == self.last_known_player_process:
+                            # Log if filepath becomes unavailable for the *same* player (but only if we previously had one)
+                            logger.info(f"Filepath no longer available from {process_name}")
                         
                         with self._lock:
                             scrobble_info = self.scrobbler.process_window(window_info)
@@ -134,32 +141,34 @@ class Monitor:
                                 logger.debug(f"Active media player detected: {win.get('title', 'Unknown')}")
                                 logger.info(f"Detected media '{title}' using {source}")
                             
-                            # Only trigger search if we don't have a Simkl ID yet
-                            if self.search_callback and not scrobble_info.get("simkl_id"):
-                                current_time = time.time()
-                                
-                                # Check if we've recently tried to search for this title
-                                last_attempt = self._last_search_attempts.get(title, 0)
-                                time_since_last_attempt = current_time - last_attempt
-                                
-                                # Only attempt search if it hasn't been tried recently during offline mode
-                                if time_since_last_attempt >= self.offline_search_cooldown:
-                                    logger.info(f"Media identification required: '{title}'")
-                                    # Record this attempt time before calling search
-                                    self._last_search_attempts[title] = current_time
-                                    self.search_callback(title)
-                                else:
-                                    # If in cooldown period, don't spam logs with the same message
-                                    logger.debug(f"Skipping repeated search for '{title}' (cooldown: {int(self.offline_search_cooldown - time_since_last_attempt)}s remaining)")
+                            # REMOVED: Redundant search trigger. Scrobbler handles identification internally.
+                            # if self.search_callback and not scrobble_info.get("simkl_id"):
+                            #     current_time = time.time()
+                            #     last_attempt = self._last_search_attempts.get(title, 0)
+                            #     time_since_last_attempt = current_time - last_attempt
+                            #     if time_since_last_attempt >= self.offline_search_cooldown:
+                            #         logger.info(f"Media identification required: '{title}'")
+                            #         self._last_search_attempts[title] = current_time
+                            #         self.search_callback(title)
+                            #     else:
+                            #         logger.debug(f"Skipping repeated search for '{title}' (cooldown: {int(self.offline_search_cooldown - time_since_last_attempt)}s remaining)")
                         else:
                             logger.warning(f"No scrobble info returned from process_window for {process_name}")
-                        break
+                        # Update the persistent state *after* processing and logging checks
+                        self.last_known_player_process = process_name
+                        self.last_known_filepath = filepath
+                        break # Found and processed a player, move to next cycle
                 
-                if not found_player and self.scrobbler.currently_tracking:
-                    logger.info("Media playback ended: No active players detected")
+                # Check if player stopped since last cycle
+                if not found_player and self.last_known_player_process is not None:
+                    logger.info(f"Media playback ended or player '{self.last_known_player_process}' closed.")
                     with self._lock:
-                        self.scrobbler.stop_tracking()
+                        if self.scrobbler.currently_tracking: # Ensure we only stop if tracking
+                            self.scrobbler.stop_tracking()
                         last_processed_titles.clear()  # Clear the processed titles when stopping
+                    # Reset persistent state as no player is active now
+                    self.last_known_player_process = None
+                    self.last_known_filepath = None
                 elif not found_player and self._debug_cycles % 10 == 0:
                     # Periodically log if we're not finding any players
                     logger.debug(f"No video players detected (cycle {self._debug_cycles})")

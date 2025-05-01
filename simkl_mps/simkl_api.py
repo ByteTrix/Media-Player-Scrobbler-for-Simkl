@@ -123,7 +123,17 @@ def search_movie(title, client_id, access_token):
                 elif not ids.get('simkl') and not simkl_id_alt:
                      logger.warning(f"Simkl API: No 'simkl' or 'simkl_id' found in IDs for '{title}'.")
 
-        return results[0] if results else None
+        # Handle both list and single dictionary responses
+        if isinstance(results, list):
+            # If it's a list, return the first element if the list is not empty
+            return results[0] if results else None
+        elif isinstance(results, dict):
+            # If it's already a dictionary, return it directly
+            return results
+        else:
+            # If it's neither (or empty list handled above), return None
+            logger.warning(f"Simkl API: Unexpected response format for '{title}': {type(results)}")
+            return None
 
     except requests.exceptions.RequestException as e:
         logger.error(f"Simkl API: Network error searching for '{title}': {e}", exc_info=True)

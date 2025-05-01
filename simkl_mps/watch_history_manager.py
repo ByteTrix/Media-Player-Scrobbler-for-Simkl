@@ -28,12 +28,6 @@ class WatchHistoryManager:
         
         # Make sure we have the viewer files in the app_data_dir
         self._ensure_viewer_exists()
-        self.app_data_dir = app_data_dir
-        self.history_file = self.app_data_dir / history_file
-        self.history = self._load_history()
-        
-        # Make sure we have the viewer files in the app_data_dir
-        self._ensure_viewer_exists()
         
     def _load_history(self):
         """Load the history from file, creating the file if it does not exist."""
@@ -194,98 +188,129 @@ class WatchHistoryManager:
             # Find the source files
             source_dir = self._get_source_dir()
             
-            if source_dir and source_dir.exists():
-            # Files we need to check
-                required_files = ["index.html", "style.css", "script.js"]
-                needs_update = False
-            
-            # Check if any required files are missing or outdated
-            for file in required_files:
-                source_file = source_dir / file
-                target_file = viewer_dir / file
-                
+            if not source_dir or not source_dir.exists():
+                logger.error(f"Could not find source directory for watch history viewer files.")
+                return # Cannot proceed without source
+
+            # Files we need to check/copy
+            required_files = ["index.html", "style.css", "script.js"]
+            needs_copy = False # Flag to track if any copy operation is needed
+
+            # Check each required file and copy if missing or outdated
+            for file_name in required_files:
+                source_file = source_dir / file_name
+                target_file = viewer_dir / file_name
+                file_needs_update = False
+
                 if not target_file.exists():
-                    needs_update = True
-                    logger.debug(f"File {file} missing in target directory")
-                    break
+                    file_needs_update = True
+                    logger.debug(f"File '{file_name}' missing in target directory.")
+                elif source_file.exists() and os.path.getmtime(source_file) > os.path.getmtime(target_file):
+                    file_needs_update = True
+                    logger.debug(f"File '{file_name}' is outdated in target directory.")
                 
-                if source_file.exists() and os.path.getmtime(source_file) > os.path.getmtime(target_file):
-                    needs_update = True
-                    logger.debug(f"File {file} is outdated in target directory")
-                    break
-            
-            if needs_update:
-                logger.info(f"Updating watch history viewer files from {source_dir}")
-                
-                # Copy all the files that need updating
-                for file in required_files:
-                    source_file = source_dir / file
-                    target_file = viewer_dir / file
-                
-                if source_file.exists():
-                    shutil.copy2(source_file, target_file)
-                    logger.debug(f"Copied {file} to {viewer_dir}")
-                else:
-                    logger.warning(f"Source file {source_file} not found")
-                
-                # Update asset files if needed
-                source_assets = source_dir / "assets"
-                if source_assets.exists() and source_assets.is_dir():
-                    target_assets = viewer_dir / "assets"
+                if file_needs_update:
+                    if source_file.exists():
+                        try:
+                            shutil.copy2(source_file, target_file)
+                            logger.debug(f"Copied '{file_name}' from {source_dir} to {viewer_dir}")
+                            needs_copy = True # Mark that at least one copy happened
+                        except Exception as copy_err:
+                             logger.error(f"Failed to copy '{file_name}' from {source_file} to {target_file}: {copy_err}")
+                    else:
+                        logger.warning(f"Source file '{source_file}' not found for copying.")
+
+            # Update asset files if needed (similar logic: copy if missing or newer)
+            source_assets = source_dir / "assets"
+            target_assets = viewer_dir / "assets"
+            if source_assets.exists() and source_assets.is_dir():
                 if not target_assets.exists():
-                    os.makedirs(target_assets, exist_ok=True)
-                
-                # Copy only new or modified asset files
-                for asset_file in source_assets.iterdir():
-                    if asset_file.is_file():
-                        target_asset = target_assets / asset_file.name
-                    if not target_asset.exists() or os.path.getmtime(asset_file) > os.path.getmtime(target_asset):
-                            shutil.copy2(asset_file, target_assets / asset_file.name)
-                            logger.debug(f"Copied asset {asset_file.name} to {target_assets}")
-                
-                logger.info("Watch history viewer files updated successfully")
+                    try:
+                        os.makedirs(target_assets, exist_ok=True)
+                        logger.debug(f"Created assets directory: {target_assets}")
+                    except Exception as mkdir_err:
+                        logger.error(f"Failed to create assets directory {target_assets}: {mkdir_err}")
+                        # Continue without assets if directory creation fails
+
+                if target_assets.exists(): # Proceed only if target assets dir exists or was created
+                    for asset_file in source_assets.iterdir():
+                        if asset_file.is_file():
+                            target_asset_file = target_assets / asset_file.name
+                            asset_needs_update = False
+                            if not target_asset_file.exists():
+                                asset_needs_update = True
+                            elif os.path.getmtime(asset_file) > os.path.getmtime(target_asset_file):
+                                asset_needs_update = True
+
+                            if asset_needs_update:
+                                try:
+                                    shutil.copy2(asset_file, target_asset_file)
+                                    logger.debug(f"Copied asset '{asset_file.name}' to {target_assets}")
+                                    needs_copy = True # Mark that at least one copy happened
+                                except Exception as asset_copy_err:
+                                    logger.error(f"Failed to copy asset '{asset_file.name}' to {target_asset_file}: {asset_copy_err}")
+            
+            if needs_copy:
+                 logger.info("Watch history viewer files updated successfully.")
             else:
-                logger.error(f"Could not find source directory for watch history viewer files")
+                 logger.debug("Watch history viewer files are up-to-date.") # More accurate log message
         except Exception as e:
             logger.error(f"Error ensuring watch history viewer exists: {e}", exc_info=True)
             
     def _get_source_dir(self):
         """Find the source directory for the watch history viewer files"""
         # Check if running from package or from source
-        if getattr(sys, 'frozen', False):
-            # If we're running from a frozen executable (like PyInstaller)
-            base_dir = pathlib.Path(sys.executable).parent
+        if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+            # If we're running from a frozen executable (PyInstaller) and _MEIPASS is available
+            # _MEIPASS points to the temp directory where bundled files are extracted
+            base_dir = pathlib.Path(sys._MEIPASS)
+            logger.debug(f"Running frozen. Using base directory: {base_dir}")
+            # The path inside the bundle depends on the spec file, common structure is:
             possible_dirs = [
-                base_dir / "simkl_mps" / "watch-history-viewer",
-                base_dir / "watch-history-viewer"
-                # Removed hardcoded user-specific path
+                base_dir / "simkl_mps" / "watch-history-viewer", # If bundled preserving structure
+                base_dir / "watch-history-viewer" # If bundled at top level
             ]
+            # Check if the executable's directory also contains it (less common but possible)
+            exe_dir = pathlib.Path(sys.executable).parent
+            possible_dirs.extend([
+                 exe_dir / "simkl_mps" / "watch-history-viewer",
+                 exe_dir / "watch-history-viewer"
+            ])
+            # Check the possible directories for the frozen build
+            for potential_dir in possible_dirs:
+                logger.debug(f"Checking frozen path: {potential_dir}")
+                if potential_dir.is_dir() and (potential_dir / "index.html").is_file():
+                    logger.info(f"Found watch-history-viewer directory (frozen) at: {potential_dir}")
+                    return potential_dir
+            logger.warning(f"Could not find watch-history-viewer directory in standard frozen locations.")
+            return None # Not found in expected frozen paths
+
         else:
-            # If we're running from source
+            # If we're running from source (not frozen or _MEIPASS unavailable)
             try:
-                # Get the absolute path to the directory containing this script
+                # Get the absolute path to the directory containing this script (__file__)
                 module_dir = pathlib.Path(__file__).resolve().parent
                 source_viewer_dir = module_dir / "watch-history-viewer"
-                logger.debug(f"Running from source. Checking for viewer dir at: {source_viewer_dir}")
+                logger.debug(f"Running from source. Checking relative path: {source_viewer_dir}")
 
-                # Directly check the expected location relative to this file
+                # Check the expected location relative to this file
                 if source_viewer_dir.is_dir() and (source_viewer_dir / "index.html").is_file():
-                    logger.info(f"Found watch-history-viewer directory at: {source_viewer_dir}")
+                    logger.info(f"Found watch-history-viewer directory (source) at: {source_viewer_dir}")
                     return source_viewer_dir
                 else:
-                    # Log specific failure reason if possible
+                    # Log specific failure reason
                     if not source_viewer_dir.is_dir():
-                        logger.warning(f"Expected source viewer directory not found or not a directory: {source_viewer_dir}")
+                        logger.warning(f"Expected source directory not found or not a directory: {source_viewer_dir}")
                     elif not (source_viewer_dir / "index.html").is_file():
-                        logger.warning(f"index.html not found in expected source viewer directory: {source_viewer_dir}")
+                        logger.warning(f"index.html not found in expected source directory: {source_viewer_dir}")
                     else:
-                         logger.warning(f"Could not verify expected source viewer directory: {source_viewer_dir}")
-                    return None # Explicitly return None if not found at the expected source location
+                         logger.warning(f"Could not verify expected source directory: {source_viewer_dir}")
+                    return None # Explicitly return None if not found
 
             except Exception as e:
                 logger.error(f"Error determining source directory path: {e}", exc_info=True)
                 return None # Return None on unexpected error
-    
+
     def open_history(self):
         """Open the history page in the default web browser"""
         try:
@@ -429,7 +454,7 @@ class WatchHistoryManager:
                 existing_entry["file_path"] = str(media_file_path)
                 existing_entry.update(self._get_file_metadata(media_file_path))
             # Update other fields if they are newer/better in media_item
-            for key in ["poster", "year", "overview", "runtime", "imdb_id"]:
+            for key in ["poster_url", "year", "runtime", "imdb_id"]: # Use poster_url, removed overview
                  if key in media_item and media_item[key]:
                      existing_entry[key] = media_item[key]
 
@@ -447,10 +472,9 @@ class WatchHistoryManager:
                 "title": media_item.get("title", "Unknown Title"),
                 "type": media_item.get("type", "movie"),
                 "watched_at": datetime.now().isoformat(),
-                "poster": media_item.get("poster", ""),
+                "poster_url": media_item.get("poster_url", ""), # Use poster_url
                 "year": media_item.get("year"),
-                "overview": media_item.get("overview", ""),
-                "runtime": media_item.get("runtime")
+                "runtime": media_item.get("runtime") # Removed overview
             }
             
             # Add file information if available
