@@ -475,10 +475,9 @@ class MediaScrobbler: # Renamed class
                 # Pass guessit_info for offline fallback
                 self._identify_media_from_filepath(filepath, guessit_info)
             elif identified_type == 'movie':
-                # For movies, defer detailed lookup to _update_tracking or cache check
-                logger.info(f"Movie detected. Simkl lookup will occur during tracking or on completion.")
-                # Pre-check cache for movie info
-                # Use filename as cache key if filepath exists, otherwise use movie_title
+                # For movies, attempt identification immediately
+                logger.info(f"Movie detected. Attempting Simkl identification now for '{movie_title}'.")
+                # Pre-check cache first
                 cache_key = os.path.basename(filepath).lower() if filepath else movie_title.lower()
                 cached_info = self.media_cache.get(cache_key)
                 if cached_info and cached_info.get('simkl_id'):
@@ -490,6 +489,11 @@ class MediaScrobbler: # Renamed class
                         self.total_duration_seconds = cached_info['duration_seconds']
                         self.estimated_duration = self.total_duration_seconds
                         logger.info(f"Set duration from cache: {self.total_duration_seconds}s")
+                # If not in cache, trigger online identification
+                elif is_internet_connected():
+                     self._identify_movie(movie_title)
+                else:
+                     logger.info("Offline: Movie identification deferred.")
             # --- End Initial API Lookup ---
         
         # Update tracking with current window info
@@ -547,17 +551,14 @@ class MediaScrobbler: # Renamed class
         process_name = window_info.get('process_name') if window_info else None
         pos, dur = None, None
         if process_name:
-            # Attempt to get position/duration
+            # Attempt to get position/duration 
             pos, dur = self.get_player_position_duration(process_name)
             # Attempt to get and store the filepath on each update
             try:
                 filepath = self.get_current_filepath(process_name)
                 if filepath:
                     if self.current_filepath != filepath:
-                         logger.debug(f"Updated current filepath to: {filepath}")
                          self.current_filepath = filepath
-                # else: # Don't clear if not found, keep the last known good one
-                #     self.current_filepath = None
             except Exception as e:
                  logger.error(f"Error getting filepath during update: {e}", exc_info=False) # Log less verbosely
 
@@ -624,12 +625,9 @@ class MediaScrobbler: # Renamed class
             elif is_internet_connected(): # Only attempt online identification if not found in cache and online
                 if self.media_type == 'episode' and self.current_filepath:
                     # Try identifying episode via filepath if not already done or failed
-                    logger.debug("Attempting episode identification during tracking update...")
                     self._identify_media_from_filepath(self.current_filepath)
                 elif self.media_type == 'movie':
                      # Try identifying movie via title search if not already done or failed
-                     logger.debug("Attempting movie identification during tracking update...")
-                     # Use the original title detected for the search
                      self._identify_movie(self.currently_tracking)
             # If identification was successful, self.simkl_id will now be set
 
@@ -882,9 +880,31 @@ class MediaScrobbler: # Renamed class
             if 'show' in result:
                 media_info = result['show']
                 simkl_type = media_info.get('type', 'show')  # Could be 'anime'
+                is_show_or_anime = True
+                
+                # Get extended show/anime details
+                show_id = media_info['ids']['simkl']
+                extended_details = None
+                if self.access_token:  # Need access token for extended details
+                    try:
+                        from simkl_mps.simkl_api import get_show_details
+                        logger.info(f"Fetching extended details for {simkl_type} ID: {show_id}")
+                        extended_details = get_show_details(show_id, self.client_id, self.access_token)
+                        if extended_details:
+                            logger.info(f"Successfully retrieved extended details for '{media_info.get('title')}'")
+                            # Update media_info with extended details
+                            if 'overview' not in media_info and 'overview' in extended_details:
+                                media_info['overview'] = extended_details['overview']
+                            if 'poster' not in media_info and 'poster' in extended_details:
+                                media_info['poster'] = extended_details['poster']
+                            if 'year' not in media_info and 'year' in extended_details:
+                                media_info['year'] = extended_details['year']
+                    except Exception as e:
+                        logger.warning(f"Error fetching extended details for show ID {show_id}: {e}")
             elif 'movie' in result:
                 media_info = result['movie']
                 simkl_type = 'movie'
+                is_show_or_anime = False
             else:
                 logger.warning(f"Simkl /search/file response missing expected fields: {result}")
                 return
@@ -939,14 +959,32 @@ class MediaScrobbler: # Renamed class
                         (f", E{self.episode}" if self.episode is not None else ""))
 
             # Prepare data for caching
+            # Extract desired details
+            simkl_id_val = media_info.get('ids', {}).get('simkl')
+            imdb_id_val = media_info.get('ids', {}).get('imdb')
+            overview_val = media_info.get('overview') or episode_details.get('overview')
+            poster_path = media_info.get('poster')
+            poster_url_val = f"https://simkl.in/posters/{poster_path}_m.jpg" if poster_path else None
+
+            # Build the cleaned ids dictionary
+            cleaned_ids = {}
+            if simkl_id_val:
+                cleaned_ids['simkl'] = simkl_id_val
+            if imdb_id_val:
+                cleaned_ids['imdb'] = imdb_id_val
+
+            # Prepare refined data for caching
             cached_data = {
-                "simkl_id": self.simkl_id,
+                "simkl_id": self.simkl_id,  # Add top-level simkl_id for backward compatibility
                 "movie_name": self.movie_name,
                 "type": self.media_type,
                 "year": year,
-                "ids": media_info.get('ids'), # Store IDs block
+                "ids": cleaned_ids, # Store only cleaned IDs
+                "overview": overview_val,
+                "poster_url": poster_url_val,
                 "source": "simkl_search_file",
                 "original_filepath": filepath
+                # Duration/Runtime handled below
             }
             
             # Add TV/anime specific fields
@@ -970,16 +1008,12 @@ class MediaScrobbler: # Renamed class
                 except (ValueError, TypeError):
                     pass
 
+            # Add duration_seconds if available
             if duration_seconds:
                 cached_data["duration_seconds"] = duration_seconds
-                if self.total_duration_seconds is None:
+                if self.total_duration_seconds is None: # Update instance variable if needed
                     self.total_duration_seconds = duration_seconds
                     self.estimated_duration = duration_seconds
-            
-            # Cache additional media info
-            if 'poster' in media_info:
-                # Construct full poster URL if needed (assuming 'poster' is just the filename)
-                cached_data["poster_url"] = f"https://simkl.in/posters/{media_info['poster']}_m.jpg" # Example, adjust if API gives full URL
 
             # Save to cache
             self.media_cache.set(cache_key, cached_data)
@@ -1071,6 +1105,10 @@ class MediaScrobbler: # Renamed class
 
             # --- Process the selected movie_info if found ---
             if movie_info:
+                # Extract the actual movie object if needed
+                if 'movie' in movie_info:
+                    movie_info = movie_info['movie']
+                
                 # Extract simkl_id correctly
                 self.simkl_id = movie_info.get('ids', {}).get('simkl_id') or movie_info.get('ids', {}).get('simkl')
                 self.movie_name = movie_info.get('title', title_to_search)
@@ -1083,16 +1121,55 @@ class MediaScrobbler: # Renamed class
                      return # Stop processing if ID is missing
 
                 logger.info(f"Simkl identified: '{self.movie_name}' ({year}), ID={self.simkl_id}, Runtime={runtime}min")
+                
+                # Try to get additional details if not already present
+                try:
+                    # First check if we need to get more details
+                    need_details = not movie_info.get('overview') or not movie_info.get('ids', {}).get('imdb')
+                    
+                    if need_details:
+                        logger.info(f"Fetching additional details for movie ID {self.simkl_id}")
+                        details = get_movie_details(self.simkl_id, self.client_id, self.access_token)
+                        if details:
+                            # Merge additional details
+                            if 'overview' in details and not movie_info.get('overview'):
+                                movie_info['overview'] = details['overview']
+                            if 'ids' in details and 'imdb' in details['ids'] and not movie_info.get('ids', {}).get('imdb'):
+                                if 'ids' not in movie_info:
+                                    movie_info['ids'] = {}
+                                movie_info['ids']['imdb'] = details['ids']['imdb']
+                            if 'runtime' in details and not runtime:
+                                runtime = details['runtime']
+                except Exception as e:
+                    logger.warning(f"Error fetching additional movie details: {e}")
 
-                # Cache the result
+                # Extract desired details
+                simkl_id_val = self.simkl_id  # Use the value we already extracted
+                imdb_id_val = movie_info.get('ids', {}).get('imdb')
+                overview_val = movie_info.get('overview')
+                poster_path = movie_info.get('poster')
+                poster_url_val = f"https://simkl.in/posters/{poster_path}_m.jpg" if poster_path else None
+
+                # Build the cleaned ids dictionary
+                cleaned_ids = {}
+                if simkl_id_val:
+                    cleaned_ids['simkl'] = simkl_id_val
+                if imdb_id_val:
+                    cleaned_ids['imdb'] = imdb_id_val
+
+                # Prepare refined data for caching
                 cached_data = {
-                    "simkl_id": self.simkl_id,
+                    "simkl_id": simkl_id_val,  # Keep top-level simkl_id for backward compatibility
                     "movie_name": self.movie_name,
                     "type": self.media_type,
                     "year": year,
-                    "ids": movie_info.get('ids'), # Store IDs block
+                    "ids": cleaned_ids, # Store cleaned IDs
+                    "overview": overview_val,
+                    "poster_url": poster_url_val,
                     "source": "simkl_search_movie" # Unified source
+                    # Duration/Runtime handled below
                 }
+                # Add duration_seconds if available from runtime
                 duration_seconds = None
                 if runtime:
                     try:
@@ -1101,15 +1178,10 @@ class MediaScrobbler: # Renamed class
                     except (ValueError, TypeError):
                          logger.warning("Could not parse runtime from movie details.")
 
-                if duration_seconds and self.total_duration_seconds is None:
+                if duration_seconds and self.total_duration_seconds is None: # Update instance variable if needed
                     self.total_duration_seconds = duration_seconds
                     self.estimated_duration = duration_seconds
                     logger.info(f"Set duration from Simkl movie details: {self.total_duration_seconds}s")
-
-                # Add poster URL if available
-                if 'poster' in movie_info:
-                    # Construct full poster URL if needed (adjust if API gives full URL)
-                    cached_data["poster_url"] = f"https://simkl.in/posters/{movie_info['poster']}_m.jpg" # Example
 
                 self.media_cache.set(cache_key, cached_data) # Use original title for movie cache key
 
@@ -1303,7 +1375,6 @@ class MediaScrobbler: # Renamed class
             if self.season is None or self.episode is None:
                 if self.current_filepath:
                     filename = os.path.basename(self.current_filepath)
-                    logger.info(f"Attempting to extract season/episode from filename: {filename}")
                     
                     # Common season/episode patterns
                     patterns = [
@@ -1321,7 +1392,6 @@ class MediaScrobbler: # Renamed class
                             
                             if self.season is None:
                                 self.season = extracted_season
-                                logger.info(f"Extracted season {self.season} from filename")
                                 
                                 # Update cache with season if found
                                 if cached_info:
@@ -1330,7 +1400,6 @@ class MediaScrobbler: # Renamed class
                             
                             if self.episode is None:
                                 self.episode = extracted_episode
-                                logger.info(f"Extracted episode {self.episode} from filename")
                                 
                                 # Update cache with episode if found
                                 if cached_info:
@@ -1349,11 +1418,9 @@ class MediaScrobbler: # Renamed class
                                 
                                 if self.season is None:
                                     self.season = extracted_season
-                                    logger.info(f"Extracted season {self.season} from title")
                                 
                                 if self.episode is None:
                                     self.episode = extracted_episode
-                                    logger.info(f"Extracted episode {self.episode} from title")
                                 
                                 break
 
@@ -1374,7 +1441,6 @@ class MediaScrobbler: # Renamed class
                 }
                 log_item_desc = f"show '{display_title}' S{self.season}E{self.episode} (ID: {self.simkl_id})"
             else:
-                logger.warning(f"Cannot add show '{display_title}' to history: Missing season/episode number.")
                 return False # Cannot form valid payload
         elif self.media_type == 'anime':
             if self.episode is not None:
@@ -1387,18 +1453,14 @@ class MediaScrobbler: # Renamed class
                 }
                 log_item_desc = f"anime '{display_title}' E{self.episode} (ID: {self.simkl_id})"
             else:
-                logger.warning(f"Cannot add anime '{display_title}' to history: Missing episode number.")
                 return False # Cannot form valid payload
         else:
-            logger.error(f"Cannot add '{display_title}' to history: Unknown media type '{self.media_type}'.")
             return False
 
         # --- Attempt API Call ---
-        logger.info(f"Attempting to add {log_item_desc} to Simkl history...")
         try:
             result = add_to_history(payload, self.client_id, self.access_token)
             if result:
-                logger.info(f"Successfully added {log_item_desc} to Simkl history.")
                 self.completed = True
                 self._log_playback_event("added_to_history_success", {"simkl_id": self.simkl_id, "type": self.media_type})
                 self._store_in_watch_history(self.simkl_id, self.currently_tracking, self.movie_name)
@@ -1479,90 +1541,81 @@ class MediaScrobbler: # Renamed class
         try:
             if not hasattr(self, 'watch_history'):
                 self.watch_history = WatchHistoryManager(self.app_data_dir)
-                
-            # Prepare media info dictionary
-            media_info = {
-                'simkl_id': simkl_id,
-                'title': movie_name or title,  # Use official name if available
-                'original_title': title,       # Store original title for reference
-                'type': self.media_type or 'movie'  # Use detected type or default to movie
-            }
-            
-            # Add additional metadata if available
-            if self.total_duration_seconds:
-                media_info['runtime'] = round(self.total_duration_seconds / 60)  # Convert to minutes
-
-            # For TV shows or anime, add season/episode info
-            if self.media_type in ['show', 'anime'] and self.season is not None:
-                media_info['season'] = self.season
-            
-            if self.media_type in ['show', 'anime'] and self.episode is not None:
-                media_info['episode'] = self.episode
             
             # Use the stored file path if available
             media_file_path = self.current_filepath
             if media_file_path:
-                logger.info(f"Using stored filepath for watch history: {media_file_path}")
-            else:
-                logger.info("No stored filepath available for watch history.")
+                logger.debug(f"Using stored filepath for watch history: {media_file_path}")
 
-            # Try to get more details from the media cache
-            cache_key = os.path.basename(self.current_filepath).lower() if self.current_filepath else title.lower()
-            cached_info = self.media_cache.get(cache_key)
-            if cached_info:
-                # Add any additional cached metadata
-                if 'year' in cached_info:
-                    media_info['year'] = cached_info['year']
-                # Use 'poster_url' from optimized cache
-                if 'poster_url' in cached_info:
-                    media_info['poster_url'] = cached_info['poster_url']
-                    
-            # If we have API credentials and online, try to get more details
-            if self.client_id and self.access_token and is_internet_connected():
-                try:
-                    # Use appropriate API call based on media type
-                    details = None
-                    if self.media_type == 'movie':
-                        details = get_movie_details(simkl_id, self.client_id, self.access_token)
-                    
-                    # TODO: Add show details API call when implemented
-                    # elif self.media_type in ['show', 'anime']:
-                    #     details = get_show_details(simkl_id, self.client_id, self.access_token)
-                    
-                    if details:
-                        # Update with more accurate info from the API
-                        if 'title' in details:
-                            media_info['title'] = details['title']
-                        if 'year' in details:
-                            media_info['year'] = details['year']
-                        # Skip overview
-                        if 'runtime' in details:
-                            media_info['runtime'] = details['runtime']
-                        if 'poster' in details and 'poster_url' not in media_info: # Only add if not already from cache
-                            # Construct full poster URL if needed
-                            media_info['poster_url'] = f"https://simkl.in/posters/{details['poster']}_m.jpg" # Example
-                            
-                        # Update the media cache with these details for future use
-                        # Prepare minimal data for cache update
-                        cache_update_data = {k: v for k, v in details.items() if k in ['title', 'year', 'ids', 'poster', 'runtime']}
-                        # Add essential fields if missing from details but known
-                        if 'simkl_id' not in cache_update_data and self.simkl_id: cache_update_data['simkl_id'] = self.simkl_id
-                        if 'type' not in cache_update_data and self.media_type: cache_update_data['type'] = self.media_type
-                        if 'movie_name' not in cache_update_data and self.movie_name: cache_update_data['movie_name'] = self.movie_name # Use official name
-                        if 'poster' in cache_update_data: # Rename poster to poster_url for consistency
-                            cache_update_data['poster_url'] = f"https://simkl.in/posters/{cache_update_data.pop('poster')}_m.jpg" # Example
-                        self.media_cache.update(cache_key, cache_update_data)
+            # Get data from media cache first - this is our primary source
+            # Try filename key first if filepath exists
+            cached_info = None
+            if self.current_filepath:
+                filename_cache_key = os.path.basename(self.current_filepath).lower()
+                cached_info = self.media_cache.get(filename_cache_key)
 
-                except Exception as e:
-                    logger.warning(f"Failed to fetch additional details for watch history: {e}")
+            # If filename key didn't work or no filepath, try title key
+            if not cached_info and title:
+                title_cache_key = title.lower()
+                # Avoid redundant lookup if keys are the same
+                if not self.current_filepath or filename_cache_key != title_cache_key:
+                    cached_info = self.media_cache.get(title_cache_key)
             
+            # Prepare base media info dictionary
+            media_info = {
+                'simkl_id': simkl_id,
+                'title': movie_name or title, # Use official name if available
+                'original_title': title,      # Always store original detected title
+                'type': self.media_type or 'movie' # Use identified type or default
+            }
+
+            # If we have the latest cached data, use it to populate details
+            if cached_info:
+                cached_info = cached_info # Use the re-fetched data
+
+                # Copy details from cache
+                if 'movie_name' in cached_info and cached_info['movie_name']:
+                    media_info['title'] = cached_info['movie_name']
+                media_info['year'] = cached_info.get('year')
+                media_info['poster_url'] = cached_info.get('poster_url')
+                media_info['overview'] = cached_info.get('overview')
+
+                # Handle IDs from cache
+                if 'ids' in cached_info and isinstance(cached_info.get('ids'), dict):
+                    media_info['ids'] = cached_info['ids'].copy()
+                    if 'imdb' in cached_info['ids']:
+                        media_info['imdb_id'] = cached_info['ids']['imdb']
+                else:
+                    media_info['ids'] = {'simkl': simkl_id} # Fallback if cache['ids'] is bad
+
+                # Handle Runtime from cache
+                if 'duration_seconds' in cached_info and cached_info['duration_seconds']:
+                    media_info['runtime'] = round(cached_info['duration_seconds'] / 60)
+                elif self.total_duration_seconds: # Fallback to instance duration if not in cache
+                    media_info['runtime'] = round(self.total_duration_seconds / 60)
+
+            # --- Ensure Season/Episode are set directly from instance attributes ---
+            # This happens *after* potentially loading from cache, ensuring the latest
+            # scrobbler state for S/E is passed to the history manager.
+            if media_info['type'] in ['show', 'anime']:
+                media_info['season'] = self.season # Use current instance value (can be None)
+                media_info['episode'] = self.episode # Use current instance value (can be None)
+            # --- End Season/Episode ---
+
+            # --- Fallbacks for essential fields if not populated from cache ---
+            if 'ids' not in media_info: # Ensure IDs dict exists
+                 media_info['ids'] = {'simkl': simkl_id}
+            if 'runtime' not in media_info and self.total_duration_seconds: # Ensure runtime exists if possible
+                 media_info['runtime'] = round(self.total_duration_seconds / 60)
+            # --- End Fallbacks ---
+
+            # Double-check that critical fields have been transferred
+
             # Add to watch history, passing the file path if available
             if media_file_path:
                 success = self.watch_history.add_entry(media_info, media_file_path=media_file_path)
-                logger.info(f"Added '{media_info['title']}' to local watch history with file path")
             else:
                 success = self.watch_history.add_entry(media_info)
-                logger.info(f"Added '{media_info['title']}' to local watch history without file path")
             
             if not success:
                 logger.warning(f"Failed to add '{media_info['title']}' to local watch history")
@@ -1598,6 +1651,13 @@ class MediaScrobbler: # Renamed class
         items_to_process = list(pending) # Create a copy to iterate over
 
         for item in items_to_process:
+            # --- Add check for item type ---
+            if not isinstance(item, dict):
+                logger.warning(f"[Offline Sync] Skipping invalid backlog item (expected dict, got {type(item)}): {item}")
+                failure_occurred = True
+                continue # Skip to the next item
+            # --- End check ---
+
             original_id = item.get("simkl_id") # Could be real ID, temp_ ID, or guessit_ ID
             title = item.get("title", "Unknown Title")
             media_type = item.get("type") # 'movie', 'show', 'anime', 'episode' (from guessit)
@@ -1614,14 +1674,12 @@ class MediaScrobbler: # Renamed class
                 resolved_info = None
                 # Prioritize file search if original path and guessit info exists
                 if original_id.startswith("guessit_") and original_filepath:
-                    logger.debug(f"Trying search_file for guessit item: {original_filepath}")
                     try:
                         resolved_info = search_file(original_filepath, self.client_id)
                     except Exception as e:
                          logger.warning(f"search_file failed during backlog resolution for {original_filepath}: {e}")
                 # Fallback to title search (or if it was a temp_ ID)
                 if not resolved_info:
-                    logger.debug(f"Trying search_movie for item: {title}")
                     try:
                         # Assuming temp items are likely movies if no other info
                         resolved_info = search_movie(title, self.client_id, self.access_token)
@@ -1635,7 +1693,6 @@ class MediaScrobbler: # Renamed class
                         new_simkl_id = resolved_info['movie']['ids']['simkl']
                         media_type = 'movie'
                         resolved_title = resolved_info['movie'].get('title', title)
-                        logger.info(f"Resolved '{title}' to MOVIE ID {new_simkl_id} ('{resolved_title}')")
                     elif 'show' in resolved_info and resolved_info['show'].get('ids', {}).get('simkl'):
                         new_simkl_id = resolved_info['show']['ids']['simkl']
                         media_type = resolved_info['show'].get('type', 'show') # Could be 'anime'
@@ -1644,23 +1701,19 @@ class MediaScrobbler: # Renamed class
                         if 'episode' in resolved_info:
                             season = resolved_info['episode'].get('season', season)
                             episode = resolved_info['episode'].get('number', episode)
-                        logger.info(f"Resolved '{title}' to SHOW/ANIME ID {new_simkl_id} ('{resolved_title}') S{season} E{episode}")
 
                     if new_simkl_id:
                         simkl_id_to_use = new_simkl_id
                         # Update the item in the backlog with the resolved ID? Maybe not, just use it for sync.
                     else:
-                        logger.warning(f"[Offline Sync] Could not extract Simkl ID from resolution result for '{title}'. Skipping.")
                         failure_occurred = True
                         continue # Skip to next item
                 else:
-                    logger.warning(f"[Offline Sync] Could not resolve Simkl ID for '{title}' via API search. Skipping.")
                     failure_occurred = True
                     continue # Skip to next item
 
             # --- Construct Payload for add_to_history ---
             if not simkl_id_to_use or isinstance(simkl_id_to_use, str): # Ensure we have a valid (likely integer) ID now
-                 logger.warning(f"[Offline Sync] Invalid or unresolved Simkl ID '{simkl_id_to_use}' for '{resolved_title}'. Skipping.")
                  failure_occurred = True
                  continue
 
@@ -1681,7 +1734,6 @@ class MediaScrobbler: # Renamed class
                     }
                     log_item_desc = f"show {log_item_desc} S{season}E{episode}"
                 else:
-                    logger.warning(f"[Offline Sync] Cannot sync show '{resolved_title}': Missing season/episode in backlog item. Skipping.")
                     failure_occurred = True
                     continue
             elif media_type == 'anime':
@@ -1694,18 +1746,15 @@ class MediaScrobbler: # Renamed class
                     }
                     log_item_desc = f"anime {log_item_desc} E{episode}"
                 else:
-                    logger.warning(f"[Offline Sync] Cannot sync anime '{resolved_title}': Missing episode in backlog item. Skipping.")
                     failure_occurred = True
                     continue
             elif media_type == 'episode' and original_id.startswith("guessit_"):
                  # Handle case where type is 'episode' from guessit but resolution identified it as movie/show
-                 logger.warning(f"[Offline Sync] Backlog item '{resolved_title}' has type 'episode' but might be resolved differently. Attempting sync based on resolved info if possible, otherwise skipping.")
                  # If payload wasn't constructed above based on resolved type, skip
                  if not payload:
                      failure_occurred = True
                      continue
             else:
-                logger.error(f"[Offline Sync] Cannot sync '{resolved_title}': Unknown or invalid media type '{media_type}' in backlog item. Skipping.")
                 failure_occurred = True
                 continue
 
@@ -1965,7 +2014,7 @@ class MediaScrobbler: # Renamed class
             if 'year' in guessit_info:
                 fallback_data["year"] = guessit_info['year']
                 
-            logger.info(f"Storing guessit fallback data for '{title}': {media_type}" + 
+            logger.info(f"Storing guessit fallback data for '{title}': {media_type}" +
                         (f", S{season}" if season is not None else "") +
                         (f", E{episode}" if episode is not None else ""))
             

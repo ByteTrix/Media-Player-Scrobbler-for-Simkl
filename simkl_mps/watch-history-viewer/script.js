@@ -562,11 +562,30 @@ document.addEventListener('DOMContentLoaded', () => {
             const proxiedPosterUrl = getProxiedImageUrl(posterUrl);
             console.log(`Loading image for ${item.title}: ${proxiedPosterUrl}`);
             
-            const mediaType = item.type || 'movie';
+            const mediaType = item.type || 'movie'; // Ensure type exists
             const year = item.year ? `(${item.year})` : '';
             const runtime = item.runtime ? `${item.runtime} min` : '';
             const watchedDate = formatDate(item.watched_at);
-            
+
+            // --- Season/Episode Info ---
+            let episodeInfoHtml = '';
+            // Explicitly check for 'tv' or 'anime' types before adding episode info
+            if (mediaType === 'tv') {
+                if (item.season && item.episode) {
+                    episodeInfoHtml = `<span class="episode-info"><i class="ph ph-play-circle"></i> S${item.season} E${item.episode}</span>`;
+                }
+            } else if (mediaType === 'anime') {
+                 // Only show episode for anime if season is explicitly missing/null OR if both exist (prefer E for anime card)
+                if (item.episode && !item.season) {
+                     episodeInfoHtml = `<span class="episode-info"><i class="ph ph-play-circle"></i> E${item.episode}</span>`;
+                } else if (item.episode) { // Fallback to just episode if season exists but rule is to only show E on card
+                     // You might adjust this rule if you want SXXEYY for anime too on the card
+                     // episodeInfoHtml = `<span class="episode-info"><i class="ph ph-play-circle"></i> S${item.season} E${item.episode}</span>`;
+                     episodeInfoHtml = `<span class="episode-info"><i class="ph ph-play-circle"></i> E${item.episode}</span>`; // Current rule: Only E for anime card
+                }
+            }
+            // --- End Season/Episode Info ---
+
             // Define icons based on media type
             let mediaIcon;
             switch(mediaType) {
@@ -591,6 +610,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <h3 class="media-title">${item.title} ${year}</h3>
                     <div class="media-meta">
                         ${runtime ? `<span><i class="ph ph-clock"></i> ${runtime}</span>` : ''}
+                        ${episodeInfoHtml} {/* Insert episode info here */}
                     </div>
                     <div class="watched-date">
                         <i class="ph ph-clock-counter-clockwise"></i> Watched ${watchedDate}
@@ -601,16 +621,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         ${item.formatted_file_size ? `<span><i class="ph ph-file"></i> ${item.formatted_file_size}</span>` : ''}
                         ${item.file_path ? `<span class="file-path" title="${item.file_path}"><i class="ph ph-folder"></i> ${item.file_path.length > 50 ? '...' + item.file_path.slice(-47) : item.file_path}</span>` : ''}
                     </div>
-                    <div class="media-actions">
-                        <button class="action-btn" onclick="window.open('${item.imdb_id
-                            ? `https://api.simkl.com/redirect?to=Simkl&imdb=${item.imdb_id}`
-                            : `https://api.simkl.com/redirect?to=Simkl&simkl=${item.simkl_id}&title=${encodeURIComponent(item.title)}`}', '_blank')">
-                            <i class="ph ph-arrow-square-out"></i> Open in SIMKL
-                        </button>
-                    </div>
+                    <!-- Removed media-actions div from small card -->
                 </div>
             `;
-            
+
             historyContainer.appendChild(card);
         }
         
@@ -928,12 +942,24 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if (mediaType === 'tv' || mediaType === 'anime') {
             tvDetailsSection.style.display = 'block';
-            
+
+            // --- Add Latest Watched Episode Info ---
+            let latestEpisodeText = 'Latest: Unknown';
+            if (mediaType === 'tv' && item.season && item.episode) {
+                latestEpisodeText = `Latest: S${item.season} E${item.episode}`;
+            } else if (mediaType === 'anime' && item.episode && !item.season) {
+                latestEpisodeText = `Latest: E${item.episode}`;
+            } else if (mediaType === 'anime' && item.episode) { // Handle anime that might have season but we only show episode
+                 latestEpisodeText = `Latest: E${item.episode}`;
+            }
+            updateField(contentElement, 'latest_watched_episode', latestEpisodeText);
+            // --- End Latest Watched ---
+
             // Update TV/Anime specific fields
             const episodesWatched = item.episodes_watched || 1;
-            const totalEpisodes = item.total_episodes || '?';
+            const totalEpisodes = item.total_episodes || '?'; // Use total_episodes if available
             updateField(contentElement, 'episodes_watched', `${episodesWatched} of ${totalEpisodes}`);
-            
+
             // Determine completion status
             let status = 'In Progress';
             if (item.completed) {

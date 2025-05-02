@@ -360,6 +360,67 @@ def get_movie_details(simkl_id, client_id, access_token):
         logger.error(f"Simkl API: Error getting movie details for ID {simkl_id}: {e}", exc_info=True)
         return None
 
+def get_show_details(simkl_id, client_id, access_token):
+    """
+    Retrieves detailed show information from Simkl.
+
+    Args:
+        simkl_id (int | str): The Simkl ID of the show.
+        client_id (str): Simkl API client ID.
+        access_token (str): Simkl API access token.
+
+    Returns:
+        dict | None: A dictionary containing detailed show information,
+                     or None if an error occurs or parameters are missing.
+    """
+    if not client_id or not access_token or not simkl_id:
+        logger.error("Simkl API: Missing required parameters for get_show_details.")
+        return None
+
+    headers = {
+        'Content-Type': 'application/json',
+        'simkl-api-key': client_id,
+        'Authorization': f'Bearer {access_token}'
+    }
+    headers = _add_user_agent(headers)
+    params = {'extended': 'full'}
+    try:
+        logger.info(f"Simkl API: Fetching details for show/anime ID {simkl_id}...")
+        response = requests.get(f'{SIMKL_API_BASE_URL}/tv/{simkl_id}', headers=headers, params=params)
+        response.raise_for_status()
+        show_details = response.json()
+        if show_details:
+            title = show_details.get('title', 'N/A')
+            year = show_details.get('year', 'N/A')
+            show_type = show_details.get('type', 'show')  # 'show' or 'anime'
+            
+            # Ensure essential fields exist for watch history
+            show_details['simkl_id'] = simkl_id  # Add simkl_id explicitly for the history
+            
+            # Get IMDb ID if available
+            if 'ids' in show_details:
+                imdb_id = show_details['ids'].get('imdb')
+                if imdb_id:
+                    # Store IMDb ID directly in the show_details for easy access
+                    show_details['imdb_id'] = imdb_id
+                    logger.info(f"Simkl API: Retrieved IMDb ID: {imdb_id} for '{title}'")
+            
+            # Get poster URL if available
+            if 'poster' not in show_details and 'images' in show_details:
+                if show_details['images'].get('poster'):
+                    show_details['poster'] = f"https://simkl.in/posters/{show_details['images']['poster']}_m.jpg"
+                    logger.info(f"Added poster URL for {title}")
+            
+            # Ensure type is set for history filtering
+            if 'type' not in show_details:
+                show_details['type'] = show_type
+
+            logger.info(f"Simkl API: Retrieved details for {show_type} '{title}' ({year}).")
+        return show_details
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Simkl API: Error getting show details for ID {simkl_id}: {e}", exc_info=True)
+        return None
+
 def get_user_settings(client_id, access_token):
     """
     Retrieves user settings from Simkl, which includes the user ID.

@@ -181,9 +181,15 @@
             
             <!-- TV Show/Anime Episodes (only for TV/Anime) -->
             <div class="tv-details" style="display:none;">
-                <div class="detail-label">Episodes Watched</div>
-                <div class="detail-value" data-field="episodes_watched">-</div>
-                
+                <div class="detail-group"> <!-- Added group for consistency -->
+                    <div class="detail-label">Episodes Watched</div>
+                    <div class="detail-value" data-field="episodes_watched">-</div>
+                </div>
+                <div class="detail-group"> <!-- Added group for Latest Watched -->
+                    <div class="detail-label">Latest Watched</div>
+                    <div class="detail-value" data-field="latest_watched_episode">-</div>
+                </div>
+
                 <div class="detail-label">Episode List</div>
                 <div class="episode-list" data-field="episode_list">
                     <!-- Episode items will be added dynamically -->
