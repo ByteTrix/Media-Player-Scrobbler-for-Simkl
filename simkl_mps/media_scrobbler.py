@@ -645,18 +645,9 @@ class MediaScrobbler: # Renamed class
                  logger.info(f"Completion threshold ({self.completion_threshold}%) met for '{display_title}'")
                  self._log_playback_event("completion_threshold_reached")
 
-                 # Send notification *before* attempting API call (Offline Only)
-                 # This notification might be slightly premature if the item was *just* added
-                 # to the backlog, but it's better than potentially missing it.
-                 # The _attempt_add_to_history handles the actual backlog logic.
-                 self._send_notification(
-                     f"Completion Threshold Reached ({self.completion_threshold}%)",
-                     f"Media: '{display_title}'",
-                     offline_only=True # Only notify locally if offline when threshold is hit
-                 )
-
                  # Attempt to add to history (handles ID check, API call, backlog)
                  # This method will set self.completed on success or backlog addition
+                 # Notifications for backlog addition are handled within _attempt_add_to_history.
                  self._attempt_add_to_history()
 
             # Update the time of the last progress check regardless of outcome
@@ -1074,8 +1065,27 @@ class MediaScrobbler: # Renamed class
             return
 
         if not is_internet_connected():
-            logger.warning(f"Offline: Cannot identify movie '{title_to_search}' via Simkl API.")
-            return
+            logger.warning(f"Offline: Cannot identify movie '{title_to_search}' via Simkl API. Adding to backlog for identification.")
+            # Add to backlog for later identification
+            id_for_backlog = f"identify_{cache_key}" # Unique prefix for identification tasks
+            backlog_added = self.backlog_cleaner.add(
+                id_for_backlog,
+                title_to_search,
+                additional_data={
+                    "type": "identification_pending", # Special type
+                    "original_title": title_to_search,
+                    "media_type_guess": "movie", # Assume movie for now
+                    "original_filepath": self.current_filepath # Store filepath if available
+                }
+            )
+            # Send notification if added to backlog
+            if backlog_added:
+                 self._send_notification(
+                     "Offline: Added Movie for Identification",
+                     f"'{title_to_search}' will be identified when back online.",
+                     offline_only=True
+                 )
+            return # Stop further processing in this function when offline
 
         logger.info(f"Attempting Simkl movie search for: '{title_to_search}'")
 
@@ -1265,15 +1275,18 @@ class MediaScrobbler: # Renamed class
             cached_info = self.media_cache.get(cache_key)
             if cached_info and cached_info.get("source") == "guessit_fallback":
                 logger.info(f"'{display_title}' has no Simkl ID, using guessit fallback info for backlog.")
-                # Add guessit info directly to backlog using a temp ID
-                temp_id = f"guessit_{cache_key}" # Create a unique-ish ID for backlog
-                # Store title derived from guessit
+                
+                # Use filepath as the primary key for guessit backlog items if available
+                backlog_key = self.current_filepath if self.current_filepath else f"guessit_{cache_key}"
+                
+                # Store title derived from guessit (without suffix)
                 guessit_title = cached_info.get("movie_name", display_title)
                 
-                # Build backlog data with episode info
+                # Build backlog data with episode info and original filepath
                 backlog_data = {
-                    "title": f"{guessit_title} (Guessit Fallback)",
-                    "type": cached_info.get("type", "episode")
+                    "title": guessit_title, # Removed "(Guessit Fallback)" suffix
+                    "type": cached_info.get("type", "episode"),
+                    "original_filepath": self.current_filepath # Ensure filepath is stored
                 }
                 
                 # Add TV/anime specific data from guessit
@@ -1282,24 +1295,25 @@ class MediaScrobbler: # Renamed class
                 if cached_info.get("episode") is not None:
                     backlog_data["episode"] = cached_info["episode"]
                 
-                self.backlog_cleaner.add(temp_id, backlog_data["title"], additional_data=backlog_data) 
-                self.last_backlog_attempt_time[cache_key] = current_time
+                logger.info(f"Adding guessit fallback item to backlog with key: '{backlog_key}'")
+                self.backlog_cleaner.add(backlog_key, backlog_data["title"], additional_data=backlog_data)
+                self.last_backlog_attempt_time[cache_key] = current_time # Still use cache_key for cooldown tracking
                 self.completed = True
-                self._log_playback_event("added_to_backlog_guessit", {"guessit_title": guessit_title})
+                self._log_playback_event("added_to_backlog_guessit", {"guessit_title": guessit_title, "backlog_key": backlog_key})
                 self._send_notification(
                     "Offline: Added to Backlog (Guessit)",
                     f"'{guessit_title}' will be identified and synced later."
                 )
-                # Also store guessit info in watch history locally
-                self._store_in_watch_history(temp_id, self.currently_tracking, guessit_title)
+                # DO NOT store guessit info in watch history locally yet
+                # self._store_in_watch_history(temp_id, self.currently_tracking, guessit_title) # Removed call
                 return False # Added to backlog
             elif not is_internet_connected():
-                 # No ID, no fallback, and offline - add with temp ID
-                 import uuid
-                 temp_id = f"temp_{str(uuid.uuid4())[:8]}"
-                 logger.info(f"Offline and unidentified: Adding '{display_title}' to backlog with temporary ID {temp_id}")
-                 # Build minimal backlog data for temp ID case
-                 backlog_data = {
+                # No ID, no fallback, and offline - add with temp ID
+                import uuid
+                temp_id = f"temp_{str(uuid.uuid4())[:8]}" # Corrected indentation
+                logger.info(f"Offline and unidentified: Adding '{display_title}' to backlog with temporary ID {temp_id}")
+                # Build minimal backlog data for temp ID case
+                backlog_data = { # Corrected indentation
                      "simkl_id": temp_id, # Use temp_id as the identifier
                      "title": display_title,
                      "type": self.media_type or 'unknown', # Use known type or default
@@ -1307,21 +1321,21 @@ class MediaScrobbler: # Renamed class
                      "episode": self.episode,
                      "original_filepath": self.current_filepath # Store filepath if known
                  }
-                 self.backlog_cleaner.add(temp_id, display_title, additional_data=backlog_data) # Add with temp ID and data
-                 self.last_backlog_attempt_time[cache_key] = current_time
-                 self.completed = True
-                 self._log_playback_event("added_to_backlog_temp_id", {"temp_id": temp_id})
-                 self._send_notification(
+                self.backlog_cleaner.add(temp_id, display_title, additional_data=backlog_data) # Fixed indentation
+                self.last_backlog_attempt_time[cache_key] = current_time # Fixed indentation
+                self.completed = True # Fixed indentation
+                self._log_playback_event("added_to_backlog_temp_id", {"temp_id": temp_id}) # Fixed indentation
+                self._send_notification( # Fixed indentation
                      "Offline: Added to Backlog (Temp ID)",
-                     f"'{display_title}' will be identified and synced later."
-                 )
-                 # Store with temp ID in local history
-                 self._store_in_watch_history(temp_id, self.currently_tracking, display_title)
-                 return False # Added to backlog
+                     f"'{display_title}' will be identified and synced later.")
+                 # DO NOT store with temp ID in local history yet
+                 # self._store_in_watch_history(temp_id, self.currently_tracking, display_title) # Removed call
+                return False # Fixed indentation
+
             else:
                 # Online but no ID and no fallback - log and wait
                 logger.info(f"Cannot add '{display_title}' to history yet: Simkl ID not known. Will retry identification.")
-                return False # Cannot proceed yet
+                return False
 
         # --- Check 5: Internet Connection ---
         if not is_internet_connected():
@@ -1349,8 +1363,8 @@ class MediaScrobbler: # Renamed class
                 "Offline: Added to Backlog",
                 f"'{display_title}' will be synced when back online."
             )
-            # Store in local history even when offline
-            self._store_in_watch_history(self.simkl_id, self.currently_tracking, self.movie_name)
+            # DO NOT store in local history when offline yet
+            # self._store_in_watch_history(self.simkl_id, self.currently_tracking, self.movie_name) # Removed call
             return False # Added to backlog
 
         # --- Before constructing payload, check if we need to get season/episode from cache or extract from filename ---
@@ -1625,9 +1639,12 @@ class MediaScrobbler: # Renamed class
 
     def process_backlog(self):
         """
-        Process pending backlog items. Attempts to resolve temporary IDs and sync items
-        to Simkl history using the add_to_history API call.
+        Process pending backlog items with retry logic and error handling.
+        Attempts to resolve temporary IDs and sync items to Simkl history.
         """
+        MAX_ATTEMPTS = 5 # Max attempts before giving up on an item
+        BASE_RETRY_DELAY_SECONDS = 60 # Initial delay (1 minute)
+
         if not self.client_id or not self.access_token:
             logger.warning("[Offline Sync] Missing credentials, cannot process backlog.")
             return {'processed': 0, 'attempted': 0, 'failed': True, 'reason': 'Missing credentials'}
@@ -1639,132 +1656,320 @@ class MediaScrobbler: # Renamed class
             logger.info("[Offline Sync] No internet connection. Backlog sync deferred.")
             return {'processed': 0, 'attempted': 0, 'failed': False, 'reason': 'Offline'}
 
-        success_count = 0
-        failure_occurred = False
-        pending = self.backlog_cleaner.get_pending()
-        total_attempted = len(pending)
-
-        if not pending:
+        pending_items = self.backlog_cleaner.get_pending() # Get dict of items
+        if not pending_items:
             return {'processed': 0, 'attempted': 0, 'failed': False, 'reason': 'No items'}
 
-        logger.info(f"[Offline Sync] Processing {total_attempted} backlog entries...")
-        items_to_process = list(pending) # Create a copy to iterate over
+        logger.info(f"[Offline Sync] Processing {len(pending_items)} backlog entries...")
 
-        for item in items_to_process:
-            # --- Add check for item type ---
-            if not isinstance(item, dict):
-                logger.warning(f"[Offline Sync] Skipping invalid backlog item (expected dict, got {type(item)}): {item}")
-                failure_occurred = True
-                continue # Skip to the next item
-            # --- End check ---
+        success_count = 0
+        items_attempted_this_cycle = 0
+        failure_occurred_this_cycle = False
+        current_time = time.time()
 
-            original_id = item.get("simkl_id") # Could be real ID, temp_ ID, or guessit_ ID
-            title = item.get("title", "Unknown Title")
-            media_type = item.get("type") # 'movie', 'show', 'anime', 'episode' (from guessit)
-            season = item.get("season")
-            episode = item.get("episode")
-            original_filepath = item.get("original_filepath") # For guessit items
+        # Iterate through a copy of keys to allow modification during iteration
+        item_keys_to_process = list(pending_items.keys())
+
+        for item_key in item_keys_to_process:
+            item_data = pending_items.get(item_key) # Get current data for the key
+
+            # --- Basic Item Validation ---
+            if not isinstance(item_data, dict):
+                logger.warning(f"[Offline Sync] Skipping invalid backlog item (expected dict, got {type(item_data)}) for key: {item_key}")
+                failure_occurred_this_cycle = True
+                continue
+
+            original_id = item_data.get("simkl_id") # Could be real ID, temp_ ID, or guessit_ ID
+            title = item_data.get("title", "Unknown Title")
+            attempt_count = item_data.get("attempt_count", 0)
+            last_attempt_ts = item_data.get("last_attempt_timestamp")
+
+            # --- Check Max Attempts ---
+            if attempt_count >= MAX_ATTEMPTS:
+                logger.warning(f"[Offline Sync] Skipping item '{title}' (ID: {item_key}) - Max attempts ({MAX_ATTEMPTS}) reached.")
+                # Optionally remove permanently failed items after max attempts? For now, just skip.
+                # self.backlog_cleaner.remove(item_key)
+                continue
+
+            # --- Check Retry Delay (Exponential Backoff) ---
+            if last_attempt_ts:
+                retry_delay = BASE_RETRY_DELAY_SECONDS * (2 ** attempt_count) # Exponential backoff
+                time_since_last_attempt = current_time - last_attempt_ts
+                if time_since_last_attempt < retry_delay:
+                    logger.debug(f"[Offline Sync] Skipping item '{title}' (ID: {item_key}) - Retry delay active ({time_since_last_attempt:.0f}s / {retry_delay:.0f}s).")
+                    continue # Skip this item for now, wait for delay
+
+            # --- If checks pass, attempt processing ---
+            items_attempted_this_cycle += 1
+            logger.info(f"[Offline Sync] Attempting item '{title}' (ID: {item_key}, Attempt: {attempt_count + 1})")
+
+            media_type = item_data.get("type") # 'movie', 'show', 'anime', 'episode' (from guessit)
+            season = item_data.get("season")
+            episode = item_data.get("episode")
+            original_filepath = item_data.get("original_filepath") # For guessit items
 
             simkl_id_to_use = original_id
             resolved_title = title # Use backlog title unless resolved differently
+            api_error = None # Store potential API error message
 
-            # --- Attempt to Resolve Temporary/Guessit IDs ---
-            if isinstance(original_id, str) and (original_id.startswith("temp_") or original_id.startswith("guessit_")):
-                logger.info(f"[Offline Sync] Attempting to resolve ID for '{title}' (Original ID: {original_id})")
+            # --- Handle Different Backlog Item Types ---
+            is_temp_id = isinstance(original_id, str) and (original_id.startswith("temp_") or original_id.startswith("guessit_"))
+            is_identification_task = media_type == "identification_pending"
+
+            simkl_id_to_use = original_id
+            resolved_title = title
+            api_error = None # Store potential API error message
+
+            # --- A. Identification Task ---
+            if is_identification_task:
+                logger.info(f"[Offline Sync] Attempting identification for '{title}' (Original ID: {item_key})")
+                identification_info = None
+                identification_error = None
+                original_title_for_search = item_data.get("original_title", title) # Use original title if available
+                media_type_guess = item_data.get("media_type_guess", "movie") # Get the guess
+                # Retrieve the original filepath for file-based search
+                original_filepath_for_search = item_data.get("original_filepath")
+
+                try:
+                    # Use search_file if filepath exists and guess suggests episode/show/anime
+                    if original_filepath_for_search and media_type_guess in ["episode", "show", "anime"]:
+                         logger.debug(f"Using search_file for identification based on filepath: {original_filepath_for_search}")
+                         identification_info = search_file(original_filepath_for_search, self.client_id)
+                    # Otherwise, use search_movie (for movies or shows without filepath)
+                    elif media_type_guess == "movie" or (media_type_guess in ["show", "anime"] and not original_filepath_for_search):
+                         logger.debug(f"Using search_movie for identification based on title: {original_title_for_search}")
+                         identification_info = search_movie(original_title_for_search, self.client_id, self.access_token)
+                    else:
+                         identification_error = f"Unsupported media_type_guess for identification: {media_type_guess}"
+
+                except Exception as e:
+                     identification_error = f"Identification search failed: {e}"
+                     logger.warning(f"[Offline Sync] {identification_error}")
+
+                # Process identification result
+                if identification_info:
+                    new_simkl_id = None
+                    new_media_type = None
+                    new_title = None
+                    new_season = None
+                    new_episode = None
+
+                    # Extract details based on expected structure (movie or show/episode)
+                    if 'movie' in identification_info and identification_info['movie'].get('ids', {}).get('simkl'):
+                        new_simkl_id = identification_info['movie']['ids']['simkl']
+                        new_media_type = 'movie'
+                        new_title = identification_info['movie'].get('title', original_title_for_search)
+                    elif 'show' in identification_info and identification_info['show'].get('ids', {}).get('simkl'):
+                        new_simkl_id = identification_info['show']['ids']['simkl']
+                        new_media_type = identification_info['show'].get('type', 'show') # Could be 'anime'
+                        new_title = identification_info['show'].get('title', original_title_for_search)
+                        if 'episode' in identification_info: # If search_file was used
+                            new_season = identification_info['episode'].get('season')
+                            new_episode = identification_info['episode'].get('number')
+                    # Handle direct list result from search_movie (less common now but possible)
+                    elif isinstance(identification_info, list) and identification_info:
+                         first_result = identification_info[0]
+                         if first_result.get('type') == 'movie' and first_result.get('ids', {}).get('simkl'):
+                              new_simkl_id = first_result['ids']['simkl']
+                              new_media_type = 'movie'
+                              new_title = first_result.get('title', original_title_for_search)
+                         # Add similar check for shows if search_movie could return shows in list
+
+                    if new_simkl_id:
+                        logger.info(f"[Offline Sync] Identified '{original_title_for_search}' as '{new_title}' (ID: {new_simkl_id}, Type: {new_media_type})")
+                        # Update the backlog item with resolved info and mark as ready for sync
+                        update_payload = {
+                            'simkl_id': new_simkl_id, # Store the actual ID
+                            'title': new_title,
+                            'type': new_media_type,
+                            'season': new_season, # Will be None if not applicable
+                            'episode': new_episode, # Will be None if not applicable
+                            'attempt_count': 0, # Reset attempts for sync phase
+                            'last_attempt_timestamp': current_time, # Mark identification attempt time
+                            'last_error': None # Clear previous error
+                        }
+                        self.backlog_cleaner.update_item(item_key, update_payload)
+                        # Item is now updated, will be processed for sync in the *next* cycle
+                        continue # Move to the next backlog item
+                    else:
+                        api_error = "Identification succeeded but no Simkl ID found."
+                        logger.warning(f"[Offline Sync] {api_error} for '{original_title_for_search}'")
+                        failure_occurred_this_cycle = True
+                else:
+                    api_error = identification_error or "Identification failed (no results)."
+                    logger.warning(f"[Offline Sync] {api_error} for '{original_title_for_search}'")
+                    failure_occurred_this_cycle = True
+
+                # If identification failed, update backlog item's attempt count/error
+                if api_error:
+                    self.backlog_cleaner.update_item(item_key, {
+                        'attempt_count': attempt_count + 1,
+                        'last_attempt_timestamp': current_time,
+                        'last_error': api_error
+                    })
+                continue # Skip sync attempt for this item this cycle
+
+            # --- B. Resolve Temporary/Guessit/Filepath IDs (for items already marked for sync) ---
+            # Check if the item_key itself is a filepath (used for guessit items) OR if it's a temp ID
+            elif os.path.exists(item_key) or is_temp_id: # Check if key is a valid path OR a temp ID
+                logger.info(f"[Offline Sync] Attempting to resolve ID for '{title}' (Original Key/ID: {item_key})")
                 resolved_info = None
-                # Prioritize file search if original path and guessit info exists
-                if original_id.startswith("guessit_") and original_filepath:
-                    try:
-                        resolved_info = search_file(original_filepath, self.client_id)
-                    except Exception as e:
-                         logger.warning(f"search_file failed during backlog resolution for {original_filepath}: {e}")
-                # Fallback to title search (or if it was a temp_ ID)
-                if not resolved_info:
-                    try:
-                        # Assuming temp items are likely movies if no other info
-                        resolved_info = search_movie(title, self.client_id, self.access_token)
-                    except Exception as e:
-                         logger.warning(f"search_movie failed during backlog resolution for {title}: {e}")
+                resolution_error = None
+                try:
+                    # Prioritize file search if the key is a path or if original_filepath exists
+                    filepath_to_search = item_key if os.path.exists(item_key) else original_filepath
+                    if filepath_to_search:
+                        logger.debug(f"Attempting resolution via search_file: {filepath_to_search}")
+                        resolved_info = search_file(filepath_to_search, self.client_id)
+                    
+                    # Fallback to title search if file search failed or wasn't applicable
+                    if not resolved_info and not os.path.exists(item_key): # Only fallback if key wasn't a path
+                        logger.debug(f"Attempting resolution via search_movie: {title}")
+                        # Determine media type for search_movie if possible
+                        search_type = 'movie' # Default assumption for temp IDs
+                        if media_type in ['show', 'anime']:
+                             search_type = media_type # Use known type if available
+                        # Note: search_movie currently only supports 'movie', but adapting for future
+                        if search_type == 'movie':
+                             resolved_info = search_movie(title, self.client_id, self.access_token)
+                        else:
+                             logger.warning(f"Title search for type '{search_type}' not implemented yet.")
+
+                except Exception as e:
+                     resolution_error = f"Resolution search failed: {e}"
+                     logger.warning(f"[Offline Sync] {resolution_error}")
 
                 # Extract resolved ID and update details
                 if resolved_info:
                     new_simkl_id = None
-                    if 'movie' in resolved_info and resolved_info['movie'].get('ids', {}).get('simkl'):
+                    # Check 1: Nested under 'movie' key
+                    if 'movie' in resolved_info and isinstance(resolved_info.get('movie'), dict) and resolved_info['movie'].get('ids', {}).get('simkl'):
                         new_simkl_id = resolved_info['movie']['ids']['simkl']
                         media_type = 'movie'
                         resolved_title = resolved_info['movie'].get('title', title)
-                    elif 'show' in resolved_info and resolved_info['show'].get('ids', {}).get('simkl'):
+                    # Check 2: Directly in the result (if type is movie)
+                    elif resolved_info.get('type') == 'movie' and resolved_info.get('ids', {}).get('simkl'):
+                        new_simkl_id = resolved_info['ids']['simkl']
+                        media_type = 'movie'
+                        resolved_title = resolved_info.get('title', title)
+                    # Check 3: Nested under 'show' key
+                    elif 'show' in resolved_info and isinstance(resolved_info.get('show'), dict) and resolved_info['show'].get('ids', {}).get('simkl'):
                         new_simkl_id = resolved_info['show']['ids']['simkl']
                         media_type = resolved_info['show'].get('type', 'show') # Could be 'anime'
                         resolved_title = resolved_info['show'].get('title', title)
-                        # If search_file was used, update season/episode
-                        if 'episode' in resolved_info:
+                        if 'episode' in resolved_info: # If search_file was used
                             season = resolved_info['episode'].get('season', season)
                             episode = resolved_info['episode'].get('number', episode)
+                    # Check 4: Directly in the result (if type is show/anime) - Less likely from search_movie but good practice
+                    elif resolved_info.get('type') in ['show', 'anime'] and resolved_info.get('ids', {}).get('simkl'):
+                         new_simkl_id = resolved_info['ids']['simkl']
+                         media_type = resolved_info.get('type', 'show')
+                         resolved_title = resolved_info.get('title', title)
+                         # Note: Episode info might not be present here if resolved via search_movie
 
                     if new_simkl_id:
                         simkl_id_to_use = new_simkl_id
-                        # Update the item in the backlog with the resolved ID? Maybe not, just use it for sync.
+                        logger.info(f"[Offline Sync] Resolved '{title}' to Simkl ID {simkl_id_to_use} (Type: {media_type})")
+                        # Update item data IN MEMORY for payload construction below
+                        item_data['simkl_id'] = simkl_id_to_use # Use resolved ID for payload
+                        item_data['title'] = resolved_title
+                        item_data['type'] = media_type
+                        item_data['season'] = season
+                        item_data['episode'] = episode
+                        # Persist the resolved ID back to the backlog file?
+                        # This prevents re-resolution but means the key changes.
+                        # For now, let's NOT change the key, just use the resolved ID for sync.
+                        # If sync fails, it will retry resolution next time.
                     else:
-                        failure_occurred = True
-                        continue # Skip to next item
+                        api_error = "Resolution succeeded but no Simkl ID found."
+                        logger.warning(f"[Offline Sync] {api_error} for '{title}'")
+                        failure_occurred_this_cycle = True
                 else:
-                    failure_occurred = True
-                    continue # Skip to next item
+                    api_error = resolution_error or "Resolution failed (no results)."
+                    logger.warning(f"[Offline Sync] {api_error} for '{title}'")
+                    failure_occurred_this_cycle = True
 
-            # --- Construct Payload for add_to_history ---
-            if not simkl_id_to_use or isinstance(simkl_id_to_use, str): # Ensure we have a valid (likely integer) ID now
-                 failure_occurred = True
+                # If resolution failed, update backlog and skip sync attempt
+                if api_error:
+                    self.backlog_cleaner.update_item(item_key, {
+                        'attempt_count': attempt_count + 1,
+                        'last_attempt_timestamp': current_time,
+                        'last_error': api_error
+                    })
+                    continue # Skip sync attempt
+
+            # --- C. Construct Payload for add_to_history (for items ready to sync) ---
+            # Ensure we have a valid numeric Simkl ID at this point
+            if not simkl_id_to_use or not isinstance(simkl_id_to_use, (int, str)) or isinstance(simkl_id_to_use, str) and simkl_id_to_use.startswith(('temp_', 'guessit_', 'identify_')):
+                 logger.warning(f"[Offline Sync] Invalid or unresolved Simkl ID '{simkl_id_to_use}' for item '{resolved_title}'. Skipping sync.")
+                 failure_occurred_this_cycle = True
+                 # Update attempt count even if ID is bad, to prevent infinite loops if resolution always fails
+                 self.backlog_cleaner.update_item(item_key, {
+                     'attempt_count': attempt_count + 1,
+                     'last_attempt_timestamp': current_time,
+                     'last_error': f"Invalid/Unresolved Simkl ID: {simkl_id_to_use}"
+                 })
                  continue
 
             payload = {}
-            item_ids = {"simkl": int(simkl_id_to_use)} # Ensure ID is integer
             log_item_desc = f"'{resolved_title}' (ID: {simkl_id_to_use})"
+            try:
+                item_ids = {"simkl": int(simkl_id_to_use)} # Ensure ID is integer for payload
 
-            if media_type == 'movie':
-                payload = {"movies": [{"ids": item_ids}]}
-                log_item_desc = f"movie {log_item_desc}"
-            elif media_type == 'show': # TV Show
-                if season is not None and episode is not None:
-                    payload = {
-                        "shows": [{
-                            "ids": item_ids,
-                            "seasons": [{"number": int(season), "episodes": [{"number": int(episode)}]}]
-                        }]
-                    }
-                    log_item_desc = f"show {log_item_desc} S{season}E{episode}"
+                if media_type == 'movie':
+                    payload = {"movies": [{"ids": item_ids}]}
+                    log_item_desc = f"movie {log_item_desc}"
+                elif media_type == 'show': # TV Show
+                    if season is not None and episode is not None:
+                        payload = {
+                            "shows": [{
+                                "ids": item_ids,
+                                "seasons": [{"number": int(season), "episodes": [{"number": int(episode)}]}]
+                            }]
+                        }
+                        log_item_desc = f"show {log_item_desc} S{season}E{episode}"
+                    else:
+                        api_error = "Missing season/episode for show"
+                elif media_type == 'anime':
+                    if episode is not None:
+                        payload = {
+                            "shows": [{ # Still uses 'shows' key for anime
+                                "ids": item_ids,
+                                "episodes": [{"number": int(episode)}]
+                            }]
+                        }
+                        log_item_desc = f"anime {log_item_desc} E{episode}"
+                    else:
+                        api_error = "Missing episode for anime"
                 else:
-                    failure_occurred = True
-                    continue
-            elif media_type == 'anime':
-                if episode is not None:
-                    payload = {
-                        "shows": [{ # Still uses 'shows' key for anime
-                            "ids": item_ids,
-                            "episodes": [{"number": int(episode)}]
-                        }]
-                    }
-                    log_item_desc = f"anime {log_item_desc} E{episode}"
-                else:
-                    failure_occurred = True
-                    continue
-            elif media_type == 'episode' and original_id.startswith("guessit_"):
-                 # Handle case where type is 'episode' from guessit but resolution identified it as movie/show
-                 # If payload wasn't constructed above based on resolved type, skip
-                 if not payload:
-                     failure_occurred = True
-                     continue
-            else:
-                failure_occurred = True
+                    api_error = f"Unknown media type: {media_type}"
+
+            except (ValueError, TypeError) as e:
+                 api_error = f"Data type error for payload: {e}"
+
+            # If payload construction failed, update backlog and skip
+            if api_error:
+                logger.warning(f"[Offline Sync] Payload error for {log_item_desc}: {api_error}. Skipping.")
+                failure_occurred_this_cycle = True
+                self.backlog_cleaner.update_item(item_key, {
+                    'attempt_count': attempt_count + 1,
+                    'last_attempt_timestamp': current_time,
+                    'last_error': api_error
+                })
                 continue
 
             # --- Attempt API Call ---
             logger.info(f"[Offline Sync] Syncing {log_item_desc} to Simkl history...")
+            sync_result = None
             try:
+                # Directly use the imported add_to_history
                 sync_result = add_to_history(payload, self.client_id, self.access_token)
+
                 if sync_result:
                     logger.info(f"[Offline Sync] Successfully added {log_item_desc} to Simkl history.")
-                    self.backlog_cleaner.remove(original_id) # Remove original ID from backlog
+                    # Store in local history AFTER successful Simkl sync
+                    self._store_in_watch_history(simkl_id_to_use, item_data.get("original_title", title), resolved_title) # Use resolved info
+                    self.backlog_cleaner.remove(item_key) # Use item_key (original ID string) for removal
                     success_count += 1
                     self._send_notification(
                         "Synced from Backlog",
@@ -1772,23 +1977,38 @@ class MediaScrobbler: # Renamed class
                         online_only=True
                     )
                 else:
-                    # API call failed (but was attempted online)
-                    logger.warning(f"[Offline Sync] Failed to add {log_item_desc} to Simkl history via API. Will retry later.")
-                    failure_occurred = True
+                    # API call failed (but was attempted online) - could be 4xx, 5xx, or other issue
+                    api_error = "API call failed (returned None/False)"
+                    logger.warning(f"[Offline Sync] {api_error} for {log_item_desc}. Will retry later.")
+                    failure_occurred_this_cycle = True
+
+            except requests.exceptions.RequestException as e:
+                # Handle specific request exceptions (like connection errors, timeouts)
+                api_error = f"Network error: {e}"
+                logger.warning(f"[Offline Sync] {api_error} syncing {log_item_desc}. Will retry later.")
+                failure_occurred_this_cycle = True
             except Exception as e:
-                logger.error(f"[Offline Sync] Unexpected error adding {log_item_desc} to history: {e}", exc_info=True)
-                failure_occurred = True
+                # Handle other unexpected errors during the API call
+                api_error = f"Unexpected error: {e}"
+                logger.error(f"[Offline Sync] {api_error} syncing {log_item_desc}.", exc_info=True)
+                failure_occurred_this_cycle = True
 
-        if success_count > 0:
-            logger.info(f"[Offline Sync] Backlog sync cycle complete. {success_count} of {total_attempted} entries synced successfully.")
-        else:
-            # Log based on whether attempts were made
-            if total_attempted > 0:
-                logger.info("[Offline Sync] No entries were successfully synced this cycle (failures occurred or items remain).")
-            else:
-                 logger.info("[Offline Sync] No backlog entries found to process.")
+            # --- Update Backlog Item on Failure ---
+            if api_error:
+                self.backlog_cleaner.update_item(item_key, {
+                    'attempt_count': attempt_count + 1,
+                    'last_attempt_timestamp': current_time,
+                    'last_error': api_error
+                })
 
-        return {'processed': success_count, 'attempted': total_attempted, 'failed': failure_occurred}
+        # --- Final Logging ---
+        if items_attempted_this_cycle > 0:
+             logger.info(f"[Offline Sync] Cycle complete. Attempted: {items_attempted_this_cycle}, Synced: {success_count}.")
+        elif len(pending_items) > 0:
+             logger.info("[Offline Sync] Cycle complete. No items ready for retry based on delay.")
+        # No need to log if pending_items was empty initially
+
+        return {'processed': success_count, 'attempted': items_attempted_this_cycle, 'failed': failure_occurred_this_cycle}
 
     def start_offline_sync_thread(self, interval_seconds=120):
         """Start a background thread to periodically sync backlog when online."""
