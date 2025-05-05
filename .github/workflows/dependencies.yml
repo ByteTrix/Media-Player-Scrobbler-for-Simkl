@@ -48,6 +48,11 @@ jobs:
           python-version: '3.13'
           cache: pip
 
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libcairo2-dev libgirepository1.0-dev gir1.2-gtk-3.0
+
       - name: Install Poetry
         run: |
           pip install poetry
