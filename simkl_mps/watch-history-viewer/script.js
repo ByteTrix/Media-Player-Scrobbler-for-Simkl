@@ -28,7 +28,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let historyData = [];
     let activeMediaCard = null;
     let currentView = localStorage.getItem('simkl_history_view') || 'grid';
-    let currentTheme = localStorage.getItem('simkl_history_theme') || 'light';
+    let currentTheme = localStorage.getItem('simkl_history_theme') || 'dark';
     let showStats = localStorage.getItem('simkl_history_stats') === 'true';
     let currentPage = 1;
     let itemsPerPage = 24;
@@ -318,14 +318,32 @@ document.addEventListener('DOMContentLoaded', () => {
     // Update statistics
     function updateStatistics() {
         const movieCount = historyData.filter(item => item.type === 'movie').length;
-        const showCount = historyData.filter(item => item.type === 'tv').length;
-        const animeCount = historyData.filter(item => item.type === 'anime').length;
-        
+        // Count unique TV shows based on simkl_id (or title/year as fallback)
+        const uniqueShowIds = new Set();
+        historyData.forEach(item => {
+            if (item.type === 'show' || item.type === 'tv') { // Include 'show' type
+                // Prefer simkl_id, fallback to title+year combination
+                const uniqueId = item.simkl_id || `${item.title}-${item.year}`;
+                uniqueShowIds.add(uniqueId);
+            }
+        });
+        const showCount = uniqueShowIds.size; // Count of unique TV shows
+
+        // Count unique Anime based on simkl_id (or title/year as fallback)
+        const uniqueAnimeIds = new Set();
+        historyData.forEach(item => {
+            if (item.type === 'anime') {
+                const uniqueId = item.simkl_id || `${item.title}-${item.year}`;
+                uniqueAnimeIds.add(uniqueId);
+            }
+        });
+        const animeCount = uniqueAnimeIds.size; // Count of unique Anime
+
         totalCountEl.textContent = historyData.length;
         moviesCountEl.textContent = movieCount;
-        showsCountEl.textContent = showCount;
-        animeCountEl.textContent = animeCount;
-        
+        showsCountEl.textContent = showCount; // Display unique TV show count
+        animeCountEl.textContent = animeCount; // Display unique Anime count here
+
         // Create watch trend chart
         createWatchTrendChart();
     }
@@ -562,11 +580,26 @@ document.addEventListener('DOMContentLoaded', () => {
             const proxiedPosterUrl = getProxiedImageUrl(posterUrl);
             console.log(`Loading image for ${item.title}: ${proxiedPosterUrl}`);
             
-            const mediaType = item.type || 'movie';
+            const mediaType = item.type || 'movie'; // Ensure type exists
             const year = item.year ? `(${item.year})` : '';
             const runtime = item.runtime ? `${item.runtime} min` : '';
             const watchedDate = formatDate(item.watched_at);
-            
+
+            // --- Season/Episode Info (Task 3) ---
+            let episodeInfoHtml = '';
+            const seasonNum = item.season; // Use variables for clarity
+            const episodeNum = item.episode;
+
+            // Display SxxEyy if both season and episode are present and > 0
+            if ((mediaType === 'show' || mediaType === 'tv' || mediaType === 'anime') && seasonNum > 0 && episodeNum > 0) { // Added 'show'
+                episodeInfoHtml = `<span class="episode-info"><i class="ph ph-play-circle"></i> S${String(seasonNum).padStart(2, '0')}E${String(episodeNum).padStart(2, '0')}</span>`;
+            }
+            // Display Exx if only episode is present and > 0 (useful for Anime, maybe some TV specials)
+            else if ((mediaType === 'show' || mediaType === 'tv' || mediaType === 'anime') && episodeNum > 0) { // Added 'show'
+                 episodeInfoHtml = `<span class="episode-info"><i class="ph ph-play-circle"></i> E${episodeNum}</span>`;
+            }
+            // --- End Season/Episode Info ---
+
             // Define icons based on media type
             let mediaIcon;
             switch(mediaType) {
@@ -591,6 +624,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <h3 class="media-title">${item.title} ${year}</h3>
                     <div class="media-meta">
                         ${runtime ? `<span><i class="ph ph-clock"></i> ${runtime}</span>` : ''}
+                        ${episodeInfoHtml}
                     </div>
                     <div class="watched-date">
                         <i class="ph ph-clock-counter-clockwise"></i> Watched ${watchedDate}
@@ -601,16 +635,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         ${item.formatted_file_size ? `<span><i class="ph ph-file"></i> ${item.formatted_file_size}</span>` : ''}
                         ${item.file_path ? `<span class="file-path" title="${item.file_path}"><i class="ph ph-folder"></i> ${item.file_path.length > 50 ? '...' + item.file_path.slice(-47) : item.file_path}</span>` : ''}
                     </div>
-                    <div class="media-actions">
-                        <button class="action-btn" onclick="window.open('${item.imdb_id
-                            ? `https://api.simkl.com/redirect?to=Simkl&imdb=${item.imdb_id}`
-                            : `https://api.simkl.com/redirect?to=Simkl&simkl=${item.simkl_id}&title=${encodeURIComponent(item.title)}`}', '_blank')">
-                            <i class="ph ph-arrow-square-out"></i> Open in SIMKL
-                        </button>
-                    </div>
+                    <!-- Removed media-actions div from small card -->
                 </div>
             `;
-            
+
             historyContainer.appendChild(card);
         }
         
@@ -911,13 +939,25 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Populate expanded content with item data
     function populateExpandedContent(contentElement, item) {
-        // Update basic fields with available data
+        // --- Find the latest watch entry for this show/anime ---
+        let latestEntry = item; // Default to the clicked item
+        if ((item.type === 'show' || item.type === 'tv' || item.type === 'anime') && item.simkl_id) {
+            const allEntriesForShow = historyData
+                .filter(entry => entry.simkl_id === item.simkl_id && (entry.type === 'show' || entry.type === 'tv' || entry.type === 'anime'))
+                .sort((a, b) => new Date(b.watched_at || 0) - new Date(a.watched_at || 0));
+            
+            if (allEntriesForShow.length > 0) {
+                latestEntry = allEntriesForShow[0]; // Get the most recent one
+            }
+        }
+        // --- End Find Latest Entry ---
+
+        // Update basic fields with available data (using the original item for general info)
         updateField(contentElement, 'release_date', formatReleaseDate(item.release_date || item.year));
         updateField(contentElement, 'runtime', item.runtime ? `${item.runtime} minutes` : 'Unknown');
-        // updateField(contentElement, 'genres', formatGenres(item.genres)); // Genres removed from HTML
         updateField(contentElement, 'overview', item.overview || 'No description available.');
         
-        // Add file information if available
+        // Add file information if available (using the original item)
         updateField(contentElement, 'file_path', item.file_path || 'Not available');
         updateField(contentElement, 'resolution', item.resolution || 'Unknown');
         updateField(contentElement, 'file_size', formatFileSize(item.file_size) || 'Unknown');
@@ -926,28 +966,29 @@ document.addEventListener('DOMContentLoaded', () => {
         const tvDetailsSection = contentElement.querySelector('.tv-details');
         const mediaType = item.type || 'movie';
         
-        if (mediaType === 'tv' || mediaType === 'anime') {
+        if (mediaType === 'show' || mediaType === 'tv' || mediaType === 'anime') {
             tvDetailsSection.style.display = 'block';
-            
-            // Update TV/Anime specific fields
-            const episodesWatched = item.episodes_watched || 1;
-            const totalEpisodes = item.total_episodes || '?';
-            updateField(contentElement, 'episodes_watched', `${episodesWatched} of ${totalEpisodes}`);
-            
-            // Determine completion status
-            let status = 'In Progress';
-            if (item.completed) {
-                status = 'Completed';
-            } else if (item.dropped) {
-                status = 'Dropped';
-            } else if (item.on_hold) {
-                status = 'On Hold';
+
+            // --- Display Latest Watched Episode Info (using latestEntry) ---
+            let latestEpisodeText = '-'; // Default text
+            const latestSeason = latestEntry.season;
+            const latestEpisode = latestEntry.episode;
+
+            if (latestSeason > 0 && latestEpisode > 0) {
+                latestEpisodeText = `S${String(latestSeason).padStart(2, '0')}E${String(latestEpisode).padStart(2, '0')}`;
+            } else if (latestEpisode > 0) { // Handle cases like Anime with only episode number
+                 latestEpisodeText = `E${latestEpisode}`;
             }
-            updateField(contentElement, 'completion_status', status);
-            
-            // Add episode list if available
-            const episodeList = contentElement.querySelector('[data-field="episode_list"]');
-            populateEpisodeList(episodeList, item);
+            updateField(contentElement, 'latest_watched_episode', latestEpisodeText);
+            // --- End Latest Watched ---
+
+            // REMOVED: Update TV/Anime specific fields (Status, Watched x of ?)
+            // REMOVED: Episode list population
+        } else {
+            // Hide TV details section if it's a movie
+            if (tvDetailsSection) {
+                tvDetailsSection.style.display = 'none';
+            }
         }
     }
     
@@ -997,66 +1038,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
-    // Populate episode list
-    function populateEpisodeList(listElement, item) {
-        if (!listElement) return;
-        
-        // Clear existing content
-        listElement.innerHTML = '';
-        
-        // If we have episodes data
-        if (item.episodes && Array.isArray(item.episodes) && item.episodes.length > 0) {
-            // Sort episodes by number
-            const sortedEpisodes = [...item.episodes].sort((a, b) => a.number - b.number);
-            
-            sortedEpisodes.forEach(episode => {
-                const episodeItem = document.createElement('div');
-                episodeItem.className = 'episode-item';
-                
-                const episodeNumber = episode.number || '?';
-                const episodeTitle = episode.title || `Episode ${episodeNumber}`;
-                const watchedDate = formatDate(episode.watched_at);
-                
-                episodeItem.innerHTML = `
-                    <div>
-                        <span class="episode-number">E${episodeNumber}</span>
-                        ${episodeTitle}
-                    </div>
-                    <div>
-                        <span class="watched-date"><i class="ph ph-clock-counter-clockwise"></i> ${watchedDate}</span>
-                    </div>
-                `;
-                listElement.appendChild(episodeItem);
-            });
-        } else {
-            // Create a simple representation for shows without detailed episode data
-            const episodesWatched = item.episodes_watched || 1;
-            
-            for (let i = 1; i <= episodesWatched; i++) {
-                const episodeItem = document.createElement('div');
-                episodeItem.className = 'episode-item';
-                
-                episodeItem.innerHTML = `
-                    <div>
-                        <span class="episode-number">E${i}</span>
-                        Episode ${i}
-                    </div>
-                    <div>
-                        <span class="watched-date"><i class="ph ph-clock-counter-clockwise"></i> ${formatDate(item.watched_at)}</span>
-                    </div>
-                `;
-                listElement.appendChild(episodeItem);
-            }
-        }
-        
-        // If no episodes were added
-        if (listElement.children.length === 0) {
-            const noEpisodes = document.createElement('div');
-            noEpisodes.className = 'episode-item';
-            noEpisodes.textContent = 'No episode information available';
-            listElement.appendChild(noEpisodes);
-        }
-    }
+    // REMOVED: populateEpisodeList function as it's no longer used.
     
     // Initial load
     loadHistory();

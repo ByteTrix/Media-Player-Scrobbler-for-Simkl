@@ -68,33 +68,103 @@ class BacklogCleaner:
         except Exception as e:
             logger.error(f"Error saving backlog: {e}")
 
-    def add(self, simkl_id, title):
-        """Add a movie to the backlog"""
-        entry = {
-            "simkl_id": simkl_id,
-            "title": title,
-            "timestamp": datetime.now().isoformat()
-        }
+    def add(self, simkl_id, title, additional_data=None):
+        """
+        Add or update a media item in the backlog dictionary.
 
-        # Don't add duplicates
-        for item in self.backlog:
-            if item.get("simkl_id") == simkl_id:
-                return
+        Args:
+            simkl_id: The Simkl ID (can be temporary string or actual int).
+            title: Title of the media.
+            additional_data: Dictionary with additional data (type, season, episode, etc.).
+        """
+        item_key = str(simkl_id) # Use string representation as key
 
-        self.backlog.append(entry)
+        # Check if item already exists
+        existing_entry = self.backlog.get(item_key)
+
+        if existing_entry:
+            # Update existing entry - prioritize new data but keep old tracking info
+            logger.debug(f"Updating existing backlog entry for ID: {item_key}")
+            existing_entry['title'] = title # Update title
+            existing_entry['timestamp'] = datetime.now().isoformat() # Update timestamp
+            if additional_data and isinstance(additional_data, dict):
+                existing_entry.update(additional_data) # Merge additional data
+            # Ensure tracking fields are preserved or initialized
+            existing_entry.setdefault('attempt_count', 0)
+            existing_entry.setdefault('last_attempt_timestamp', None)
+            existing_entry.setdefault('last_error', None)
+        else:
+            # Create new entry
+            logger.info(f"Adding '{title}' (ID: {item_key}) to backlog.")
+            entry = {
+                "simkl_id": simkl_id, # Store original ID (could be temp)
+                "title": title,
+                "timestamp": datetime.now().isoformat(),
+                "attempt_count": 0, # Initialize attempt count
+                "last_attempt_timestamp": None, # Initialize timestamp
+                "last_error": None # Initialize error field
+            }
+            # Add additional data if provided
+            if additional_data and isinstance(additional_data, dict):
+                entry.update(additional_data)
+
+            self.backlog[item_key] = entry
+
         self._save_backlog()
-        logger.info(f"Added '{title}' to backlog for future syncing")
 
-    def get_pending(self):
-        """Get all pending backlog entries"""
+    def get_pending(self) -> dict:
+        """Get all pending backlog entries as a dictionary."""
+        # Ensure backlog is loaded (might be redundant but safe)
+        if not isinstance(self.backlog, dict):
+             self.backlog = self._load_backlog()
         return self.backlog
 
+    def update_item(self, simkl_id, updates: dict):
+         """
+         Update specific fields of a backlog item.
+
+         Args:
+             simkl_id: The ID (key) of the item to update.
+             updates: A dictionary containing the fields and values to update.
+         """
+         item_key = str(simkl_id)
+         if item_key in self.backlog:
+             self.backlog[item_key].update(updates)
+             self._save_backlog()
+             logger.debug(f"Updated backlog item {item_key} with: {updates}")
+             return True
+         else:
+             logger.warning(f"Attempted to update non-existent backlog item: {item_key}")
+             return False
+
     def remove(self, simkl_id):
-        """Remove an entry from the backlog"""
-        self.backlog = [item for item in self.backlog if item.get("simkl_id") != simkl_id]
-        self._save_backlog()
+        """
+        Remove an entry from the backlog dictionary using its key.
+
+        Args:
+            simkl_id: The Simkl ID (key) of the item to remove.
+        """
+        item_key = str(simkl_id) # Ensure key is string
+        if item_key in self.backlog:
+            try:
+                del self.backlog[item_key]
+                self._save_backlog()
+                logger.info(f"Removed item '{item_key}' from backlog.")
+                return True
+            except KeyError:
+                 logger.warning(f"KeyError trying to remove '{item_key}' though it was present initially.")
+                 return False # Should not happen if check passes, but handle defensively
+            except Exception as e:
+                 logger.error(f"Error removing item '{item_key}' from backlog: {e}", exc_info=True)
+                 return False
+        else:
+            logger.debug(f"Attempted to remove non-existent item '{item_key}' from backlog.")
+            return False # Item wasn't there
 
     def clear(self):
-        """Clear the entire backlog"""
-        self.backlog = []
+        """Clear the entire backlog dictionary."""
+        self.backlog = {}
         self._save_backlog()
+        logger.info("Cleared the entire backlog.")
+
+    # Removed the internal process_backlog method as it's handled by MediaScrobbler

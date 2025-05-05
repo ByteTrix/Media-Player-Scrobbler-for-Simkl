@@ -8,11 +8,11 @@ import platform
 from datetime import datetime
 
 from simkl_mps.window_detection import get_active_window_info, get_all_windows_info
-from simkl_mps.movie_scrobbler import MovieScrobbler
+from simkl_mps.media_scrobbler import MediaScrobbler # Updated import
 from simkl_mps.monitor import Monitor
 from simkl_mps.media_cache import MediaCache
 from simkl_mps.backlog_cleaner import BacklogCleaner
-from simkl_mps.simkl_api import search_movie, get_movie_details, mark_as_watched, is_internet_connected
+from simkl_mps.simkl_api import search_movie, get_movie_details, is_internet_connected
 
 logger = logging.getLogger(__name__)
 

@@ -679,6 +679,7 @@ class TrayAppBase(abc.ABC): # Inherit from ABC for abstract methods
         # Add Tools submenu
         menu_items.append(pystray.Menu.SEPARATOR)
         menu_items.append(pystray.MenuItem("Tools", pystray.Menu(
+            pystray.MenuItem("Local Watch History", self.open_watch_history),
             pystray.MenuItem("Watch Threshold (%)", threshold_submenu),
             pystray.MenuItem("Process Backlog Now", self.process_backlog),
             pystray.MenuItem("Open Logs", self.open_logs),
@@ -689,7 +690,6 @@ class TrayAppBase(abc.ABC): # Inherit from ABC for abstract methods
         menu_items.append(pystray.MenuItem("Online Services", pystray.Menu(
             pystray.MenuItem("SIMKL Website", self.open_simkl),
             pystray.MenuItem("SIMKL Watch History", self.open_simkl_history),
-            pystray.MenuItem("Local Watch History", self.open_watch_history),
         )))
         menu_items.append(pystray.Menu.SEPARATOR)
 
