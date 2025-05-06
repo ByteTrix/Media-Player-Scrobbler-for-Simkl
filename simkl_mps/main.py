@@ -16,8 +16,10 @@ from simkl_mps.config_manager import get_app_data_dir, initialize_paths, get_set
 from simkl_mps.watch_history_manager import WatchHistoryManager # Added import
 
 # Import platform-specific tray implementation
+# Only import get_tray_app, do not import TrayApp or run_tray_app directly
+
 def get_tray_app():
-    """Get the correct tray app implementation based on platform"""
+    """Get the correct tray app implementation and runner based on platform"""
     if sys.platform == 'win32':
         from simkl_mps.tray_win import TrayAppWin as TrayApp, run_tray_app
     elif sys.platform == 'darwin':

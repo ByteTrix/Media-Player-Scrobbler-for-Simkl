@@ -363,25 +363,43 @@ Tips:
     # _get_icon_path is now in base class
 
     def show_notification(self, title, message):
-        """Show a desktop notification using plyer with Windows fallbacks"""
+        """Show a desktop notification using winotify (persistent) or plyer as fallback on Windows, with cross-platform support."""
         logger.debug(f"Attempting to show notification: {title} - {message}")
         
-        # Skip directly to iconless notification since we're having icon loading issues
+        # Try winotify for persistent Action Center notifications
+        if sys.platform == 'win32':
+            try:
+                from winotify import Notification
+                # icon_path = self._get_icon_path(self.status)  # Use the same icon logic as tray
+                toast = Notification(
+                    app_id="kavinthangavel.simkl-mps",  # Must match AppUserModelID in installer
+                    title=title,
+                    msg=message,
+                    # icon=icon_path if icon_path else None
+                )
+                toast.show()
+                logger.debug("Notification sent via winotify with AppUserModelID and icon")
+                return
+            except ImportError:
+                logger.info("winotify not installed, falling back to plyer/other methods.")
+            except Exception as e:
+                logger.warning(f"winotify notification failed: {e}")
+        
+        # Fallback: plyer (not persistent in Action Center)
         try:
-            # Try with plyer but explicitly without an icon
+            from plyer import notification
             notification.notify(
                 title=title,
                 message=message,
                 app_name="MPS for SIMKL",
-                # No app_icon parameter to avoid the icon loading error
                 timeout=10
             )
-            logger.debug("Icon-less notification sent successfully")
+            logger.debug("Icon-less notification sent successfully via plyer")
             return
         except Exception as plyer_err:
             logger.warning(f"Basic notification failed: {plyer_err}")
-            
-        # Second try: Platform-specific native methods with no icons
+        
+        # Fallback: PowerShell or Windows Forms
         try:
             if sys.platform == 'win32':
                 # Windows: Try PowerShell with no icon references
@@ -398,10 +416,8 @@ Tips:
                     Start-Sleep -Seconds 5
                     $notification.Dispose()
                     '''
-                    
                     with open("temp_notify.ps1", "w") as f:
                         f.write(script)
-                    
                     subprocess.Popen(
                         ["powershell", "-ExecutionPolicy", "Bypass", "-File", "temp_notify.ps1"],
                         shell=True,
@@ -413,9 +429,9 @@ Tips:
                     return
                 except Exception as win_err:
                     logger.warning(f"Alternative Windows notification failed: {win_err}")
-                    
                 # Windows MessageBox fallback
                 try:
+                    import ctypes
                     MessageBox = ctypes.windll.user32.MessageBoxW
                     MB_ICONINFORMATION = 0x40
                     MessageBox(None, message, title, MB_ICONINFORMATION)
@@ -423,7 +439,6 @@ Tips:
                     return
                 except Exception as mb_err:
                     logger.warning(f"Windows MessageBox notification failed: {mb_err}")
-                    
         except Exception as native_err:
             logger.error(f"All native notification methods failed: {native_err}")
         
