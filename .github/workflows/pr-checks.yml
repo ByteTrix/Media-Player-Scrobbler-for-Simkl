@@ -27,6 +27,7 @@ jobs:
             feat
             chore
             refactor
+            rf
             rm
             del
             build

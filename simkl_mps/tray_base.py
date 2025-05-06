@@ -185,68 +185,60 @@ class TrayAppBase(abc.ABC): # Inherit from ABC for abstract methods
             
         return image
 
-    def _get_icon_path(self, status="active"):
-        """Get the path to an icon file based on status, prioritizing high-resolution icons"""
+    def _get_icon_path(self, status: str):
+        """Get the path to an icon file based on status, prioritizing status-specific icons."""
         try:
             # Platform-specific considerations
             if sys.platform == "win32":
-                # Windows prefers ICO files, but can use high-res PNG too
                 preferred_formats = ["ico", "png"]
-                preferred_sizes = [256, 128, 64, 32]  # Ordered by preference (highest first)
+                # Order for search preference if multiple sized files exist.
+                preferred_sizes = [256, 128, 64, 48, 32, 24, 16]
             elif sys.platform == "darwin":
-                # macOS works best with high-res PNG files
+                preferred_formats = ["png", "ico"] # macOS prefers png
+                preferred_sizes = [512, 256, 128, 64, 32] # macOS can handle large icons
+            else: # Linux
                 preferred_formats = ["png", "ico"]
-                preferred_sizes = [512, 256, 128, 64]  # macOS prefers higher res
-            else:
-                # Linux typically uses PNG files
-                preferred_formats = ["png", "ico"]
-                preferred_sizes = [256, 128, 64, 32]
-            
-            # First, try to find size-specific icons with the status
+                preferred_sizes = [256, 128, 64, 48, 32, 24, 16]
+
+            # 1. Try status-specific sized icons (e.g., simkl-mps-running-32.png)
             for size in preferred_sizes:
                 for fmt in preferred_formats:
-                    # Check for size-specific status icon
-                    paths = [
-                        self.assets_dir / f"simkl-mps-{status}-{size}.{fmt}",
-                        self.assets_dir / f"simkl-mps-{size}.{fmt}"  # Generic size-specific
-                    ]
-                    for path in paths:
-                        if path.exists():
-                            logger.debug(f"Using high-resolution icon for notification: {path}")
-                            return str(path)
-            
-            # If we don't find size-specific icons, try the standard ones
-            icon_paths = []
-            
-            # Add status-specific icons first
+                    path = self.assets_dir / f"simkl-mps-{status}-{size}.{fmt}"
+                    if path.exists():
+                        logger.debug(f"Using status-specific sized icon: {path}")
+                        return str(path)
+
+            # 2. Try status-specific non-sized icons (e.g., simkl-mps-running.png)
             for fmt in preferred_formats:
-                icon_paths.append(self.assets_dir / f"simkl-mps-{status}.{fmt}")
-            
-            # Add general icons as fallback
-            for fmt in preferred_formats:
-                icon_paths.append(self.assets_dir / f"simkl-mps.{fmt}")
-            
-            # Try to find any usable icon
-            for path in icon_paths:
+                path = self.assets_dir / f"simkl-mps-{status}.{fmt}"
                 if path.exists():
-                    logger.debug(f"Using standard icon for notification: {path}")
+                    logger.debug(f"Using status-specific non-sized icon: {path}")
+                    return str(path)
+
+            # 3. Try generic sized icons (e.g., simkl-mps-32.png) - as fallback
+            for size in preferred_sizes:
+                for fmt in preferred_formats:
+                    path = self.assets_dir / f"simkl-mps-{size}.{fmt}"
+                    if path.exists():
+                        logger.debug(f"Using generic sized icon (fallback for status '{status}'): {path}")
+                        return str(path)
+            
+            # 4. Try generic non-sized icon (e.g., simkl-mps.png) - as final fallback
+            for fmt in preferred_formats:
+                path = self.assets_dir / f"simkl-mps.{fmt}"
+                if path.exists():
+                    logger.debug(f"Using generic non-sized icon (fallback for status '{status}'): {path}")
                     return str(path)
             
-            # Last resort - look in the system path for the executable's directory
-            if getattr(sys, 'frozen', False):
-                exe_dir = Path(sys.executable).parent
-                for fmt in preferred_formats:
-                    icon_path = exe_dir / f"simkl-mps.{fmt}"
-                    if icon_path.exists():
-                        logger.debug(f"Using executable directory icon: {icon_path}")
-                        return str(icon_path)
-            
-            # If no icon found, return None
-            logger.warning(f"No suitable icon found for notifications in: {self.assets_dir}")
+            # The self.assets_dir initialization (lines 93-118) is comprehensive.
+            # The original code had a section for sys.executable.parent, which is covered if
+            # self.assets_dir resolution points there or includes it in its search.
+
+            logger.warning(f"No suitable icon found for status '{status}' in: {self.assets_dir}")
             return None
             
         except Exception as e:
-            logger.error(f"Error finding icon path: {e}")
+            logger.error(f"Error finding icon path for status '{status}': {e}")
             return None
 
     def open_config_dir(self, _=None):
@@ -679,6 +671,7 @@ class TrayAppBase(abc.ABC): # Inherit from ABC for abstract methods
         # Add Tools submenu
         menu_items.append(pystray.Menu.SEPARATOR)
         menu_items.append(pystray.MenuItem("Tools", pystray.Menu(
+            pystray.MenuItem("Local Watch History", self.open_watch_history),
             pystray.MenuItem("Watch Threshold (%)", threshold_submenu),
             pystray.MenuItem("Process Backlog Now", self.process_backlog),
             pystray.MenuItem("Open Logs", self.open_logs),
@@ -689,7 +682,6 @@ class TrayAppBase(abc.ABC): # Inherit from ABC for abstract methods
         menu_items.append(pystray.MenuItem("Online Services", pystray.Menu(
             pystray.MenuItem("SIMKL Website", self.open_simkl),
             pystray.MenuItem("SIMKL Watch History", self.open_simkl_history),
-            pystray.MenuItem("Local Watch History", self.open_watch_history),
         )))
         menu_items.append(pystray.Menu.SEPARATOR)
 

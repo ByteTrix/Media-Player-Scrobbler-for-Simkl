@@ -78,6 +78,13 @@ If you find this project useful, consider supporting development:
 - [iamkroot's Trakt Scrobbler](https://github.com/iamkroot/trakt-scrobbler/) – Inspiration
 - [masyk](https://github.com/masyk) – Logo and technical guidance (SIMKL Dev)
 
+## 🛠️ Related Tools
+
+These tools can help organize and rename media files automatically, which can improve the accuracy and ease of scrobbling.
+
+- [FileBot](https://www.filebot.net/) - Media File Renaming
+- TVRename - TV File Data Automation (Optional)
+- Shoko - Anime File Data Automation (Optional)
 ---
 
 <div align="center">

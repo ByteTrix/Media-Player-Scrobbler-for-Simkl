@@ -34,6 +34,7 @@ colorama = ">=0.4.4"
 pystray = ">=0.19.0"
 pillow = ">=11.2.0"
 plyer = ">=2.0.0"
+winotify = { version = "^1.1.0", markers = "sys_platform == 'win32'" }
 
 [tool.poetry.dependencies.pygetwindow]
 version = ">=0.0.9"
@@ -57,6 +58,9 @@ markers = "sys_platform == 'darwin'"
 version = ">=3.42.0"
 optional = true
 markers = "sys_platform == 'linux' and python_version >= '3.9' and python_version < '4.0'"
+
+[tool.setuptools]
+include-package-data = true
 
 [tool.poetry.urls]
 "Linux System Dependencies" = "https://github.com/kavinthangavel/media-player-scrobbler-for-simkl/wiki/Installation#linux-installation"

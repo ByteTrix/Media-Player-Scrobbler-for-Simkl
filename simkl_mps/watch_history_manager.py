@@ -28,12 +28,6 @@ class WatchHistoryManager:
         
         # Make sure we have the viewer files in the app_data_dir
         self._ensure_viewer_exists()
-        self.app_data_dir = app_data_dir
-        self.history_file = self.app_data_dir / history_file
-        self.history = self._load_history()
-        
-        # Make sure we have the viewer files in the app_data_dir
-        self._ensure_viewer_exists()
         
     def _load_history(self):
         """Load the history from file, creating the file if it does not exist."""
@@ -180,111 +174,35 @@ class WatchHistoryManager:
         return True
         
     def _ensure_viewer_exists(self):
-        """
-        Make sure the watch history viewer files exist in the app_data_dir
-        Copies them from the installed package only if they don't exist or are outdated
-        """
-        try:
-            # Target directory for the viewer files
-            viewer_dir = self.app_data_dir / "watch-history-viewer"
-            if not viewer_dir.exists():
-                os.makedirs(viewer_dir, exist_ok=True)
-            logger.info(f"Created watch history viewer directory: {viewer_dir}")
-            
-            # Find the source files
-            source_dir = self._get_source_dir()
-            
-            if source_dir and source_dir.exists():
-            # Files we need to check
-                required_files = ["index.html", "style.css", "script.js"]
-                needs_update = False
-            
-            # Check if any required files are missing or outdated
-            for file in required_files:
-                source_file = source_dir / file
-                target_file = viewer_dir / file
-                
-                if not target_file.exists():
-                    needs_update = True
-                    logger.debug(f"File {file} missing in target directory")
-                    break
-                
-                if source_file.exists() and os.path.getmtime(source_file) > os.path.getmtime(target_file):
-                    needs_update = True
-                    logger.debug(f"File {file} is outdated in target directory")
-                    break
-            
-            if needs_update:
-                logger.info(f"Updating watch history viewer files from {source_dir}")
-                
-                # Copy all the files that need updating
-                for file in required_files:
-                    source_file = source_dir / file
-                    target_file = viewer_dir / file
-                
-                if source_file.exists():
-                    shutil.copy2(source_file, target_file)
-                    logger.debug(f"Copied {file} to {viewer_dir}")
-                else:
-                    logger.warning(f"Source file {source_file} not found")
-                
-                # Update asset files if needed
-                source_assets = source_dir / "assets"
-                if source_assets.exists() and source_assets.is_dir():
-                    target_assets = viewer_dir / "assets"
-                if not target_assets.exists():
-                    os.makedirs(target_assets, exist_ok=True)
-                
-                # Copy only new or modified asset files
-                for asset_file in source_assets.iterdir():
-                    if asset_file.is_file():
-                        target_asset = target_assets / asset_file.name
-                    if not target_asset.exists() or os.path.getmtime(asset_file) > os.path.getmtime(target_asset):
-                            shutil.copy2(asset_file, target_assets / asset_file.name)
-                            logger.debug(f"Copied asset {asset_file.name} to {target_assets}")
-                
-                logger.info("Watch history viewer files updated successfully")
+        """Ensure the watch history viewer files exist in the user's app data directory, always copying from the bundled source."""
+        import shutil
+        user_dir = pathlib.Path.home() / "kavinthangavel" / "simkl-mps" / "watch-history-viewer"
+        source_dir = self._get_source_dir()
+        # Always copy all files from source_dir to user_dir, overwriting if needed
+        if not user_dir.exists():
+            user_dir.mkdir(parents=True, exist_ok=True)
+        for item in source_dir.iterdir():
+            dest = user_dir / item.name
+            if item.is_dir():
+                if dest.exists():
+                    shutil.rmtree(dest)
+                shutil.copytree(item, dest)
             else:
-                logger.error(f"Could not find source directory for watch history viewer files")
-        except Exception as e:
-            logger.error(f"Error ensuring watch history viewer exists: {e}", exc_info=True)
-            
+                shutil.copy2(item, dest)
+        logger.info(f"Ensured watch-history-viewer is up-to-date in user directory: {user_dir}")
+
     def _get_source_dir(self):
-        """Find the source directory for the watch history viewer files"""
-        # Check if running from package or from source
+        """Find the source directory for the watch history viewer files (cross-platform, bundled in temp when frozen)."""
+        import sys
+        from pathlib import Path
         if getattr(sys, 'frozen', False):
-            # If we're running from a frozen executable (like PyInstaller)
-            base_dir = pathlib.Path(sys.executable).parent
-            possible_dirs = [
-                base_dir / "simkl_mps" / "watch-history-viewer",
-                base_dir / "watch-history-viewer",
-                # User specific paths
-                pathlib.Path.home() / "kavinthangavel" / "simkl-mps" / "watch-history-viewer",
-            ]
+            # PyInstaller bundle: _MEIPASS points to the temp extraction dir
+            # The folder is bundled as simkl_mps/watch-history-viewer
+            return Path(sys._MEIPASS) / "simkl_mps" / "watch-history-viewer"
         else:
-            # If we're running from source
-            module_dir = pathlib.Path(__file__).parent
-            possible_dirs = [
-                module_dir / "watch-history-viewer",
-                # User specific paths
-                pathlib.Path.home() / "kavinthangavel" / "simkl-mps" / "watch-history-viewer",
-            ]
-            
-        # Log all paths being checked for debugging
-        logger.debug(f"Checking the following paths for watch-history-viewer:")
-        for path in possible_dirs:
-            logger.debug(f"  - {path}")
-            
-        # Check each possible location
-        for d in possible_dirs:
-            if d.exists() and (d / "index.html").exists():
-                logger.info(f"Found watch-history-viewer directory at: {d}")
-                return d
-                
-        # If we can't find the directory, log a warning
-        logger.warning(f"Could not find watch-history-viewer directory in any of the expected locations")
-        return None
-    
+            # Development: use the source folder
+            return Path(__file__).parent / "watch-history-viewer"
+
     def open_history(self):
         """Open the history page in the default web browser"""
         try:
@@ -362,23 +280,45 @@ class WatchHistoryManager:
             logger.error(f"Error updating history data: {e}", exc_info=True)
     
     def add_entry(self, media_item, media_file_path=None, watched_progress=100):
-        """Add a new entry to watch history"""
+        """Add a new entry to watch history, or update existing show entries with new episodes"""
+        
         # Check if we already have this item in the history
         existing_entry = None
         existing_entry_index = -1
 
-        # Find existing entry by simkl_id and type
+        # Find existing entry by simkl_id regardless of type
+        # This ensures we always update existing shows rather than creating new entries
         for i, entry in enumerate(self.history):
-            if (entry.get("simkl_id") == media_item.get("simkl_id") and
-                entry.get("type") == media_item.get("type")):
+            if entry.get("simkl_id") == media_item.get("simkl_id"):
                 existing_entry = entry
                 existing_entry_index = i
                 break
 
         # --- Handle TV Shows/Anime ---
-        if existing_entry and media_item.get("type") in ["tv", "anime"] and "episode" in media_item:
+        if existing_entry and media_item.get("type") in ["tv", "show", "anime"] and "episode" in media_item:
             episode_number = media_item.get("episode")
-            logger.debug(f"Found existing TV show entry for ID {media_item.get('simkl_id')}. Checking episode {episode_number}.")
+
+            # Always ensure season and episode are set at the top level with the latest watched
+            if "season" in media_item:
+                existing_entry["season"] = media_item.get("season")
+            
+            if "episode" in media_item:
+                existing_entry["episode"] = media_item.get("episode")
+
+            # Update basic metadata from the new media_item
+            if "poster_url" in media_item and media_item.get("poster_url"): # Use poster_url
+                existing_entry["poster_url"] = media_item.get("poster_url")
+            if "year" in media_item and media_item.get("year"):
+                existing_entry["year"] = media_item.get("year")
+            if "overview" in media_item and media_item.get("overview"):
+                existing_entry["overview"] = media_item.get("overview")
+            if "runtime" in media_item and media_item.get("runtime"):
+                existing_entry["runtime"] = media_item.get("runtime")
+            if "ids" in media_item and media_item.get("ids"):
+                existing_entry["ids"] = media_item.get("ids")
+                # Ensure imdb_id is at the top level if present in ids (for consistency)
+                if "imdb" in media_item.get("ids", {}):
+                    existing_entry["imdb_id"] = media_item["ids"]["imdb"]
 
             # Ensure episodes list exists
             if "episodes" not in existing_entry:
@@ -389,7 +329,6 @@ class WatchHistoryManager:
             for ep in existing_entry.get("episodes", []):
                 if ep.get("number") == episode_number:
                     # Update existing episode's watched_at and file info
-                    logger.debug(f"Updating existing episode {episode_number} for show ID {media_item.get('simkl_id')}.")
                     ep["watched_at"] = datetime.now().isoformat()
                     if media_file_path:
                         ep["file_path"] = str(media_file_path)
@@ -399,7 +338,6 @@ class WatchHistoryManager:
 
             # Add new episode if it doesn't exist
             if not episode_exists:
-                logger.debug(f"Adding new episode {episode_number} for show ID {media_item.get('simkl_id')}.")
                 episode_data = {
                     "number": episode_number,
                     "title": media_item.get("episode_title", f"Episode {episode_number}"),
@@ -409,64 +347,85 @@ class WatchHistoryManager:
                     episode_data["file_path"] = str(media_file_path)
                     episode_data.update(self._get_file_metadata(media_file_path))
                 existing_entry["episodes"].append(episode_data)
+                logger.info(f"Added episode {episode_number} to existing show '{existing_entry['title']}' (ID: {existing_entry['simkl_id']})")
 
             # Update overall show watched_at and episode count
             existing_entry["watched_at"] = datetime.now().isoformat()
             existing_entry["episodes_watched"] = len(existing_entry.get("episodes", [])) # Recalculate count
 
-            # Move the updated show entry to the top
+            # Move the updated show entry to the top of the list (most recently watched)
             if existing_entry_index != -1:
-                 self.history.pop(existing_entry_index)
-                 self.history.insert(0, existing_entry)
+                self.history.pop(existing_entry_index)
+                self.history.insert(0, existing_entry)
 
         # --- Handle Movies ---
         elif existing_entry and media_item.get("type") == "movie":
-            logger.debug(f"Found existing movie entry for ID {media_item.get('simkl_id')}. Updating timestamp and file info.")
             # Update watched_at timestamp and file info for the existing movie
             existing_entry["watched_at"] = datetime.now().isoformat()
+            
+            # Update metadata from new media_item
+            if "poster_url" in media_item and media_item.get("poster_url"): # Use poster_url
+                existing_entry["poster_url"] = media_item.get("poster_url")
+            if "year" in media_item and media_item.get("year"):
+                existing_entry["year"] = media_item.get("year")
+            if "overview" in media_item and media_item.get("overview"):
+                existing_entry["overview"] = media_item.get("overview")
+            if "runtime" in media_item and media_item.get("runtime"):
+                existing_entry["runtime"] = media_item.get("runtime")
+            if "ids" in media_item and media_item.get("ids"):
+                existing_entry["ids"] = media_item.get("ids")
+                # Ensure imdb_id is at the top level if present in ids
+                if "imdb" in media_item.get("ids", {}):
+                    existing_entry["imdb_id"] = media_item["ids"]["imdb"]
+                    
+            # Update file path and metadata if provided
             if media_file_path:
                 existing_entry["file_path"] = str(media_file_path)
                 existing_entry.update(self._get_file_metadata(media_file_path))
-            # Update other fields if they are newer/better in media_item
-            for key in ["poster", "year", "overview", "runtime", "imdb_id"]:
-                 if key in media_item and media_item[key]:
-                     existing_entry[key] = media_item[key]
 
-            # Move the updated movie entry to the top
+            # Move the updated movie entry to the top of the list
             if existing_entry_index != -1:
-                 self.history.pop(existing_entry_index)
-                 self.history.insert(0, existing_entry)
+                self.history.pop(existing_entry_index)
+                self.history.insert(0, existing_entry)
+                logger.info(f"Updated movie '{existing_entry['title']}' (ID: {existing_entry['simkl_id']})")
 
         # --- Handle New Entries (Movie or TV Show not found) ---
         elif not existing_entry:
-            logger.debug(f"No existing entry found for ID {media_item.get('simkl_id')} and type {media_item.get('type')}. Creating new entry.")
             # Create new history entry
             history_entry = {
                 "simkl_id": media_item.get("simkl_id"),
                 "title": media_item.get("title", "Unknown Title"),
                 "type": media_item.get("type", "movie"),
                 "watched_at": datetime.now().isoformat(),
-                "poster": media_item.get("poster", ""),
+                "poster_url": media_item.get("poster_url", ""), # Use poster_url
                 "year": media_item.get("year"),
-                "overview": media_item.get("overview", ""),
-                "runtime": media_item.get("runtime")
+                "runtime": media_item.get("runtime"),
+                "overview": media_item.get("overview"),
+                "ids": media_item.get("ids", {})
             }
-            
+
+            # Always add season/episode for TV shows
+            if media_item.get("type") in ["tv", "show", "anime"]:
+                if "season" in media_item:
+                    history_entry["season"] = media_item.get("season")
+                if "episode" in media_item:
+                    history_entry["episode"] = media_item.get("episode")
+
             # Add file information if available
             if media_file_path:
                 history_entry["file_path"] = str(media_file_path)
                 history_entry.update(self._get_file_metadata(media_file_path))
-            
-            # Add IMDB ID if available
-            if "ids" in media_item and "imdb" in media_item["ids"]:
-                history_entry["imdb_id"] = media_item["ids"]["imdb"]
-            
-            # For TV shows, add episode information
-            if media_item.get("type") in ["tv", "anime"] and "episode" in media_item:
+
+            # Ensure imdb_id is at the top level if present in ids (for consistency)
+            if "ids" in history_entry and "imdb" in history_entry["ids"]:
+                 history_entry["imdb_id"] = history_entry["ids"]["imdb"]
+
+            # For TV shows/anime, also add episode information to the episodes list
+            if history_entry["type"] in ["tv", "show", "anime"] and "episode" in media_item:
                 history_entry["episodes_watched"] = 1
                 history_entry["total_episodes"] = media_item.get("total_episodes")
-                
-                # Initialize episodes list
+
+                # Initialize episodes list with the first episode
                 history_entry["episodes"] = [{
                     "number": media_item.get("episode"),
                     "title": media_item.get("episode_title", f"Episode {media_item.get('episode')}"),
@@ -477,6 +436,10 @@ class WatchHistoryManager:
                 if media_file_path and "episodes" in history_entry:
                     history_entry["episodes"][0]["file_path"] = str(media_file_path)
                     history_entry["episodes"][0].update(self._get_file_metadata(media_file_path))
+                
+                logger.info(f"Created new show entry for '{history_entry['title']}' (ID: {history_entry['simkl_id']}) with episode {media_item.get('episode')}")
+            else:
+                logger.info(f"Created new movie entry for '{history_entry['title']}' (ID: {history_entry['simkl_id']})")
             
             # Add the new entry to the beginning of the list
             self.history.insert(0, history_entry)

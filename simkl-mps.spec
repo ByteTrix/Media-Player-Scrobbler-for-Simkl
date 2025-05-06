@@ -143,6 +143,7 @@ a = Analysis(
     binaries=[],
     datas=[
         (str(assets_path), assets_dest), # Your existing assets line
+        ('simkl_mps/watch-history-viewer', 'simkl_mps/watch-history-viewer'), # Add watch history viewer
         # Add the following line:
         (guessit_data_path, 'guessit/data') if guessit_data_path and os.path.isdir(guessit_data_path) else None,
         # Add babelfish data
@@ -150,7 +151,7 @@ a = Analysis(
         # Add guessit config
         (guessit_config_path, 'guessit/config') if guessit_config_path and os.path.isdir(guessit_config_path) else None
     ],
-    hiddenimports=hidden_imports,
+    hiddenimports=hidden_imports + ['winotify'],
     excludes=[],
     hookspath=[],
     hooksconfig={},
@@ -202,11 +203,13 @@ tray_a = Analysis(
     binaries=[],
     datas=[
         (str(assets_path), assets_dest),
+        ('simkl_mps/watch-history-viewer', 'simkl_mps/watch-history-viewer'), # Bundle watch-history-viewer for tray app
+        ('simkl_mps/tray_win.py', 'simkl_mps/tray_win'), # Add tray_win.py
         (guessit_data_path, 'guessit/data') if guessit_data_path and os.path.isdir(guessit_data_path) else None,
         (babelfish_data_path, 'babelfish/data') if babelfish_data_path and os.path.isdir(babelfish_data_path) else None,
         (guessit_config_path, 'guessit/config') if guessit_config_path and os.path.isdir(guessit_config_path) else None
     ],
-    hiddenimports=hidden_imports,
+    hiddenimports=hidden_imports + ['winotify'],
     excludes=[],
     hookspath=[],
     hooksconfig={},

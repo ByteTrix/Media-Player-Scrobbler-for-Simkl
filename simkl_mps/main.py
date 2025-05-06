@@ -11,14 +11,15 @@ import threading
 import pathlib
 import logging
 from simkl_mps.monitor import Monitor
-from simkl_mps.simkl_api import search_movie, get_movie_details, is_internet_connected
 from simkl_mps.credentials import get_credentials
 from simkl_mps.config_manager import get_app_data_dir, initialize_paths, get_setting, APP_NAME
 from simkl_mps.watch_history_manager import WatchHistoryManager # Added import
 
 # Import platform-specific tray implementation
+# Only import get_tray_app, do not import TrayApp or run_tray_app directly
+
 def get_tray_app():
-    """Get the correct tray app implementation based on platform"""
+    """Get the correct tray app implementation and runner based on platform"""
     if sys.platform == 'win32':
         from simkl_mps.tray_win import TrayAppWin as TrayApp, run_tray_app
     elif sys.platform == 'darwin':
@@ -176,8 +177,6 @@ class SimklScrobbler:
         else:
              logger.warning("Not running in main thread, skipping signal handler setup.")
 
-        self.monitor.set_search_callback(self._search_and_cache_movie)
-
         if not self.monitor.start():
              logger.error("Failed to start the monitor thread.")
              self.running = False
@@ -206,81 +205,6 @@ class SimklScrobbler:
         """Handles termination signals (SIGINT, SIGTERM) for graceful shutdown."""
         logger.warning(f"Received signal {signal.Signals(sig).name}. Initiating graceful shutdown...")
         self.stop()
-
-    def _search_and_cache_movie(self, title):
-        """
-        Callback function provided to the Monitor for movie identification.
-
-        Searches Simkl for the movie title, retrieves details (like runtime),
-        and caches the information via the Monitor's scrobbler.
-
-        Args:
-            title (str): The movie title extracted by the monitor.
-        """
-        if not title:
-            logger.warning("Search Callback: Received empty title.")
-            return
-            
-        # Check for generic titles that should be ignored
-        if title.lower() in ["audio", "video", "media", "no file"]:
-            return
-
-        logger.info(f"Search Callback: Identifying title: '{title}'")
-
-        if not is_internet_connected():
-            # Logged within is_internet_connected if it fails multiple times
-            logger.debug(f"Search Callback: Cannot search for '{title}', no internet connection.")
-            return
-
-        try:
-            # Search for the movie using the API
-            search_result = search_movie(title, self.client_id, self.access_token)
-            if not search_result:
-                logger.warning(f"Search Callback: No Simkl match found for '{title}'.")
-                # Optionally cache the negative result to avoid repeated searches?
-                # self.monitor.cache_movie_info(title, None, None, None) # Consider adding this
-                return
-
-            # Extract Simkl ID and official title
-            simkl_id = None
-            movie_name = title # Default to original title
-            runtime_minutes = None
-
-            # Handle different possible structures of the search result
-            ids_dict = search_result.get('ids') or search_result.get('movie', {}).get('ids')
-            if ids_dict:
-                simkl_id = ids_dict.get('simkl') or ids_dict.get('simkl_id')
-
-                if simkl_id:
-                    # Use the title from the Simkl result if available
-                    movie_name = search_result.get('title') or search_result.get('movie', {}).get('title', title)
-                    logger.info(f"Search Callback: Found Simkl ID {simkl_id} for '{movie_name}'. Fetching details...")
-
-                    # Fetch detailed information (including runtime)
-                    try:
-                        details = get_movie_details(simkl_id, self.client_id, self.access_token)
-                        if details:
-                            runtime_minutes = details.get('runtime')
-                            if runtime_minutes:
-                                logger.info(f"Search Callback: Retrieved runtime: {runtime_minutes} minutes for ID {simkl_id}.")
-                            else:
-                                logger.warning(f"Search Callback: Runtime missing or zero in details for ID {simkl_id}.")
-                        else:
-                            logger.warning(f"Search Callback: Could not retrieve details for ID {simkl_id}.")
-                    except Exception as detail_error:
-                        logger.error(f"Search Callback: Error fetching details for ID {simkl_id}: {detail_error}", exc_info=True)
-
-                    # Cache the found information (original title -> simkl info)
-                    self.monitor.cache_movie_info(title, simkl_id, movie_name, runtime_minutes)
-                    logger.info(f"Search Callback: Cached info: '{title}' -> '{movie_name}' (ID: {simkl_id}, Runtime: {runtime_minutes})")
-                else:
-                    logger.warning(f"Search Callback: No Simkl ID could be extracted from search result for '{title}'.")
-                    # Optionally cache negative result here too
-                    # self.monitor.cache_movie_info(title, None, None, None)
-
-        except Exception as e:
-            # Catch unexpected errors during the API interaction or processing
-            logger.exception(f"Search Callback: Unexpected error during search/cache for '{title}': {e}")
 
 def run_as_background_service():
     """

@@ -99,31 +99,59 @@ def search_movie(title, client_id, access_token):
             logger.error(f"Simkl API: Movie search failed for '{title}'. Status: {response.status_code}. Response: {error_details}")
             return None
 
-        # Proceed only if status code was 200
-        results = response.json()
-        logger.info(f"Simkl API: Found {len(results) if results else 0} results for '{title}'.")
+        # Process the response to find and reshape the movie item
+        results_json = response.json()
+        logger.info(f"Simkl API: Found {len(results_json) if isinstance(results_json, list) else 'N/A'} results for '{title}'.")
+
+        final_result_item = None
+
+        if isinstance(results_json, list) and results_json: # Primary search has results in a list
+            final_result_item = results_json[0]
+        elif not isinstance(results_json, list) and results_json is not None : # Unexpected primary search response format but not empty
+            logger.warning(f"Simkl API: Unexpected primary search response format for '{title}'. Expected list, got {type(results_json)}. Response: {results_json}")
+            # final_result_item remains None, fallback will be attempted.
         
-        if not results:
-            logger.info(f"Simkl API: No direct match for '{title}', attempting fallback search.")
-            return _fallback_search_movie(title, client_id, access_token)
+        # Try fallback if primary search yielded no usable result, was empty, or malformed
+        if not final_result_item: 
+            logger.info(f"Simkl API: No direct match or usable result from primary search for '{title}', attempting fallback search.")
+            final_result_item = _fallback_search_movie(title, client_id, access_token)
+            # _fallback_search_movie returns a single item (dict) or None
 
-        if results:
-            first_result = results[0]
-            if 'movie' not in first_result and first_result.get('type') == 'movie':
-                reshaped_result = {'movie': first_result}
-                logger.info(f"Simkl API: Reshaped search result for '{title}'.")
-                return reshaped_result
-                
-            if 'movie' in first_result and 'ids' in first_result['movie']:
-                ids = first_result['movie']['ids']
-                simkl_id_alt = ids.get('simkl_id')
-                if simkl_id_alt and not ids.get('simkl'):
-                    logger.info(f"Simkl API: Found ID under 'simkl_id', adding 'simkl' key for consistency.")
-                    first_result['movie']['ids']['simkl'] = simkl_id_alt
-                elif not ids.get('simkl') and not simkl_id_alt:
-                     logger.warning(f"Simkl API: No 'simkl' or 'simkl_id' found in IDs for '{title}'.")
+        if final_result_item: # If we have an item from primary or fallback
+            if isinstance(final_result_item, dict):
+                # Determine if the item is a movie based on 'type' or 'endpoint_type'
+                is_movie_type = (final_result_item.get('type') == 'movie' or \
+                                 final_result_item.get('endpoint_type') == 'movies')
 
-        return results[0] if results else None
+                if is_movie_type:
+                    # If it's a movie type, ensure it's wrapped in {'movie': ...} structure
+                    if 'movie' not in final_result_item:
+                        logger.info(f"Simkl API: Reshaping search result for '{title}' into {{'movie': ...}} structure.")
+                        final_result_item = {'movie': final_result_item}
+                    
+                    # ID consistency check: ensure 'simkl' id exists if 'simkl_id' is present
+                    # This operates on the inner movie dictionary.
+                    if 'movie' in final_result_item and \
+                       isinstance(final_result_item.get('movie'), dict) and \
+                       'ids' in final_result_item['movie']:
+                        ids = final_result_item['movie']['ids']
+                        simkl_id_alt = ids.get('simkl_id') 
+                        if simkl_id_alt and not ids.get('simkl'):
+                            logger.info(f"Simkl API: Found ID under 'simkl_id' in movie object, adding 'simkl' key for consistency.")
+                            final_result_item['movie']['ids']['simkl'] = simkl_id_alt
+                        elif not ids.get('simkl') and not simkl_id_alt:
+                             logger.warning(f"Simkl API: No 'simkl' or 'simkl_id' found in movie IDs for '{title}'.")
+                    # Return the processed (possibly reshaped) movie item
+                    return final_result_item
+                else: # Not identified as a movie type
+                     logger.warning(f"Simkl API: Search for movie '{title}' returned a non-movie item: Type='{final_result_item.get('type')}', EndpointType='{final_result_item.get('endpoint_type')}'. Discarding.")
+                     return None # Explicitly return None if it's not a movie type
+            else: # final_result_item is not a dict (unexpected)
+                logger.warning(f"Simkl API: Expected dictionary for final_result_item from search, got {type(final_result_item)}. Discarding.")
+                return None
+        else: # No results from primary or fallback
+            logger.info(f"Simkl API: No movie results found for '{title}' after primary and fallback search.")
+            return None
 
     except requests.exceptions.RequestException as e:
         logger.error(f"Simkl API: Network error searching for '{title}': {e}", exc_info=True)
@@ -170,24 +198,77 @@ def _fallback_search_movie(title, client_id, access_token):
         logger.error(f"Simkl API: Network error during fallback search for '{title}': {e}", exc_info=True)
         return None
 
-def mark_as_watched(simkl_id, client_id, access_token):
+def search_file(file_path, client_id, part=None):
     """
-    Marks a movie as watched on Simkl.
+    Searches for media based on a file path using the Simkl /search/file endpoint.
 
     Args:
-        simkl_id (int | str): The Simkl ID of the movie.
+        file_path (str): The full path to the media file.
+        client_id (str): Simkl API client ID.
+        part (int, optional): The part number (e.g., for multi-part files). Defaults to None.
+
+    Returns:
+        dict | None: The parsed JSON response from Simkl, or None if an error occurs.
+    """
+    if not is_internet_connected():
+        logger.warning(f"Simkl API: Cannot search for file '{file_path}', no internet connection.")
+        return None
+    if not client_id:
+        logger.error("Simkl API: Missing Client ID for file search.")
+        return None
+
+    headers = {
+        'Content-Type': 'application/json',
+        'simkl-api-key': client_id
+    }
+    headers = _add_user_agent(headers)
+    data = {'file': file_path}
+    if part is not None:
+        data['part'] = part
+
+    logger.info(f"Simkl API: Searching by file: '{file_path}' (Part: {part if part else 'N/A'})...")
+    try:
+        response = requests.post(f'{SIMKL_API_BASE_URL}/search/file', headers=headers, json=data)
+
+        if response.status_code != 200:
+            error_details = ""
+            try:
+                error_details = response.json()
+            except requests.exceptions.JSONDecodeError:
+                error_details = response.text
+            logger.error(f"Simkl API: File search failed for '{file_path}'. Status: {response.status_code}. Response: {error_details}")
+            return None
+
+        results = response.json()
+        logger.info(f"Simkl API: File search successful for '{file_path}'.")
+        return results
+
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Simkl API: Network error during file search for '{file_path}': {e}", exc_info=True)
+        return None
+
+def add_to_history(payload, client_id, access_token):
+    """
+    Adds items (movies, shows, episodes) to the user's Simkl watch history.
+
+    Args:
+        payload (dict): The data payload conforming to the Simkl /sync/history API.
+                        Example: {'movies': [...], 'shows': [...]}
         client_id (str): Simkl API client ID.
         access_token (str): Simkl API access token.
 
     Returns:
-        bool: True if successfully marked as watched, False otherwise.
+        dict | None: The parsed JSON response from Simkl on success, None otherwise.
     """
     if not is_internet_connected():
-        logger.warning(f"Simkl API: Cannot mark movie ID {simkl_id} as watched, no internet connection.")
-        return False
+        logger.warning("Simkl API: Cannot add item to history, no internet connection.")
+        return None
     if not client_id or not access_token:
-        logger.error("Simkl API: Missing Client ID or Access Token for marking as watched.")
-        return False
+        logger.error("Simkl API: Missing Client ID or Access Token for adding to history.")
+        return None
+    if not payload:
+        logger.error("Simkl API: Empty payload provided for adding to history.")
+        return None
 
     headers = {
         'Content-Type': 'application/json',
@@ -195,26 +276,44 @@ def mark_as_watched(simkl_id, client_id, access_token):
         'Authorization': f'Bearer {access_token}'
     }
     headers = _add_user_agent(headers)
-    data = {'movies': [{'ids': {'simkl': simkl_id}, 'status': 'completed'}]}
 
-    logger.info(f"Simkl API: Marking movie ID {simkl_id} as watched...")
+    # Determine item type for logging (best effort)
+    item_description = "item(s)"
+    if 'movies' in payload and payload['movies']:
+        item_description = f"movie(s): {[m.get('ids', {}).get('simkl', 'N/A') for m in payload['movies']]}"
+    elif 'shows' in payload and payload['shows']:
+        item_description = f"show(s)/episode(s): {[s.get('ids', {}).get('simkl', 'N/A') for s in payload['shows']]}"
+    elif 'episodes' in payload and payload['episodes']:
+         item_description = f"episode(s): {[e.get('ids', {}).get('simkl', 'N/A') for e in payload['episodes']]}"
+
+
+    logger.info(f"Simkl API: Adding {item_description} to history...")
     try:
-        response = requests.post(f'{SIMKL_API_BASE_URL}/sync/history', headers=headers, json=data)
-        
+        response = requests.post(f'{SIMKL_API_BASE_URL}/sync/history', headers=headers, json=payload)
+
         if 200 <= response.status_code < 300:
-            logger.info(f"Simkl API: Successfully marked movie ID {simkl_id} as watched.")
-            return True
+            logger.info(f"Simkl API: Successfully added {item_description} to history.")
+            try:
+                return response.json()
+            except requests.exceptions.JSONDecodeError:
+                 logger.warning("Simkl API: History update successful but response was not valid JSON.")
+                 return {"status": "success", "message": "Non-JSON response received but status code indicated success."} # Return a success indicator
         else:
-            logger.error(f"Simkl API: Failed to mark movie ID {simkl_id} as watched. Status: {response.status_code}")
-            response.raise_for_status()
-            return False
+            error_details = ""
+            try:
+                error_details = response.json()
+            except requests.exceptions.JSONDecodeError:
+                error_details = response.text
+            logger.error(f"Simkl API: Failed to add {item_description} to history. Status: {response.status_code}. Response: {error_details}")
+            # Don't raise_for_status here, allow caller to handle based on None return
+            return None
     except requests.exceptions.ConnectionError as e:
-        logger.error(f"Simkl API: Connection error marking movie ID {simkl_id} as watched: {e}")
-        logger.info(f"Simkl API: Movie ID {simkl_id} will be added to backlog for future syncing.")
-        return False
+        logger.error(f"Simkl API: Connection error adding {item_description} to history: {e}")
+        logger.info(f"Simkl API: Item(s) {item_description} will be added to backlog for future syncing.")
+        return None # Indicate failure but allow backlog processing
     except requests.exceptions.RequestException as e:
-        logger.error(f"Simkl API: Error marking movie ID {simkl_id} as watched: {e}", exc_info=True)
-        return False
+        logger.error(f"Simkl API: Error adding {item_description} to history: {e}", exc_info=True)
+        return None
 
 def get_movie_details(simkl_id, client_id, access_token):
     """
@@ -264,8 +363,9 @@ def get_movie_details(simkl_id, client_id, access_token):
             # Get poster URL if available
             if 'poster' not in movie_details and 'images' in movie_details:
                 if movie_details['images'].get('poster'):
-                    movie_details['poster'] = f"https://simkl.in/posters/{movie_details['images']['poster']}_m.jpg"
-                    logger.info(f"Added poster URL for {title}")
+                    # Store only the poster ID, not the full URL
+                    movie_details['poster'] = movie_details['images']['poster']
+                    logger.info(f"Added poster ID for {title}")
             
             # Ensure type is set for history filtering
             if 'type' not in movie_details:
@@ -277,6 +377,81 @@ def get_movie_details(simkl_id, client_id, access_token):
         return movie_details
     except requests.exceptions.RequestException as e:
         logger.error(f"Simkl API: Error getting movie details for ID {simkl_id}: {e}", exc_info=True)
+        return None
+
+def get_show_details(simkl_id, client_id, access_token):
+    """
+    Retrieves detailed show information from Simkl.
+
+    Args:
+        simkl_id (int | str): The Simkl ID of the show.
+        client_id (str): Simkl API client ID.
+        access_token (str): Simkl API access token.
+
+    Returns:
+        dict | None: A dictionary containing detailed show information,
+                     or None if an error occurs or parameters are missing.
+    """
+    if not client_id or not access_token or not simkl_id:
+        logger.error("Simkl API: Missing required parameters for get_show_details.")
+        return None
+
+    headers = {
+        'Content-Type': 'application/json',
+        'simkl-api-key': client_id,
+        'Authorization': f'Bearer {access_token}'
+    }
+    headers = _add_user_agent(headers)
+    params = {'extended': 'full'}
+    try:
+        logger.info(f"Simkl API: Fetching details for show/anime ID {simkl_id}...")
+        response = requests.get(f'{SIMKL_API_BASE_URL}/tv/{simkl_id}', headers=headers, params=params)
+        response.raise_for_status()
+        show_details = response.json()
+        if show_details:
+            title = show_details.get('title', 'N/A')
+            year = show_details.get('year', 'N/A')
+            show_type = show_details.get('type', 'show')  # 'show' or 'anime'
+            
+            # Ensure essential fields exist for watch history
+            show_details['simkl_id'] = simkl_id  # Add simkl_id explicitly for the history
+            
+            # Get IMDb ID if available
+            if 'ids' in show_details:
+                imdb_id = show_details['ids'].get('imdb')
+                if imdb_id:
+                    # Store IMDb ID directly in the show_details for easy access
+                    # Also ensure it's in the ids sub-dictionary for consistency with cache
+                    show_details['imdb_id'] = imdb_id
+                    show_details['ids']['imdb'] = imdb_id
+                    logger.info(f"Simkl API: Retrieved IMDb ID: {imdb_id} for '{title}'")
+
+                anilist_id = show_details['ids'].get('anilist')
+                if anilist_id:
+                    show_details['ids']['anilist'] = anilist_id # Ensure it's in the ids sub-dictionary
+                    logger.info(f"Simkl API: Retrieved Anilist ID: {anilist_id} for '{title}'")
+            
+            # Get poster URL if available
+            if 'poster' not in show_details and 'images' in show_details:
+                if show_details['images'].get('poster'):
+                    # Store only the poster ID, not the full URL
+                    show_details['poster'] = show_details['images']['poster']
+                    logger.info(f"Added poster ID for {title}")
+            
+            if 'poster' in show_details and not 'poster_url' in show_details:
+                show_details['poster_url'] = show_details['poster']
+                
+            # Ensure type is set for history filtering
+            if 'type' not in show_details:
+                show_details['type'] = show_type
+
+            logger.info(f"Simkl API: Retrieved details for {show_type} '{title}' ({year}).")
+            
+            # Additional debug logging
+            logger.debug(f"Show details for {title} (ID: {simkl_id}): {show_details}")
+        return show_details
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Simkl API: Error getting show details for ID {simkl_id}: {e}", exc_info=True)
         return None
 
 def get_user_settings(client_id, access_token):
