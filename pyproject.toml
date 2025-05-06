@@ -59,6 +59,9 @@ version = ">=3.42.0"
 optional = true
 markers = "sys_platform == 'linux' and python_version >= '3.9' and python_version < '4.0'"
 
+[tool.setuptools]
+include-package-data = true
+
 [tool.poetry.urls]
 "Linux System Dependencies" = "https://github.com/kavinthangavel/media-player-scrobbler-for-simkl/wiki/Installation#linux-installation"
 "Bug Reports" = "https://github.com/kavinthangavel/media-player-scrobbler-for-simkl/issues"
