@@ -40,7 +40,7 @@ elif PLATFORM == 'linux':
     
     if x11_available:
         try:
-            import Xlib.display
+            import Xlib.display # type: ignore
         except ImportError:
             pass
 else:

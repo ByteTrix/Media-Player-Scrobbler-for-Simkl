@@ -29,35 +29,69 @@ class BacklogCleaner:
                 logger.info(f"Created app data directory: {self.app_data_dir}")
             except Exception as e:
                 logger.error(f"Failed to create app data directory: {e}")
-                return []
+                return {} # Return empty dict on error
         if os.path.exists(self.backlog_file):
             try:
                 with open(self.backlog_file, 'r', encoding='utf-8') as f:
                     content = f.read().strip()
                     if content:
                         f.seek(0)
-                        return json.load(f)
+                        # Load data and ensure it's a dictionary
+                        loaded_data = json.load(f)
+                        if isinstance(loaded_data, list):
+                            logger.warning("Backlog file contained a list. Attempting conversion to dictionary format.")
+                            converted_backlog = {}
+                            malformed_items = 0
+                            for item in loaded_data:
+                                if isinstance(item, dict) and 'simkl_id' in item:
+                                    item_key = str(item['simkl_id'])
+                                    if item_key in converted_backlog:
+                                        logger.warning(f"Duplicate simkl_id '{item_key}' found during backlog list conversion. Overwriting.")
+                                    converted_backlog[item_key] = item
+                                else:
+                                    malformed_items += 1
+                                    logger.warning(f"Skipping malformed item during backlog list conversion: {item}")
+                            if malformed_items > 0:
+                                logger.error(f"Found {malformed_items} malformed items during backlog conversion.")
+                            # Save the converted format back to the file immediately
+                            # Note: This requires self.backlog to be set before calling _save_backlog
+                            # We'll handle this by returning the converted dict and letting __init__ assign it.
+                            # If we were calling this method outside __init__, we'd need:
+                            # self.backlog = converted_backlog
+                            # self._save_backlog()
+                            return converted_backlog
+                        elif isinstance(loaded_data, dict):
+                            return loaded_data # Already a dictionary
+                        else:
+                            logger.error(f"Backlog file contained unexpected data type: {type(loaded_data)}. Creating new empty backlog.")
+                            # Fall through to return empty dict after saving
+                            self.backlog = {}
+                            self._save_backlog() # Save the empty dict state
+                            return {}
                     else:
                         logger.debug("Backlog file exists but is empty. Starting with empty backlog.")
-                        return []
+                        return {} # Return empty dict for empty file
             except json.JSONDecodeError as e:
                 logger.error(f"Error loading backlog: {e}")
                 logger.info("Creating new empty backlog due to loading error")
-                self.backlog = []
+                self.backlog = {} # Initialize as dict
                 self._save_backlog()
-                return []
+                return {} # Return empty dict
             except Exception as e:
                 logger.error(f"Error loading backlog: {e}")
+                return {} # Return empty dict on other load errors
         else:
             # File does not exist, create it
             try:
                 with open(self.backlog_file, 'w', encoding='utf-8') as f:
-                    json.dump([], f)
+                    json.dump({}, f) # Dump empty dict for new file
                 logger.info(f"Created new backlog file: {self.backlog_file}")
             except Exception as e:
                 logger.error(f"Failed to create backlog file: {e}")
-            return []
-        return []
+            return {} # Return empty dict if creation failed or after creation
+        # This return statement should ideally not be reached if logic above is correct,
+        # but return {} for safety.
+        return {}
 
     def _save_backlog(self):
         """Save the backlog to file"""
@@ -166,5 +200,9 @@ class BacklogCleaner:
         self.backlog = {}
         self._save_backlog()
         logger.info("Cleared the entire backlog.")
+
+    def has_pending_items(self) -> bool:
+        """Check if there are any pending items in the backlog."""
+        return bool(self.backlog)
 
     # Removed the internal process_backlog method as it's handled by MediaScrobbler

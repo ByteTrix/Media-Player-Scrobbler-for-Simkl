@@ -17,399 +17,531 @@ document.addEventListener('DOMContentLoaded', () => {
     const pageInfo = document.getElementById('page-info');
     const modalBackdrop = document.getElementById('modal-backdrop');
     const expandedContentTemplate = document.getElementById('expanded-content-template');
-    
+
     // Stats elements
     const totalCountEl = document.getElementById('total-count');
     const moviesCountEl = document.getElementById('movies-count');
     const showsCountEl = document.getElementById('shows-count');
     const animeCountEl = document.getElementById('anime-count');
-    
+
     // State
     let historyData = [];
     let activeMediaCard = null;
     let currentView = localStorage.getItem('simkl_history_view') || 'grid';
-    let currentTheme = localStorage.getItem('simkl_history_theme') || 'dark';
+    let currentTheme = localStorage.getItem('simkl_history_theme') || 'dark'; // Default to dark
     let showStats = localStorage.getItem('simkl_history_stats') === 'true';
     let currentPage = 1;
-    let itemsPerPage = 24;
+    let itemsPerPage = 24; // Default for grid view
     let watchChart = null;
-    
-    // Image cache in IndexedDB
-    let imageCache;
-    const IMAGE_CACHE_NAME = 'simkl-images-cache';
-    const CACHE_VERSION = 1;
-    
-    // Initialize image cache
-    initImageCache();
-    
+
     // Apply saved view
     if (currentView === 'list') {
         historyContainer.classList.add('list-view');
-        viewToggle.innerHTML = '<i class="ph ph-grid-four"></i>';
-        itemsPerPage = 12; // Fewer items per page in list view
+        viewToggle.innerHTML = '<i class="ph-duotone ph-grid-four"></i>';
+        itemsPerPage = 15; // More items per page in list view
+    } else {
+        viewToggle.innerHTML = '<i class="ph-duotone ph-list"></i>';
     }
-    
+
     // Apply saved theme
     if (currentTheme === 'dark') {
         document.body.classList.add('dark-mode');
-        themeToggle.innerHTML = '<i class="ph ph-sun"></i>';
+        themeToggle.innerHTML = '<i class="ph-duotone ph-sun"></i>';
+    } else {
+        themeToggle.innerHTML = '<i class="ph-duotone ph-moon"></i>';
     }
-    
+
     // Apply saved stats visibility
     if (showStats) {
         dashboard.style.display = 'block';
     }
-    
-    // Initialize IndexedDB cache for images
-    function initImageCache() {
-        const request = indexedDB.open(IMAGE_CACHE_NAME, CACHE_VERSION);
-        
-        request.onupgradeneeded = (event) => {
-            const db = event.target.result;
-            if (!db.objectStoreNames.contains('images')) {
-                const store = db.createObjectStore('images', { keyPath: 'url' });
-                store.createIndex('timestamp', 'timestamp', { unique: false });
-                console.log('Image cache store created');
-            }
-        };
-        
-        request.onsuccess = (event) => {
-            imageCache = event.target.result;
-            console.log('Image cache initialized');
-        };
-        
-        request.onerror = (event) => {
-            console.error('Error initializing image cache:', event.target.error);
-            // Continue without caching if there's an error
-            imageCache = null;
-        };
-    }
-    
-    // Get image URL with WSRV proxy for SIMKL images
-    function getProxiedImageUrl(originalUrl, size = '_m') {
-        // First check if it's already a wsrv.nl URL
-        if (originalUrl.includes('wsrv.nl')) {
-            return originalUrl;
+
+    // Apply proxy only to Simkl poster URLs, not to placeholder images
+    function getProxiedImageUrl(url) {
+        // If no URL is provided, return a default placeholder
+        if (!url) {
+            console.log('No URL provided to getProxiedImageUrl');
+            return `https://via.placeholder.com/150x225.webp?text=No+Poster`;
         }
         
-        // Build the wsrv.nl URL with optimization parameters
-        const buildWsrvUrl = (url) => {
-            // Highest quality settings with good performance:
-            // No width restriction (original image size)
-            // q=100 - maximum quality
-            // output=webp - still use WebP for better compression
-            // n=-1 - disable caching on wsrv.nl's side
-            // sharp=20 - apply slight sharpening for better detail
-            return `https://wsrv.nl/?url=${encodeURIComponent(url)}&q=100&output=webp&sharp=20&n=-1`;
-        };
+
         
-        // Special case: If the URL already has a directory format like "17/172580032b3d125198"
-        if (/^\d+\/\d+[a-f0-9]*$/.test(originalUrl)) {
-            return buildWsrvUrl(`https://simkl.in/posters/${originalUrl}${size}.jpg`);
-        }
-        
-        // Handle SIMKL poster URL patterns
-        
-        // Pattern 1: Full SIMKL URL (e.g. https://simkl.in/posters/74/74415673dcdc9cdd_m.webp)
-        if (originalUrl.includes('simkl.in/posters/')) {
-            return buildWsrvUrl(originalUrl);
-        }
-        
-        // Pattern 2: Just the ID with or without file extension (e.g. 74415673dcdc9cdd or 74415673dcdc9cdd_m.webp)
-        const idPattern = /^([a-f0-9]+)(?:_[cm])?(?:\.(jpg|webp))?$/i;
-        const idMatch = originalUrl.match(idPattern);
-        if (idMatch) {
-            const id = idMatch[1];
-            const firstTwo = id.substring(0, 2);
-            return buildWsrvUrl(`https://simkl.in/posters/${firstTwo}/${id}${size}.jpg`);
-        }
-        
-        // Pattern 3: Just a numeric SIMKL ID (e.g. 12345)
-        if (/^\d+$/.test(originalUrl)) {
-            return buildWsrvUrl(`https://simkl.in/posters/${originalUrl}${size}.jpg`);
-        }
-        
-        // Log URLs that don't match any patterns for debugging
-        console.log(`Unrecognized poster URL format: ${originalUrl}`);
-        
-        // Fallback - if we can't determine the format, return the original URL
-        return originalUrl;
-    }
-    
-    // Get image from cache or fetch
-    async function getImageWithCache(url) {
-        const cacheKey = url;
-        
-        // If no cache available, return the URL directly
-        if (!imageCache) {
+        // Check if it's a Simkl poster URL (contains simkl.in/posters)
+        if (url.includes('https://simkl.in/posters/')) {
+            // Use direct URL without proxy - wsrv.nl is causing issues
+           
             return url;
         }
-        
-        // Check if we're running from a file:// URL, in which case
-        // direct fetch won't work due to CORS restrictions
-        const isFileProtocol = window.location.protocol === 'file:';
-        
-        return new Promise((resolve) => {
-            const transaction = imageCache.transaction(['images'], 'readonly');
-            const store = transaction.objectStore('images');
-            const request = store.get(cacheKey);
-            
-            request.onsuccess = (event) => {
-                const result = event.target.result;
-                // *** Check for file protocol BEFORE using cached blob ***
-                if (isFileProtocol) {
-                    // Always use the original proxied URL when running locally
-                    console.log(`File protocol: Using original URL for ${cacheKey}`);
-                    resolve(url);
-                } else if (result && result.data) {
-                    // Image exists in cache and not file protocol, use blob URL
-                    console.log(`Using cached image for ${cacheKey}`);
-                    resolve(result.data);
-                } else {
-                    // Not in cache (or file protocol), use the original URL directly
-                    console.log(`No cache or file protocol: Using original URL for ${cacheKey}`);
-                    resolve(url);
-                    
-                    // Only try to fetch and cache if we're not using file:// protocol
-                    // or if it's an external URL (https://)
-                    if (!isFileProtocol || url.startsWith('https://')) {
-                        // Fetch the image and store in cache for next time
-                        fetch(url, { mode: 'cors', credentials: 'omit' })
-                            .then(response => {
-                                if (!response.ok) {
-                                    throw new Error('Network response was not ok');
-                                }
-                                return response.blob();
-                            })
-                            .then(blob => {
-                                // Create an object URL for the blob
-                                const objectURL = URL.createObjectURL(blob);
-                                
-                                // Store in cache
-                                const transaction = imageCache.transaction(['images'], 'readwrite');
-                                const store = transaction.objectStore('images');
-                                store.put({
-                                    url: cacheKey,
-                                    data: objectURL,
-                                    timestamp: Date.now()
-                                });
-                            })
-                            .catch(error => {
-                                console.error('Error caching image:', error);
-                            });
-                    }
-                }
-            };
-            
-            request.onerror = () => {
-                // Error accessing cache, just use the URL
-                console.error('Error accessing image cache');
-                resolve(url);
-            };
-        });
+
+        return url;
     }
-    
+
     // Load watch history data
     function loadHistory() {
-        // Show loading indicator
         loadingIndicator.style.display = 'flex';
         historyContainer.style.display = 'none';
         emptyHistory.style.display = 'none';
-        
+
         try {
-            // Check if the HISTORY_DATA variable exists (should be defined in data.js)
             if (typeof HISTORY_DATA !== 'undefined') {
                 historyData = HISTORY_DATA;
-                console.log(`Loaded ${historyData.length} watch history entries from data.js`);
-                
-                // Process data
+               
                 processHistoryData();
-                
-                // Hide loading indicator
                 loadingIndicator.style.display = 'none';
-                
-                // Render history data
                 renderHistory();
-                return;
+            } else {
+                console.error('HISTORY_DATA is not defined. Cannot load history.');
+                loadingIndicator.style.display = 'none';
+                showEmptyState("History data (data.js) not found.");
             }
-            
-            // Fallback method - try to load from the JSON file directly
-            console.log("No HISTORY_DATA found in data.js, falling back to fetch method");
-            
-            // Try to load from the local watch_history.json file
-            fetch('watch_history.json')
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error('History file not found');
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    historyData = data;
-                    processHistoryData();
-                    loadingIndicator.style.display = 'none';
-                    renderHistory();
-                })
-                .catch(error => {
-                    console.error('Error loading history:', error);
-                    loadingIndicator.style.display = 'none';
-                    showEmptyState();
-                });
         } catch (error) {
             console.error('Error loading history data:', error);
             loadingIndicator.style.display = 'none';
-            showEmptyState();
+            showEmptyState("Failed to load history data.");
         }
     }
-    
-    // Process history data, additional meta processing
+
+    // Process history data
     function processHistoryData() {
         // Populate years filter
-        const years = new Set();
-        historyData.forEach(item => {
-            if (item.year) {
-                years.add(item.year);
-            }
-        });
-        
-        // Sort years in descending order
+        const years = new Set(historyData.map(item => item.year).filter(Boolean));
         const sortedYears = Array.from(years).sort((a, b) => b - a);
-        
-        // Clear existing options except the first one
-        while (filterYear.options.length > 1) {
-            filterYear.remove(1);
-        }
-        
-        // Add year options
+
+        // Clear existing options except "All Years"
+        while (filterYear.options.length > 1) filterYear.remove(1);
+
         sortedYears.forEach(year => {
             const option = document.createElement('option');
             option.value = year;
             option.textContent = year;
             filterYear.appendChild(option);
         });
-        
-        // Update stats
+
         updateStatistics();
-        
-        // Preload and cache poster images for visible items
-        preloadImages();
     }
-    
-    // Preload common poster images
-    function preloadImages() {
-        if (!imageCache) return;
-        
-        console.log('Preloading poster images...');
-        
-        // Get first batch of items to preload
-        const preloadCount = Math.min(itemsPerPage * 2, historyData.length);
-        const itemsToPreload = historyData.slice(0, preloadCount);
-        
-        // Preload each poster image
-        itemsToPreload.forEach(item => {
-            const posterUrl = item.poster_url || item.poster || `https://simkl.in/posters/${item.simkl_id}_m.jpg`;
-            const proxiedUrl = getProxiedImageUrl(posterUrl);
-            
-            // Start caching the image
-            getImageWithCache(proxiedUrl);
-        });
-    }
-    
-    // Update statistics
+
+    // Update statistics panel and chart
     function updateStatistics() {
+        // Calculate basic statistics
         const movieCount = historyData.filter(item => item.type === 'movie').length;
-        // Count unique TV shows based on simkl_id (or title/year as fallback)
-        const uniqueShowIds = new Set();
-        historyData.forEach(item => {
-            if (item.type === 'show' || item.type === 'tv') { // Include 'show' type
-                // Prefer simkl_id, fallback to title+year combination
-                const uniqueId = item.simkl_id || `${item.title}-${item.year}`;
-                uniqueShowIds.add(uniqueId);
-            }
-        });
-        const showCount = uniqueShowIds.size; // Count of unique TV shows
+        const uniqueShowIds = new Set(historyData.filter(item => item.type === 'show' || item.type === 'tv').map(item => item.simkl_id || `${item.title}-${item.year}`));
+        const uniqueAnimeIds = new Set(historyData.filter(item => item.type === 'anime').map(item => item.simkl_id || `${item.title}-${item.year}`));
 
-        // Count unique Anime based on simkl_id (or title/year as fallback)
-        const uniqueAnimeIds = new Set();
-        historyData.forEach(item => {
-            if (item.type === 'anime') {
-                const uniqueId = item.simkl_id || `${item.title}-${item.year}`;
-                uniqueAnimeIds.add(uniqueId);
-            }
-        });
-        const animeCount = uniqueAnimeIds.size; // Count of unique Anime
-
+        // Update count displays
         totalCountEl.textContent = historyData.length;
         moviesCountEl.textContent = movieCount;
-        showsCountEl.textContent = showCount; // Display unique TV show count
-        animeCountEl.textContent = animeCount; // Display unique Anime count here
+        showsCountEl.textContent = uniqueShowIds.size;
+        animeCountEl.textContent = uniqueAnimeIds.size;
 
-        // Create watch trend chart
+        // Create statistics visualizations
         createWatchTrendChart();
+        // createMediaTypeDistribution();
+        createViewingTimesChart();
     }
-    
-    // Create watch trend chart
+
+    // Create or update the watch trend chart with enhanced visuals
     function createWatchTrendChart() {
-        // If Chart.js is not available, skip chart creation
         if (typeof Chart === 'undefined') return;
         
-        // Group watch history by month
+        // Get the chart canvas
+        const chartCanvas = document.getElementById('watch-trend-chart');
+        if (!chartCanvas) return;
+        
+        // Process data for monthly trend
+        const watchData = processWatchTrendData();
+        const ctx = chartCanvas.getContext('2d');
+
+        // Clean up existing chart
+        if (window.watchChart) window.watchChart.destroy();
+        
+        // Set chart configuration based on theme
+        const isDarkMode = document.body.classList.contains('dark-mode');
+        const chartConfig = getWatchTrendChartConfig(watchData, isDarkMode);
+        
+        // Create new chart
+        window.watchChart = new Chart(ctx, chartConfig);
+        
+        // Add title to the chart if needed
+        addChartTitle(chartCanvas, 'Viewing Activity (Last 12 Months)', 'watch-trend-title');
+    }
+    
+    // Process data for watch trend chart
+    function processWatchTrendData() {
+        // Create monthly buckets for the last 12 months
         const watchesByMonth = {};
         const currentDate = new Date();
         
-        // Start 12 months ago from current date
+        // Generate data for the last 12 months including current month
         for (let i = 11; i >= 0; i--) {
-            const date = new Date(currentDate);
+            const date = new Date(currentDate);  // Create a new date object from current date
+            date.setDate(1);  // Set to first day of month to avoid issues with month lengths
             date.setMonth(currentDate.getMonth() - i);
+            
             const monthKey = date.toISOString().slice(0, 7); // YYYY-MM format
-            watchesByMonth[monthKey] = { month: monthKey, count: 0 };
+            const month = date.getMonth();
+            const year = date.getFullYear();
+            
+            // Store with display label for better readability
+            watchesByMonth[monthKey] = { 
+                month: monthKey, 
+                count: 0,
+                label: new Date(year, month).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })
+            };
         }
-        
-        // Count watches by month
+
+        // Count watched items by month
         historyData.forEach(item => {
             if (item.watched_at) {
-                const watchMonth = item.watched_at.slice(0, 7); // YYYY-MM
-                if (watchesByMonth[watchMonth]) {
-                    watchesByMonth[watchMonth].count++;
+                try {
+                    const watchDate = new Date(item.watched_at);
+                    const watchMonth = watchDate.toISOString().slice(0, 7); // YYYY-MM
+                    
+                    if (watchesByMonth[watchMonth]) {
+                        watchesByMonth[watchMonth].count++;
+                    }
+                } catch (e) {
+                    // Silently handle error
+                }
+            }
+        });
+
+        // Sort the chart data chronologically
+        return Object.values(watchesByMonth).sort((a, b) => a.month.localeCompare(b.month));
+    }
+    
+    // Get chart configuration for watch trend
+    function getWatchTrendChartConfig(chartData, isDarkMode) {
+        // Extract labels and data
+        const labels = chartData.map(item => item.label);
+        const counts = chartData.map(item => item.count);
+        
+        // Calculate moving average for trend line
+        const movingAvg = calculateMovingAverage(counts, 2);
+        
+        // Define colors based on theme
+        const gridColor = isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)';
+        const labelColor = isDarkMode ? 'rgba(255, 255, 255, 0.7)' : 'rgba(0, 0, 0, 0.7)';
+        const tooltipBgColor = isDarkMode ? 'rgba(22, 28, 36, 0.95)' : 'rgba(255, 255, 255, 0.98)';
+        const tooltipBorderColor = isDarkMode ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.05)';
+        
+        // Theme-specific colors for primary data
+        const primaryColor = 'var(--simkl-red)';
+        const primaryColorTransparent = isDarkMode ? 'rgba(230, 50, 50, 0.08)' : 'rgba(230, 50, 50, 0.04)';
+        
+        // Create gradient for area fill
+        const canvas = document.getElementById('watch-trend-chart');
+        const ctx = canvas.getContext('2d');
+        const gradient = ctx.createLinearGradient(0, 0, 0, canvas.offsetHeight);
+        
+        if (isDarkMode) {
+            gradient.addColorStop(0, 'rgba(230, 50, 50, 0.35)');
+            gradient.addColorStop(0.5, 'rgba(230, 50, 50, 0.15)');
+            gradient.addColorStop(1, 'rgba(230, 50, 50, 0.02)');
+        } else {
+            gradient.addColorStop(0, 'rgba(230, 50, 50, 0.25)');
+            gradient.addColorStop(0.5, 'rgba(230, 50, 50, 0.1)');
+            gradient.addColorStop(1, 'rgba(230, 50, 50, 0.02)');
+        }
+
+        return {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: 'Watched Items',
+                        data: counts,
+                        borderColor: primaryColor,
+                        backgroundColor: gradient,
+                        borderWidth: 2.5,
+                        pointBackgroundColor: primaryColor,
+                        pointBorderColor: isDarkMode ? '#1f2937' : '#ffffff',
+                        pointHoverBackgroundColor: primaryColor,
+                        pointHoverBorderColor: isDarkMode ? '#1f2937' : '#ffffff',
+                        pointBorderWidth: 2,
+                        pointRadius: 4,
+                        pointHoverRadius: 6,
+                        fill: true,
+                        tension: 0.3,
+                        order: 1
+                    },
+                    {
+                        label: 'Trend',
+                        data: movingAvg,
+                        borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.5)' : 'rgba(0, 0, 0, 0.5)',
+                        borderWidth: 1.5,
+                        borderDash: [5, 5],
+                        pointRadius: 0,
+                        fill: false,
+                        tension: 0.4,
+                        order: 0
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    mode: 'index',
+                    intersect: false
+                },
+                plugins: {
+                    legend: { 
+                        display: false
+                    },
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false,
+                        backgroundColor: tooltipBgColor,
+                        titleColor: isDarkMode ? '#ffffff' : '#000000',
+                        bodyColor: isDarkMode ? 'rgba(255, 255, 255, 0.8)' : 'rgba(0, 0, 0, 0.7)',
+                        borderColor: tooltipBorderColor,
+                        borderWidth: 1,
+                        padding: 12,
+                        cornerRadius: 8,
+                        boxPadding: 6,
+                        titleFont: {
+                            weight: 'bold',
+                            size: 14
+                        },
+                        bodyFont: {
+                            size: 13
+                        },
+                        callbacks: {
+                            title: function(context) {
+                                return context[0].label;
+                            },
+                            label: function(context) {
+                                const datasetLabel = context.dataset.label || '';
+                                const value = context.parsed.y;
+                                if (datasetLabel === 'Trend') {
+                                    return `Trend: ${value.toFixed(1)}`;
+                                }
+                                return `Watched: ${value}`;
+                            }
+                        },
+                        itemSort: function(a, b) {
+                            // Show main dataset first
+                            return b.datasetIndex - a.datasetIndex;
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: { 
+                            precision: 0, 
+                            color: labelColor,
+                            font: {
+                                weight: '500',
+                                size: 11
+                            }
+                        },
+                        grid: { 
+                            color: gridColor, 
+                            drawBorder: false,
+                            lineWidth: 0.8
+                        },
+                        border: {
+                            display: false
+                        }
+                    },
+                    x: {
+                        ticks: { 
+                            color: labelColor,
+                            font: {
+                                weight: '500',
+                                size: 11
+                            },
+                            maxRotation: 45,
+                            minRotation: 0
+                        },
+                        grid: { 
+                            display: false 
+                        },
+                        border: {
+                            display: false
+                        }
+                    }
+                },
+                hover: {
+                    mode: 'index',
+                    intersect: false
+                },
+                animation: {
+                    duration: 1000,
+                    easing: 'easeOutQuart'
+                }
+            }
+        };
+    }
+    
+    // Calculate moving average for trend line
+    function calculateMovingAverage(data, windowSize) {
+        const result = [];
+        
+        // Fill start with nulls (for proper chart alignment)
+        for (let i = 0; i < windowSize; i++) {
+            result.push(null);
+        }
+        
+        for (let i = windowSize; i < data.length; i++) {
+            let sum = 0;
+            for (let j = 0; j < windowSize; j++) {
+                sum += data[i - j];
+            }
+            result.push(sum / windowSize);
+        }
+        
+        return result;
+    }
+    
+    // Create media type distribution chart (pie/doughnut chart)
+    function createMediaTypeDistribution() {
+        if (typeof Chart === 'undefined') return;
+        
+        const chartCanvas = document.getElementById('media-type-chart');
+        if (!chartCanvas) return;
+        
+        // Cleanup existing chart
+        if (window.mediaTypeChart) window.mediaTypeChart.destroy();
+        
+        // Calculate counts for each media type
+        const movieCount = historyData.filter(item => item.type === 'movie').length;
+        const showCount = historyData.filter(item => item.type === 'show' || item.type === 'tv').length;
+        const animeCount = historyData.filter(item => item.type === 'anime').length;
+        
+        // Skip if no data
+        if (movieCount + showCount + animeCount === 0) return;
+        
+        const isDarkMode = document.body.classList.contains('dark-mode');
+        const backgroundColor = isDarkMode ? '#1f2937' : '#ffffff';
+        const textColor = isDarkMode ? '#ffffff' : '#000000';
+        const borderColor = isDarkMode ? '#111827' : '#f3f4f6';
+        
+        window.mediaTypeChart = new Chart(chartCanvas, {
+            type: 'doughnut',
+            data: {
+                labels: ['Movies', 'TV Shows', 'Anime'],
+                datasets: [{
+                    data: [movieCount, showCount, animeCount],
+                    backgroundColor: [
+                        'rgba(59, 130, 246, 0.8)',
+                        'rgba(249, 115, 22, 0.8)',
+                        'rgba(34, 197, 94, 0.8)'
+                    ],
+                    borderColor: borderColor,
+                    borderWidth: 1,
+                    hoverOffset: 10
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: '65%',
+                plugins: {
+                    legend: {
+                        position: 'right',
+                        labels: {
+                            color: textColor,
+                            padding: 15,
+                            usePointStyle: true,
+                            pointStyle: 'circle',
+                            font: {
+                                size: 13
+                            }
+                        }
+                    },
+                    tooltip: {
+                        backgroundColor: isDarkMode ? 'rgba(22, 28, 36, 0.95)' : 'rgba(255, 255, 255, 0.98)',
+                        titleColor: textColor,
+                        bodyColor: isDarkMode ? 'rgba(255, 255, 255, 0.8)' : 'rgba(0, 0, 0, 0.7)',
+                        borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.05)',
+                        borderWidth: 1,
+                        padding: 12,
+                        cornerRadius: 8,
+                        callbacks: {
+                            label: function(context) {
+                                const value = context.raw;
+                                const total = context.chart.data.datasets[0].data.reduce((sum, val) => sum + val, 0);
+                                const percentage = ((value / total) * 100).toFixed(1);
+                                return `${context.label}: ${value} (${percentage}%)`;
+                            }
+                        }
+                    }
+                },
+                animation: {
+                    animateRotate: true,
+                    animateScale: true,
+                    duration: 1000,
+                    easing: 'easeOutQuart'
                 }
             }
         });
         
-        // Convert to array and prepare for chart
-        const chartData = Object.values(watchesByMonth);
+        addChartTitle(chartCanvas, 'Content Distribution', 'media-type-title');
+    }
+    
+    // Create viewing times chart (by hour of day)
+    function createViewingTimesChart() {
+        if (typeof Chart === 'undefined') return;
         
-        // Format month labels
-        const labels = chartData.map(item => {
-            const [year, month] = item.month.split('-');
-            return new Date(year, month - 1).toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
-        });
-        
-        // Get counts
-        const counts = chartData.map(item => item.count);
-        
-        // Canvas element
-        const chartCanvas = document.getElementById('watch-trend-chart');
+        const chartCanvas = document.getElementById('viewing-times-chart');
         if (!chartCanvas) return;
         
-        // Destroy previous chart if it exists
-        if (watchChart) {
-            watchChart.destroy();
-        }
+        // Cleanup existing chart
+        if (window.viewingTimesChart) window.viewingTimesChart.destroy();
         
-        // Create new chart
-        watchChart = new Chart(chartCanvas, {
-            type: 'line',
+        // Initialize hours array (0-23)
+        const hourCounts = Array(24).fill(0);
+        let totalEntries = 0;
+        
+        // Count entries by hour
+        historyData.forEach(item => {
+            if (item.watched_at) {
+                try {
+                    const watchDate = new Date(item.watched_at);
+                    const hour = watchDate.getHours();
+                    hourCounts[hour]++;
+                    totalEntries++;
+                } catch (e) {
+                    // Skip invalid dates
+                }
+            }
+        });
+        
+        // Skip if no data
+        if (totalEntries === 0) return;
+        
+        // Format hour labels (12-hour format with AM/PM)
+        const hourLabels = Array(24).fill().map((_, i) => {
+            const hour12 = i % 12 || 12;
+            const ampm = i < 12 ? 'AM' : 'PM';
+            return `${hour12}${ampm}`;
+        });
+        
+        const isDarkMode = document.body.classList.contains('dark-mode');
+        const colors = getChartColors(isDarkMode);
+        
+        // Create gradient for bars
+        const ctx = chartCanvas.getContext('2d');
+        const gradient = ctx.createLinearGradient(0, 0, 0, chartCanvas.offsetHeight);
+        gradient.addColorStop(0, isDarkMode ? 'rgba(167, 139, 250, 0.9)' : 'rgba(124, 58, 237, 0.85)');
+        gradient.addColorStop(1, isDarkMode ? 'rgba(167, 139, 250, 0.3)' : 'rgba(124, 58, 237, 0.35)');
+        
+        window.viewingTimesChart = new Chart(chartCanvas, {
+            type: 'bar',
             data: {
-                labels: labels,
+                labels: hourLabels,
                 datasets: [{
-                    label: 'Watched Content',
-                    data: counts,
-                    borderColor: '#e63232',
-                    backgroundColor: 'rgba(230, 50, 50, 0.1)',
-                    borderWidth: 2,
-                    pointBackgroundColor: '#e63232',
-                    fill: true,
-                    tension: 0.3
+                    label: 'Activity',
+                    data: hourCounts,
+                    backgroundColor: gradient,
+                    borderColor: isDarkMode ? 'rgba(167, 139, 250, 1)' : 'rgba(124, 58, 237, 1)',
+                    borderWidth: 1,
+                    borderRadius: 4,
+                    barThickness: 'flex',
+                    maxBarThickness: 25
                 }]
             },
             options: {
@@ -420,626 +552,844 @@ document.addEventListener('DOMContentLoaded', () => {
                         display: false
                     },
                     tooltip: {
-                        mode: 'index',
-                        intersect: false
+                        backgroundColor: colors.tooltipBg,
+                        titleColor: colors.tooltipTitle,
+                        bodyColor: colors.tooltipBody,
+                        borderColor: colors.tooltipBorder,
+                        borderWidth: 1,
+                        padding: 10,
+                        cornerRadius: 8,
+                        callbacks: {
+                            title: function(context) {
+                                const hour = context[0].dataIndex;
+                                const hour12 = hour % 12 || 12;
+                                const ampm = hour < 12 ? 'AM' : 'PM';
+                                return `${hour12}:00 ${ampm}`;
+                            },
+                            label: function(context) {
+                                const value = context.parsed.y;
+                                return `${value} items watched`;
+                            }
+                        }
                     }
                 },
                 scales: {
                     y: {
                         beginAtZero: true,
                         ticks: {
-                            precision: 0
+                            precision: 0,
+                            color: colors.label,
+                            font: {
+                                size: 11
+                            }
+                        },
+                        grid: {
+                            color: colors.grid,
+                            drawBorder: false
+                        },
+                        border: {
+                            display: false
+                        }
+                    },
+                    x: {
+                        ticks: {
+                            color: colors.label,
+                            font: {
+                                size: 10
+                            },
+                            maxRotation: 0
+                        },
+                        grid: {
+                            display: false
+                        },
+                        border: {
+                            display: false
                         }
                     }
+                },
+                animation: {
+                    duration: 1000,
+                    easing: 'easeOutQuart'
                 }
             }
         });
+        
+        addChartTitle(chartCanvas, 'Viewing Times (Hour of Day)', 'viewing-times-title');
     }
     
-    // Format date for display
-    function formatDate(dateString) {
-        if (!dateString) return 'Unknown date';
+
+    
+    // Helper function to add chart title
+    function addChartTitle(chartCanvas, titleText, titleId) {
+        const chartContainer = chartCanvas.parentElement;
+        if (!chartContainer) return;
         
-        const date = new Date(dateString);
-        const now = new Date();
-        const diffDays = Math.floor((now - date) / (1000 * 60 * 60 * 24));
-        
-        if (isNaN(date.getTime())) return 'Unknown date';
-        
-        if (diffDays === 0) {
-            return 'Today';
-        } else if (diffDays === 1) {
-            return 'Yesterday';
-        } else if (diffDays < 7) {
-            return `${diffDays} days ago`;
+        let chartTitle = chartContainer.querySelector(`.chart-title${titleId ? '#' + titleId : ''}`);
+        if (!chartTitle) {
+            chartTitle = document.createElement('div');
+            chartTitle.className = 'chart-title';
+            if (titleId) chartTitle.id = titleId;
+            chartTitle.textContent = titleText;
+            chartContainer.insertBefore(chartTitle, chartCanvas);
         } else {
-            return date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+            chartTitle.textContent = titleText;
         }
     }
     
-    // Filter history based on current filters
+    // Get consistent chart colors based on theme
+    function getChartColors(isDarkMode) {
+        return {
+            grid: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
+            label: isDarkMode ? 'rgba(255, 255, 255, 0.7)' : 'rgba(0, 0, 0, 0.7)',
+            tooltipBg: isDarkMode ? 'rgba(22, 28, 36, 0.95)' : 'rgba(255, 255, 255, 0.98)',
+            tooltipTitle: isDarkMode ? '#ffffff' : '#000000',
+            tooltipBody: isDarkMode ? 'rgba(255, 255, 255, 0.8)' : 'rgba(0, 0, 0, 0.7)',
+            tooltipBorder: isDarkMode ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.05)'
+        };
+    }
+    
+    // Generate a gradient of colors between two RGB values
+    function generateColorGradient(rgbStart, rgbEnd, steps) {
+        const result = [];
+        
+        for (let i = 0; i < steps; i++) {
+            const r = Math.round(rgbStart[0] + (rgbEnd[0] - rgbStart[0]) * i / (steps - 1));
+            const g = Math.round(rgbStart[1] + (rgbEnd[1] - rgbStart[1]) * i / (steps - 1));
+            const b = Math.round(rgbStart[2] + (rgbEnd[2] - rgbStart[2]) * i / (steps - 1));
+            result.push(`rgba(${r}, ${g}, ${b}, 0.8)`);
+        }
+        
+        return result;
+    }
+
+    // Format date for display (relative or absolute)
+    function formatDate(dateString) {
+        if (!dateString) return 'Unknown date';
+        try {
+            const date = new Date(dateString);
+            if (isNaN(date.getTime())) return 'Invalid date';
+
+            const now = new Date();
+            const diffSeconds = Math.floor((now - date) / 1000);
+            const diffDays = Math.floor(diffSeconds / (60 * 60 * 24));
+
+            if (diffSeconds < 60) return 'Just now';
+            if (diffSeconds < 3600) return `${Math.floor(diffSeconds / 60)}m ago`;
+            if (diffSeconds < 86400) return `${Math.floor(diffSeconds / 3600)}h ago`;
+            if (diffDays === 1) return 'Yesterday';
+            if (diffDays < 7) return `${diffDays}d ago`;
+            return date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+        } catch (e) {
+            return 'Invalid date';
+        }
+    }
+
+    // Format timestamp for detailed view
+    function formatTimestamp(dateString) {
+        if (!dateString) return '-';
+        try {
+            const date = new Date(dateString);
+            if (isNaN(date.getTime())) return '-';
+            return date.toLocaleString(undefined, {
+                year: 'numeric', month: 'short', day: 'numeric',
+                hour: 'numeric', minute: '2-digit', hour12: true
+            });
+        } catch (e) {
+            return '-';
+        }
+    }
+
+    // Filter history based on current selections
     function filterHistory() {
-        const searchTerm = searchInput.value.toLowerCase();
+        const searchTerm = searchInput.value.toLowerCase().trim();
         const typeFilter = filterType.value;
         const yearFilter = filterYear.value;
         const sortOption = sortBy.value;
-        
-        let filtered = [...historyData];
-        
-        // Apply type filter
-        if (typeFilter !== 'all') {
-            filtered = filtered.filter(item => item.type === typeFilter);
-        }
-        
-        // Apply year filter
-        if (yearFilter !== 'all') {
-            filtered = filtered.filter(item => item.year === parseInt(yearFilter));
-        }
-        
-        // Apply search filter
-        if (searchTerm) {
-            filtered = filtered.filter(item => 
-                (item.title && item.title.toLowerCase().includes(searchTerm)) ||
-                (item.overview && item.overview.toLowerCase().includes(searchTerm)) ||
-                (item.genres && item.genres.some(genre => genre.toLowerCase().includes(searchTerm))) ||
-                (item.cast && item.cast.some(actor => actor.toLowerCase().includes(searchTerm)))
-            );
-        }
-        
+
+        let filtered = historyData.filter(item => {
+            // Type filter
+            if (typeFilter !== 'all' && item.type !== typeFilter) return false;
+            // Year filter
+            if (yearFilter !== 'all' && item.year !== parseInt(yearFilter)) return false;
+            // Search filter (title, year, overview)
+            if (searchTerm) {
+                const titleMatch = item.title && item.title.toLowerCase().includes(searchTerm);
+                const yearMatch = item.year && String(item.year).includes(searchTerm);
+                const overviewMatch = item.overview && item.overview.toLowerCase().includes(searchTerm); // Added overview search
+                if (!titleMatch && !yearMatch && !overviewMatch) return false; // Include overviewMatch in the check
+            }
+            return true;
+        });
+
         // Apply sorting
         switch (sortOption) {
             case 'title':
-                filtered.sort((a, b) => a.title.localeCompare(b.title));
+                filtered.sort((a, b) => (a.title || '').localeCompare(b.title || ''));
                 break;
             case 'year':
-                filtered.sort((a, b) => {
-                    // Sort by year, then by title for items with the same year
-                    if (a.year === b.year) {
-                        return a.title.localeCompare(b.title);
-                    }
-                    return (b.year || 0) - (a.year || 0);
-                });
+                filtered.sort((a, b) => (b.year || 0) - (a.year || 0) || (a.title || '').localeCompare(b.title || ''));
                 break;
             case 'runtime':
-                filtered.sort((a, b) => {
-                    // Sort by runtime, then by title for items with the same runtime
-                    if (a.runtime === b.runtime) {
-                        return a.title.localeCompare(b.title);
-                    }
-                    return (b.runtime || 0) - (a.runtime || 0);
-                });
+                filtered.sort((a, b) => (b.runtime || 0) - (a.runtime || 0) || (a.title || '').localeCompare(b.title || ''));
                 break;
             case 'rating':
-                filtered.sort((a, b) => {
-                    // Sort by user rating if available, otherwise by rating, then by title
-                    const aRating = a.user_rating || a.rating || 0;
-                    const bRating = b.user_rating || b.rating || 0;
-                    
-                    if (aRating === bRating) {
-                        return a.title.localeCompare(b.title);
-                    }
-                    return bRating - aRating;
-                });
+                // Sort by user_rating (if exists), then rating, then title
+                filtered.sort((a, b) => (b.user_rating ?? b.rating ?? 0) - (a.user_rating ?? a.rating ?? 0) || (a.title || '').localeCompare(b.title || ''));
                 break;
-            default: // watched_at
+            default: // watched_at (most recent first)
                 filtered.sort((a, b) => new Date(b.watched_at || 0) - new Date(a.watched_at || 0));
         }
-        
+
         return filtered;
     }
-    
+
     // Render history items with pagination
-    async function renderHistory() {
+    function renderHistory() {
         const filteredHistory = filterHistory();
-        
+
         if (filteredHistory.length === 0) {
-            showEmptyState();
+            showEmptyState(searchInput.value ? "No results match your search." : "Your watch history is empty.");
             pagination.style.display = 'none';
             return;
         }
-        
+
         emptyHistory.style.display = 'none';
         historyContainer.style.display = 'grid';
-        historyContainer.innerHTML = '';
-        
+        historyContainer.innerHTML = ''; // Clear previous items
+
         // Calculate pagination
         const totalPages = Math.ceil(filteredHistory.length / itemsPerPage);
-        if (currentPage > totalPages) {
-            currentPage = 1;
-        }
-        
+        currentPage = Math.max(1, Math.min(currentPage, totalPages)); // Ensure currentPage is valid
+
         const startIndex = (currentPage - 1) * itemsPerPage;
         const endIndex = Math.min(startIndex + itemsPerPage, filteredHistory.length);
         const currentItems = filteredHistory.slice(startIndex, endIndex);
-        
+
         // Update pagination UI
         pageInfo.textContent = `Page ${currentPage} of ${totalPages}`;
         prevPageBtn.disabled = currentPage === 1;
         nextPageBtn.disabled = currentPage === totalPages;
         pagination.style.display = totalPages > 1 ? 'flex' : 'none';
-        
+
         // Render current page items
-        for (const item of currentItems) {
-            const card = document.createElement('div');
-            card.className = 'media-card';
-            
-            // Better poster URL handling
-            let posterUrl;
-            if (item.poster_url) {
-                posterUrl = item.poster_url;
-            } else if (item.poster) {
-                posterUrl = item.poster;
-            } else if (item.simkl_id) {
-                // Format: directly use SIMKL ID with proper suffix
-                posterUrl = `${item.simkl_id}`;
-            } else {
-                posterUrl = 'no-image';
-            }
-            
-            // Use wsrv.nl proxy for the poster
-            const proxiedPosterUrl = getProxiedImageUrl(posterUrl);
-            console.log(`Loading image for ${item.title}: ${proxiedPosterUrl}`);
-            
-            const mediaType = item.type || 'movie'; // Ensure type exists
-            const year = item.year ? `(${item.year})` : '';
-            const runtime = item.runtime ? `${item.runtime} min` : '';
-            const watchedDate = formatDate(item.watched_at);
-
-            // --- Season/Episode Info (Task 3) ---
-            let episodeInfoHtml = '';
-            const seasonNum = item.season; // Use variables for clarity
-            const episodeNum = item.episode;
-
-            // Display SxxEyy if both season and episode are present and > 0
-            if ((mediaType === 'show' || mediaType === 'tv' || mediaType === 'anime') && seasonNum > 0 && episodeNum > 0) { // Added 'show'
-                episodeInfoHtml = `<span class="episode-info"><i class="ph ph-play-circle"></i> S${String(seasonNum).padStart(2, '0')}E${String(episodeNum).padStart(2, '0')}</span>`;
-            }
-            // Display Exx if only episode is present and > 0 (useful for Anime, maybe some TV specials)
-            else if ((mediaType === 'show' || mediaType === 'tv' || mediaType === 'anime') && episodeNum > 0) { // Added 'show'
-                 episodeInfoHtml = `<span class="episode-info"><i class="ph ph-play-circle"></i> E${episodeNum}</span>`;
-            }
-            // --- End Season/Episode Info ---
-
-            // Define icons based on media type
-            let mediaIcon;
-            switch(mediaType) {
-                case 'tv':
-                    mediaIcon = 'ph ph-television';
-                    break;
-                case 'anime':
-                    mediaIcon = 'ph ph-star';
-                    break;
-                default:
-                    mediaIcon = 'ph ph-film-strip';
-            }
-            
-            card.innerHTML = `
-                <div class="poster-container">
-                    <img class="poster-img" src="${proxiedPosterUrl}" alt="${item.title}" 
-                        onerror="this.onerror=null; this.src='https://placehold.co/300x450?text=${encodeURIComponent(item.title || 'No Image')}'" 
-                        loading="lazy">
-                    <span class="media-type"><i class="${mediaIcon}"></i> ${mediaType}</span>
-                </div>
-                <div class="media-info">
-                    <h3 class="media-title">${item.title} ${year}</h3>
-                    <div class="media-meta">
-                        ${runtime ? `<span><i class="ph ph-clock"></i> ${runtime}</span>` : ''}
-                        ${episodeInfoHtml}
-                    </div>
-                    <div class="watched-date">
-                        <i class="ph ph-clock-counter-clockwise"></i> Watched ${watchedDate}
-                    </div>
-                    <!-- Add File Details - Visible only in list view via CSS -->
-                    <div class="file-details">
-                        ${item.resolution ? `<span><i class="ph ph-monitor"></i> ${item.resolution}</span>` : ''}
-                        ${item.formatted_file_size ? `<span><i class="ph ph-file"></i> ${item.formatted_file_size}</span>` : ''}
-                        ${item.file_path ? `<span class="file-path" title="${item.file_path}"><i class="ph ph-folder"></i> ${item.file_path.length > 50 ? '...' + item.file_path.slice(-47) : item.file_path}</span>` : ''}
-                    </div>
-                    <!-- Removed media-actions div from small card -->
-                </div>
-            `;
-
+        currentItems.forEach(item => {
+            const card = createMediaCardElement(item);
             historyContainer.appendChild(card);
-        }
-        
-        // Preload images for the next page
-        if (currentPage < totalPages) {
-            const nextPageItems = filteredHistory.slice(endIndex, endIndex + itemsPerPage);
-            nextPageItems.forEach(item => {
-                const posterUrl = item.poster_url || item.poster || `https://simkl.in/posters/${item.simkl_id}_m.jpg`;
-                const proxiedUrl = getProxiedImageUrl(posterUrl);
-                getImageWithCache(proxiedUrl);
-            });
-        }
+        });
     }
-    
-    // Show empty state
-    function showEmptyState() {
+
+    // Create HTML element for a single media card
+    function createMediaCardElement(item) {
+        const card = document.createElement('div');
+        card.className = 'media-card';
+        card.dataset.itemId = item.simkl_id || `${item.title}-${item.year}`; // Unique ID for lookup
+
+        // Determine the base image URL (Simkl or Placeholder)
+        let baseImageUrl;
+        let posterValue = item.poster || item.poster_url; // Check for both field names
+        
+
+        if (posterValue && /^\d+\/\d+[a-f0-9]*$/.test(posterValue)) {
+            baseImageUrl = `https://simkl.in/posters/${posterValue}_m.webp`;
+
+        } else {
+            // Use placeholder if no valid poster ID
+            baseImageUrl = `https://placehold.co/300x450?text=${encodeURIComponent(item.title || 'No Image')}`;
+           
+        }
+        // Apply the proxy to the final base URL
+        const proxiedPosterUrl = getProxiedImageUrl(baseImageUrl);
+
+        const mediaType = item.type || 'movie';
+        const year = item.year ? `(${item.year})` : '';
+        const runtime = item.runtime ? `${item.runtime} min` : '';
+        const watchedDate = formatDate(item.watched_at);
+
+        let episodeInfoHtml = '';
+        if ((mediaType === 'tv' || mediaType === 'anime') && item.season > 0 && item.episode > 0) {
+            episodeInfoHtml = `<span class="episode-info" title="Season ${item.season}, Episode ${item.episode}"><i class="ph-duotone ph-television"></i> S${String(item.season).padStart(2, '0')}E${String(item.episode).padStart(2, '0')}</span>`;
+        } else if ((mediaType === 'tv' || mediaType === 'anime') && item.episode > 0) {
+            episodeInfoHtml = `<span class="episode-info" title="Episode ${item.episode}"><i class="ph-duotone ph-television"></i> E${item.episode}</span>`;
+        }
+
+        let mediaIcon;
+        switch(mediaType) {
+            case 'tv': mediaIcon = 'ph-duotone ph-television-simple'; break;
+            case 'anime': mediaIcon = 'ph-duotone ph-star'; break;
+            default: mediaIcon = 'ph-duotone ph-film-strip';
+        }
+
+        card.innerHTML = `
+            <div class="poster-container">
+                <img class="poster-img" src="${proxiedPosterUrl}" alt="${item.title || 'Poster'}" loading="lazy">
+                <span class="media-type"><i class="${mediaIcon}"></i> ${mediaType}</span>
+            </div>
+            <div class="media-info">
+                <h3 class="media-title" title="${item.title || ''} ${year}">${item.title || 'No Title'} ${year}</h3>
+                <div class="media-meta">
+                    ${runtime ? `<span><i class="ph-duotone ph-clock"></i> ${runtime}</span>` : ''}
+                    ${episodeInfoHtml}
+                    ${item.rating ? `<span><i class="ph-duotone ph-star"></i> ${item.rating.toFixed(1)}</span>` : ''}
+                </div>
+                <div class="watched-date">
+                    <i class="ph-duotone ph-calendar-check"></i> Watched ${watchedDate}
+                </div>
+                <!-- File Details - Visible only in list view via CSS -->
+                <div class="file-details">
+                    ${item.resolution ? `<span><i class="ph-duotone ph-monitor"></i> ${item.resolution}</span>` : ''}
+                    ${item.formatted_file_size ? `<span><i class="ph-duotone ph-file"></i> ${item.formatted_file_size}</span>` : ''}
+                    ${item.file_path ? `<span class="file-path" title="${item.file_path}"><i class="ph-duotone ph-folder"></i> ${item.file_path.length > 40 ? '...' + item.file_path.slice(-37) : item.file_path}</span>` : ''}
+                </div>
+            </div>
+        `;
+        return card;
+    }
+
+    // Show empty state message
+    function showEmptyState(message = "Your watch history is empty.") {
         historyContainer.style.display = 'none';
         emptyHistory.style.display = 'block';
+        const emptyText = emptyHistory.querySelector('p');
+        if (emptyText) {
+            emptyText.textContent = message;
+        }
     }
-    
+
     // Toggle view mode
     viewToggle.addEventListener('click', () => {
         historyContainer.classList.toggle('list-view');
         currentView = historyContainer.classList.contains('list-view') ? 'list' : 'grid';
         localStorage.setItem('simkl_history_view', currentView);
-        
-        // Update items per page based on view
-        itemsPerPage = currentView === 'list' ? 12 : 24;
-        
-        // Update button icon
-        viewToggle.innerHTML = currentView === 'list' 
-            ? '<i class="ph ph-grid-four"></i>' 
-            : '<i class="ph ph-list"></i>';
-            
-        // Re-render with new settings
+        itemsPerPage = currentView === 'list' ? 15 : 24;
+        viewToggle.innerHTML = currentView === 'list' ? '<i class="ph-duotone ph-grid-four"></i>' : '<i class="ph-duotone ph-list"></i>';
         currentPage = 1;
         renderHistory();
     });
-    
+
     // Toggle theme
     themeToggle.addEventListener('click', () => {
         document.body.classList.toggle('dark-mode');
         currentTheme = document.body.classList.contains('dark-mode') ? 'dark' : 'light';
         localStorage.setItem('simkl_history_theme', currentTheme);
-        
-        // Update button icon
-        themeToggle.innerHTML = currentTheme === 'dark' 
-            ? '<i class="ph ph-sun"></i>' 
-            : '<i class="ph ph-moon"></i>';
-            
-        // Update chart if it exists
-        if (watchChart) {
-            createWatchTrendChart();
-        }
+        themeToggle.innerHTML = currentTheme === 'dark' ? '<i class="ph-duotone ph-sun"></i>' : '<i class="ph-duotone ph-moon></i>';
+        if (watchChart) createWatchTrendChart(); // Redraw chart with new theme colors
     });
-    
+
     // Toggle stats dashboard
     statsToggle.addEventListener('click', () => {
-        showStats = dashboard.style.display !== 'block';
+        showStats = !showStats;
         dashboard.style.display = showStats ? 'block' : 'none';
         localStorage.setItem('simkl_history_stats', showStats);
-        
-        // Update chart if showing stats
-        if (showStats && !watchChart) {
-            createWatchTrendChart();
-        }
+        if (showStats && !watchChart) createWatchTrendChart();
     });
-    
+
     // Pagination event listeners
     prevPageBtn.addEventListener('click', () => {
         if (currentPage > 1) {
             currentPage--;
             renderHistory();
-            // Scroll to top of container
-            historyContainer.scrollIntoView({ behavior: 'smooth' });
+            window.scrollTo({ top: 0, behavior: 'smooth' }); // Scroll to top
         }
     });
-    
+
     nextPageBtn.addEventListener('click', () => {
         const filteredHistory = filterHistory();
         const totalPages = Math.ceil(filteredHistory.length / itemsPerPage);
-        
         if (currentPage < totalPages) {
             currentPage++;
             renderHistory();
-            // Scroll to top of container
-            historyContainer.scrollIntoView({ behavior: 'smooth' });
+            window.scrollTo({ top: 0, behavior: 'smooth' }); // Scroll to top
         }
     });
-    
-    // Event listeners for filtering and searching
+
+    // Event listeners for filtering and searching (debounce search)
+    let searchTimeout;
     searchInput.addEventListener('input', () => {
-        currentPage = 1; // Reset to first page on search
-        renderHistory();
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => {
+            currentPage = 1;
+            renderHistory();
+        }, 300); // Debounce search input
     });
-    
-    filterType.addEventListener('change', () => {
-        currentPage = 1; // Reset to first page on filter change
-        renderHistory();
-    });
-    
-    filterYear.addEventListener('change', () => {
-        currentPage = 1; // Reset to first page on year filter change
-        renderHistory();
-    });
-    
-    sortBy.addEventListener('change', () => {
-        currentPage = 1; // Reset to first page on sort change
-        renderHistory();
-    });
-    
-    // Keyboard shortcuts
+
+    filterType.addEventListener('change', () => { currentPage = 1; renderHistory(); });
+    filterYear.addEventListener('change', () => { currentPage = 1; renderHistory(); });
+    sortBy.addEventListener('change', () => { currentPage = 1; renderHistory(); });
+
+    // Keyboard shortcuts for pagination
     document.addEventListener('keydown', (e) => {
-        if (e.key === 'ArrowLeft' && !prevPageBtn.disabled) {
-            prevPageBtn.click();
-        } else if (e.key === 'ArrowRight' && !nextPageBtn.disabled) {
-            nextPageBtn.click();
-        }
+        // Ignore if typing in search input or if modal is open
+        if (e.target === searchInput || activeMediaCard) return;
+
+        if (e.key === 'ArrowLeft' && !prevPageBtn.disabled) prevPageBtn.click();
+        else if (e.key === 'ArrowRight' && !nextPageBtn.disabled) nextPageBtn.click();
     });
-    
+
     // Handle card clicks to show detailed view
     historyContainer.addEventListener('click', (e) => {
-        // Find the clicked card
         const card = e.target.closest('.media-card');
-        if (!card) return;
+        if (!card || card.classList.contains('expanded')) return;
 
-        // *** Add check: If the card is already expanded, do nothing ***
-        if (card.classList.contains('expanded')) {
-            return;
-        }
-        
-        // Prevent opening if the click is on a button or a link
-        if (e.target.tagName === 'BUTTON' || e.target.tagName === 'A' || 
-            e.target.closest('button') || e.target.closest('a')) {
-            return;
-        }
-        
+        // Prevent opening if clicking on interactive elements within the card (future-proofing)
+        if (e.target.closest('button, a')) return;
+
         expandMediaCard(card);
     });
-    
-    // Close expanded card when clicking outside
-    modalBackdrop.addEventListener('click', (e) => {
-        if (e.target === modalBackdrop) {
-            closeExpandedCard();
-        }
-    });
-    
-    // Close expanded card when Escape key is pressed
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && activeMediaCard) {
-            closeExpandedCard();
-        }
-    });
-    
-    // Expand a media card to show detailed information
+
+    // Close expanded card when clicking backdrop or pressing Escape
+    modalBackdrop.addEventListener('click', (e) => { if (e.target === modalBackdrop) closeExpandedCard(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && activeMediaCard) closeExpandedCard(); });
+
+    // Expand a media card
     function expandMediaCard(card) {
-        // If a card is already expanded, close it first
-        if (activeMediaCard) {
-            closeExpandedCard();
+        if (activeMediaCard) closeExpandedCard(); // Close any existing expanded card
+
+        const itemId = card.dataset.itemId;
+        // Find the item data using a more robust method if IDs aren't always present
+        const item = historyData.find(i => (i.simkl_id && i.simkl_id == itemId) || (!i.simkl_id && `${i.title}-${i.year}` === itemId));
+
+        if (!item) {
+            console.error("Could not find item data for card:", itemId);
+            return;
         }
+
+        // Store original position and size for animation
+        const rect = card.getBoundingClientRect();
         
-        // Get the item data for this card
-        const index = Array.from(historyContainer.children).indexOf(card);
-        const filteredItems = filterHistory();
-        const startIndex = (currentPage - 1) * itemsPerPage;
-        const item = filteredItems[startIndex + index];
+        // Set CSS variables for animation origin
+        card.style.setProperty('--card-orig-top', `${rect.top}px`);
+        card.style.setProperty('--card-orig-left', `${rect.left}px`);
+        card.style.setProperty('--card-orig-width', `${rect.width}px`);
+        card.style.setProperty('--card-orig-height', `${rect.height}px`);
         
-        if (!item) return;
-        
-        // Set active card
+        // Set up the fixed position before starting animation
+        card.style.position = 'fixed';
+        card.style.top = `${rect.top}px`;
+        card.style.left = `${rect.left}px`;
+        card.style.width = `${rect.width}px`;
+        card.style.height = `${rect.height}px`;
+        card.style.margin = '0';
+        card.style.zIndex = '1000';
+
         activeMediaCard = card;
-        
-        // Clone template content
-        const templateClone = expandedContentTemplate.content.cloneNode(true);
-        const posterBanner = templateClone.querySelector('.poster-banner');
-        const posterImage = templateClone.querySelector('.poster-image');
-        const movieTitle = templateClone.querySelector('.movie-title');
-        const expandedContent = templateClone.querySelector('.expanded-content');
- 
-        // --- Set poster banner and title ---
-        // Set the movie title text
-        if (movieTitle) {
-            movieTitle.textContent = item.title + (item.year ? ` (${item.year})` : '');
-        }
-        
-        if (posterImage) {
-            if (item.simkl_id) {
-                // Fallback to regular landscape poster if fanart fails
-                const posterUrl = item.poster_url || item.poster || `${item.simkl_id}`;
-                const landscapePosterUrl = getProxiedImageUrl(posterUrl, '_w');
-                
-                posterImage.style.backgroundImage = `url('${landscapePosterUrl}')`;
-                card.style.backgroundImage = `url('${landscapePosterUrl}')`;
-            } else {
-                // Fallback if no SIMKL ID - use regular poster
-                const posterUrl = item.poster_url || item.poster || 'no-image';
-                const landscapePosterUrl = getProxiedImageUrl(posterUrl, '_w');
-                
-                if (landscapePosterUrl !== 'no-image') {
-                    posterImage.style.backgroundImage = `url('${landscapePosterUrl}')`;
-                    card.style.backgroundImage = `url('${landscapePosterUrl}')`;
-                } else {
-                    // No image available
-                    posterImage.style.backgroundColor = 'var(--border-color)';
-                    card.style.backgroundImage = 'none';
-                }
-            }
-        }
-        
-        // Apply expanded card styles
         card.classList.add('expanded');
         
-        // Show modal backdrop
+        // Display backdrop with a fade-in effect
         modalBackdrop.style.display = 'block';
+        // Short delay to ensure display:block is processed before starting transition
+        setTimeout(() => {
+            modalBackdrop.classList.add('active');
+        }, 10);
         
-        // Fill in details from the item data
-        populateExpandedContent(expandedContent, item);
+        document.body.style.overflow = 'hidden'; // Prevent body scroll
+
+        // Add animation class after a small delay to ensure the card is ready
+        setTimeout(() => {
+            card.classList.add('animating-open');
+            
+            // Listen for animation end
+            card.addEventListener('animationend', function onAnimEnd() {
+                card.classList.remove('animating-open');
+                card.removeEventListener('animationend', onAnimEnd);
+                
+                // Reset inline styles once animation is complete
+                card.style.position = '';
+                card.style.top = '';
+                card.style.left = '';
+                card.style.width = '';
+                card.style.height = '';
+                card.style.margin = '';
+                
+                // Continue with populating the expanded card
+                populateExpandedCard(card, item);
+            }, { once: true });
+        }, 10);
+    }
+
+    // Populate the expanded card with content
+    function populateExpandedCard(card, item) {
+        // Clone template content
+        const templateClone = expandedContentTemplate.content.cloneNode(true);
+        const expandedHeader = templateClone.querySelector('.expanded-header');
+        const expandedContentWrapper = templateClone.querySelector('.expanded-content-wrapper');
+
+        // Populate Header
+        const posterBg = expandedHeader.querySelector('.expanded-poster-bg');
+        const posterThumbImg = expandedHeader.querySelector('.expanded-poster-thumb img');
+        const titleEl = expandedHeader.querySelector('.expanded-title');
+        const metaYear = expandedHeader.querySelector('[data-field="release_year"] span');
+        const metaRuntime = expandedHeader.querySelector('[data-field="runtime"] span');
+        const metaLastWatched = expandedHeader.querySelector('[data-field="last_watched_at"] span'); // Changed from user_rating
+
+        // Determine the base image URLs (Simkl or Placeholder) for large and thumb sizes
+        let largeBaseUrl, thumbBaseUrl, baseImageUrl;
+        let posterValue = item.poster || item.poster_url; // Check for both field names
         
-        // Add close button event listener
-        const closeButton = templateClone.querySelector('.close-button');
-        if (closeButton) {
-            closeButton.addEventListener('click', closeExpandedCard);
+        if (posterValue && /^\d+\/\d+[a-f0-9]*$/.test(posterValue)) {
+            baseImageUrl = `https://simkl.in/posters/${posterValue}`;
+            largeBaseUrl = `${baseImageUrl}_c.webp`; // Large poster for background
+            thumbBaseUrl = `${baseImageUrl}_m.webp`; // Medium poster for thumb
         } else {
-            console.error("Could not find close button in template clone.");
+            // Use placeholders if no valid poster ID
+            const placeholderText = encodeURIComponent(item.title || 'No Image');
+            largeBaseUrl = `https://placehold.co/600x900?text=${placeholderText}`; // Larger placeholder
+            thumbBaseUrl = `https://placehold.co/300x450?text=${placeholderText}`;
+        }
+
+        // Apply the proxy to the final base URLs
+        const largePosterUrl = getProxiedImageUrl(largeBaseUrl);
+        const thumbPosterUrl = getProxiedImageUrl(thumbBaseUrl);
+
+        posterBg.style.backgroundImage = `url('${largePosterUrl}')`;
+        posterThumbImg.src = thumbPosterUrl;
+
+        titleEl.textContent = item.title || 'No Title';
+        metaYear.textContent = item.year || '-';
+        metaRuntime.textContent = item.runtime ? `${item.runtime} min` : '-';
+        // Populate Last Watched Date
+        metaLastWatched.textContent = formatDate(item.watched_at);
+
+        // Populate Content Details
+        populateExpandedContentDetails(expandedContentWrapper, item);
+
+        // Add close button listener
+        const closeButton = templateClone.querySelector('.close-button');
+        closeButton.addEventListener('click', closeExpandedCard);
+
+        // Add action button listeners
+        const playMediaBtn = expandedContentWrapper.querySelector('.play-media');
+        const openFolderBtn = expandedContentWrapper.querySelector('.open-folder');
+        const searchOnlineBtn = expandedContentWrapper.querySelector('#search-online');
+
+        if (item.file_path) {
+            playMediaBtn.addEventListener('click', () => window.open(`file:///${item.file_path}`, '_blank'));
+            openFolderBtn.addEventListener('click', () => {
+                // Attempt to open the folder containing the file
+                try {
+                    const directory = item.file_path.substring(0, item.file_path.lastIndexOf('\\') || item.file_path.lastIndexOf('/'));
+                    window.open(`file:///${directory}`, '_blank');
+                } catch (e) {
+                    alert('Could not determine folder path.');
+                }
+            });
+        } else {
+            playMediaBtn.disabled = true;
+            playMediaBtn.title = "File path not available";
+            openFolderBtn.disabled = true;
+            openFolderBtn.title = "File path not available";
         }
         
-        // Add action buttons event listeners
-        const playMediaBtn = expandedContent.querySelector('.play-media');
-        playMediaBtn.addEventListener('click', () => {
-            // Open media with default player if file path exists
-            if (item.file_path) {
-                window.open(`file:///${item.file_path}`, '_blank');
-            } else {
-                alert('Media file path not available.');
-            }
-        });
-        
-        const openFolderBtn = expandedContent.querySelector('.open-folder');
-        openFolderBtn.addEventListener('click', () => {
-            // Open folder containing the media file
-            if (item.file_path) {
-                // Extract directory from file path
-                const directory = item.file_path.substring(0, item.file_path.lastIndexOf('\\'));
-                window.open(`file:///${directory}`, '_blank');
-            } else {
-                alert('Media folder path not available.');
-            }
-        });
-        
-        const openSimklBtn = expandedContent.querySelector('.open-simkl');
-        openSimklBtn.addEventListener('click', () => {
-            // Open SIMKL page for this item
-            const url = item.imdb_id 
-                ? `https://api.simkl.com/redirect?to=Simkl&imdb=${item.imdb_id}`
-                : `https://api.simkl.com/redirect?to=Simkl&simkl=${item.simkl_id}&title=${encodeURIComponent(item.title)}`;
-            window.open(url, '_blank');
-        });
-        
-        // Append the cloned template
+        // Update the search online button with the current title
+        if (searchOnlineBtn && item.title) {
+            const searchQuery = `${item.title} ${item.year || ''} watch online`;
+            searchOnlineBtn.href = `https://www.google.com/search?q=${encodeURIComponent(searchQuery)}`;
+        }
+
+        // Append the populated template to the card
         card.appendChild(templateClone);
     }
-    
+
     // Close the expanded card
     function closeExpandedCard() {
         if (!activeMediaCard) return;
-        
-        // Find all elements added from the template
-        const posterBanner = activeMediaCard.querySelector('.poster-banner');
+
+        // Get the original position and size from the CSS variables
+        const origTop = activeMediaCard.style.getPropertyValue('--card-orig-top');
+        const origLeft = activeMediaCard.style.getPropertyValue('--card-orig-left');
+        const origWidth = activeMediaCard.style.getPropertyValue('--card-orig-width');
+        const origHeight = activeMediaCard.style.getPropertyValue('--card-orig-height');
+
+        // Save references to elements we need to remove after animation
+        const header = activeMediaCard.querySelector('.expanded-header');
         const closeBtn = activeMediaCard.querySelector('.close-button');
-        const expandedContent = activeMediaCard.querySelector('.expanded-content');
+        const contentWrapper = activeMediaCard.querySelector('.expanded-content-wrapper');
+
+        // Start fade out animation for backdrop
+        modalBackdrop.classList.remove('active');
+
+        // Set up fixed position for animation
+        activeMediaCard.style.position = 'fixed';
+        activeMediaCard.style.top = '50%';
+        activeMediaCard.style.left = '50%';
+        activeMediaCard.style.width = '90%';
+        activeMediaCard.style.maxWidth = '850px';
+        activeMediaCard.style.transform = 'translate(-50%, -50%)';
+        activeMediaCard.style.zIndex = '1000';
+
+        // Add closing animation class
+        activeMediaCard.classList.add('animating-close');
         
-        // Remove each element if it exists
-        if (posterBanner) activeMediaCard.removeChild(posterBanner);
-        if (closeBtn) activeMediaCard.removeChild(closeBtn);
-        if (expandedContent) activeMediaCard.removeChild(expandedContent);
-        
-        // Remove any other potential elements that might have been added
-        // (including any left from previous implementations)
-        const oldElements = activeMediaCard.querySelectorAll('.expanded-background, .movie-title-overlay');
-        oldElements.forEach(el => {
-            if (activeMediaCard.contains(el)) {
-                activeMediaCard.removeChild(el);
-            }
-        });
-        
-        // Remove expanded class
-        activeMediaCard.classList.remove('expanded');
-        
-        // Clear the card's background image style
-        activeMediaCard.style.backgroundImage = 'none';
-        
-        // Hide modal backdrop
-        modalBackdrop.style.display = 'none';
-        
-        // Clear active card reference
-        activeMediaCard = null;
-    }
-    
-    // Populate expanded content with item data
-    function populateExpandedContent(contentElement, item) {
-        // --- Find the latest watch entry for this show/anime ---
-        let latestEntry = item; // Default to the clicked item
-        if ((item.type === 'show' || item.type === 'tv' || item.type === 'anime') && item.simkl_id) {
-            const allEntriesForShow = historyData
-                .filter(entry => entry.simkl_id === item.simkl_id && (entry.type === 'show' || entry.type === 'tv' || entry.type === 'anime'))
-                .sort((a, b) => new Date(b.watched_at || 0) - new Date(a.watched_at || 0));
+        // Listen for animation end
+        activeMediaCard.addEventListener('animationend', function onCloseAnimEnd() {
+            activeMediaCard.classList.remove('animating-close');
+            activeMediaCard.removeEventListener('animationend', onCloseAnimEnd);
             
-            if (allEntriesForShow.length > 0) {
-                latestEntry = allEntriesForShow[0]; // Get the most recent one
-            }
-        }
-        // --- End Find Latest Entry ---
-
-        // Update basic fields with available data (using the original item for general info)
-        updateField(contentElement, 'release_date', formatReleaseDate(item.release_date || item.year));
-        updateField(contentElement, 'runtime', item.runtime ? `${item.runtime} minutes` : 'Unknown');
-        updateField(contentElement, 'overview', item.overview || 'No description available.');
-        
-        // Add file information if available (using the original item)
-        updateField(contentElement, 'file_path', item.file_path || 'Not available');
-        updateField(contentElement, 'resolution', item.resolution || 'Unknown');
-        updateField(contentElement, 'file_size', formatFileSize(item.file_size) || 'Unknown');
-        
-        // Show/hide TV details section based on media type
-        const tvDetailsSection = contentElement.querySelector('.tv-details');
-        const mediaType = item.type || 'movie';
-        
-        if (mediaType === 'show' || mediaType === 'tv' || mediaType === 'anime') {
-            tvDetailsSection.style.display = 'block';
-
-            // --- Display Latest Watched Episode Info (using latestEntry) ---
-            let latestEpisodeText = '-'; // Default text
-            const latestSeason = latestEntry.season;
-            const latestEpisode = latestEntry.episode;
-
-            if (latestSeason > 0 && latestEpisode > 0) {
-                latestEpisodeText = `S${String(latestSeason).padStart(2, '0')}E${String(latestEpisode).padStart(2, '0')}`;
-            } else if (latestEpisode > 0) { // Handle cases like Anime with only episode number
-                 latestEpisodeText = `E${latestEpisode}`;
-            }
-            updateField(contentElement, 'latest_watched_episode', latestEpisodeText);
-            // --- End Latest Watched ---
-
-            // REMOVED: Update TV/Anime specific fields (Status, Watched x of ?)
-            // REMOVED: Episode list population
-        } else {
-            // Hide TV details section if it's a movie
-            if (tvDetailsSection) {
-                tvDetailsSection.style.display = 'none';
-            }
-        }
+            // Reset all inline styles
+            activeMediaCard.style.position = '';
+            activeMediaCard.style.top = '';
+            activeMediaCard.style.left = '';
+            activeMediaCard.style.width = '';
+            activeMediaCard.style.height = '';
+            activeMediaCard.style.margin = '';
+            activeMediaCard.style.transform = '';
+            activeMediaCard.style.zIndex = '';
+            
+            // Remove elements and cleanup
+            if (header) activeMediaCard.removeChild(header);
+            if (closeBtn) activeMediaCard.removeChild(closeBtn);
+            if (contentWrapper) activeMediaCard.removeChild(contentWrapper);
+            
+            activeMediaCard.classList.remove('expanded');
+            modalBackdrop.style.display = 'none';
+            document.body.style.overflow = ''; // Restore body scroll
+            activeMediaCard = null;
+        }, { once: true });
     }
-    
-    // Format release date
-    function formatReleaseDate(dateStr) {
-        if (!dateStr) return 'Unknown';
-        
-        // If it's just a year (4 digits)
-        if (/^\d{4}$/.test(dateStr)) {
-            return dateStr;
-        }
-        
-        // Try to parse the date
-        try {
-            const date = new Date(dateStr);
-            return date.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
-        } catch (e) {
-            return dateStr;
-        }
-    }
-    
-    // Genres removed, function no longer needed
-    // function formatGenres(genres) { ... }
-    
+
     // Format file size
     function formatFileSize(bytes) {
-        if (!bytes) return 'Unknown';
-        
-        // Check if the bytes value already includes a formatted string
-        if (typeof bytes === 'string' && bytes.includes(' ')) {
-            // Likely already formatted (e.g., "3.5 GB")
-            return bytes;
-        }
-        
-        const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+        if (bytes === null || bytes === undefined || isNaN(bytes)) return null;
         if (bytes === 0) return '0 Bytes';
-        const i = parseInt(Math.floor(Math.log(bytes) / Math.log(1024)), 10);
-        if (i === 0) return `${bytes} ${sizes[i]}`;
-        return `${(bytes / (1024 ** i)).toFixed(2)} ${sizes[i]}`;
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
     }
-    
-    // Update field in expanded content
-    function updateField(contentElement, fieldName, value) {
-        const field = contentElement.querySelector(`[data-field="${fieldName}"]`);
+
+    // Update field helper
+    function updateField(container, fieldName, value) {
+        const field = container.querySelector(`[data-field="${fieldName}"]`);
         if (field) {
-            field.textContent = value;
+            // If the value is an element (like for genres), append it
+            if (value instanceof HTMLElement) {
+                 field.innerHTML = ''; // Clear existing
+                 field.appendChild(value);
+            } else {
+                 field.textContent = value || '-'; // Use '-' for null/empty values
+            }
+            // Hide parent detail-group if value is '-' or empty, unless it's a required field like overview
+            const parentGroup = field.closest('.detail-group');
+            if (parentGroup && fieldName !== 'overview' && fieldName !== 'file_path') { // Keep overview and file path visible even if '-'
+                parentGroup.style.display = (value && value !== '-') ? '' : 'none';
+            }
+        }
+        return field; // Return the element for potential further manipulation
+    }
+
+    // Populate the details within the expanded card's scrollable area
+    function populateExpandedContentDetails(contentWrapper, item) {
+        updateField(contentWrapper, 'overview', item.overview || 'No description available.');
+        updateField(contentWrapper, 'language', item.language || '-');
+
+        // Update file details
+        const filePathEl = updateField(contentWrapper, 'file_path', item.file_path || '-');
+        if (filePathEl && item.file_path) {
+            filePathEl.title = `Click to copy: ${item.file_path}`; // Add title for full path
+            filePathEl.style.cursor = 'pointer';
+            filePathEl.addEventListener('click', () => {
+                navigator.clipboard.writeText(item.file_path)
+                    .then(() => {
+                        const originalText = filePathEl.textContent;
+                        filePathEl.textContent = 'Copied!';
+                        setTimeout(() => { filePathEl.textContent = originalText; }, 1500);
+                    })
+                    .catch(err => console.error('Failed to copy file path:', err));
+            });
+        } else if (filePathEl) {
+             filePathEl.style.cursor = 'default';
+             filePathEl.title = 'File path not available';
+        }
+
+        updateField(contentWrapper, 'file_size', item.formatted_file_size || formatFileSize(item.file_size) || '-');
+        updateField(contentWrapper, 'resolution', item.resolution || '-');
+        updateField(contentWrapper, 'file_format', item.file_format || '-');
+        updateField(contentWrapper, 'last_modified', formatTimestamp(item.last_modified));
+
+        // Populate External Links
+        const linksContainer = contentWrapper.querySelector('.external-links');
+        linksContainer.innerHTML = '<div class="detail-label">Links</div>'; // Reset and add label
+        
+        // Fix for TV shows - use 'tv' instead of 'show' in the URL
+        const simklUrlType = item.type === 'show' ? 'tv' : item.type;
+        
+        addExternalLink(linksContainer, item.ids?.simkl || item.simkl_id, 
+            `https://simkl.com/${simklUrlType}/${item.ids?.simkl || item.simkl_id}`, 
+            'Simkl', 'https://simkl.in/favicon.ico');
+        addExternalLink(linksContainer, item.ids?.imdb, `https://www.imdb.com/title/${item.ids.imdb}`, 'IMDb', 'https://www.imdb.com/favicon.ico');
+        addExternalLink(linksContainer, item.ids?.tmdb, `https://www.themoviedb.org/${item.type === 'movie' ? 'movie' : 'tv'}/${item.ids.tmdb}`, 'TMDB', 'https://www.themoviedb.org/favicon.ico');
+        addExternalLink(linksContainer, item.ids?.tvdb, `https://thetvdb.com/?tab=series&id=${item.ids.tvdb}`, 'TVDB', 'https://thetvdb.com/images/favicon.ico');
+        addExternalLink(linksContainer, item.ids?.anilist, `https://anilist.co/${item.type}/${item.ids.anilist}`, 'Anilist', 'https://anilist.co/img/icons/favicon-32x32.png');
+        // Add more links as needed (MAL, etc.)
+
+        // Show/hide TV details section
+        const tvDetailsSection = contentWrapper.querySelector('.tv-details-section');
+        const mediaType = item.type || 'movie';
+
+        if (mediaType === 'tv' || mediaType === 'anime') {
+            tvDetailsSection.style.display = 'block';
+            
+            // Find the latest watched episode info
+            let latestEntry;
+            let latestEpisodeText = '-';
+            
+            if (item.episodes && item.episodes.length > 0) {
+                // Sort episodes by most recent watch date
+                const sortedEpisodes = [...item.episodes].sort((a, b) => 
+                    new Date(b.watched_at || 0) - new Date(a.watched_at || 0)
+                );
+                latestEntry = sortedEpisodes[0];
+            } else {
+                // Fallback to the item itself if it has episode info
+                latestEntry = item;
+            }
+            
+            // Format latest episode text
+            if (latestEntry && latestEntry.season > 0 && latestEntry.episode > 0) {
+                latestEpisodeText = `S${String(latestEntry.season).padStart(2, '0')}E${String(latestEntry.episode).padStart(2, '0')}`;
+            } else if (latestEntry && latestEntry.episode > 0) {
+                latestEpisodeText = `E${latestEntry.episode}`;
+            }
+            updateField(tvDetailsSection, 'latest_watched_episode', latestEpisodeText);
+            updateField(tvDetailsSection, 'total_episodes', item.total_episodes || '-'); // Use item's total_episodes if available
+
+            // Calculate Watched Count: Prioritize item.episodes_watched if available
+            let watchedCount = '-';
+            if (typeof item.episodes_watched === 'number') {
+                watchedCount = item.episodes_watched;
+            } else if (item.simkl_id) {
+                // Fallback: Count unique episodes from history
+                const uniqueEpisodes = new Set();
+                historyData
+                    .filter(entry => entry.simkl_id === item.simkl_id && entry.episode > 0)
+                    .forEach(entry => uniqueEpisodes.add(`S${entry.season || 0}E${entry.episode}`));
+                watchedCount = uniqueEpisodes.size;
+            } else if (item.episodes && item.episodes.length > 0) {
+                watchedCount = item.episodes.length;
+            }
+            updateField(tvDetailsSection, 'episodes_watched_count', watchedCount);
+
+            // Populate Episode List
+            const episodeListContainer = tvDetailsSection.querySelector('[data-field="episode_list"]');
+            episodeListContainer.innerHTML = ''; // Clear previous list
+
+            // Get all history entries for this specific show/anime ID, sorted by most recent watch (for fallback/metadata)
+            const episodesHistory = historyData
+                .filter(entry => entry.simkl_id === item.simkl_id && (entry.type === 'tv' || entry.type === 'anime') && entry.episode > 0)
+                .sort((a, b) => new Date(b.watched_at || 0) - new Date(a.watched_at || 0));
+
+            let episodesToDisplay = [];
+            let sourceIsItemEpisodes = false;
+
+            if (Array.isArray(item.episodes) && item.episodes.length > 0) {
+                // Source: item.episodes array (e.g., from watch_history.json)
+                episodesToDisplay = item.episodes.map(epData => ({
+                    season: epData.season,
+                    number: epData.number,
+                    title: epData.title || `Episode ${epData.number}`,
+                    // Include direct properties from epData and find corresponding history entry for fallback/additional metadata
+                    ...epData, // Spread properties like file_path, formatted_file_size, runtime directly
+                    historyEntry: episodesHistory.find(hist => hist.season === epData.season && hist.episode === epData.number)
+                }));
+                sourceIsItemEpisodes = true;
+            } else if (episodesHistory.length > 0) {
+                // Fallback Source: History entries
+                episodesToDisplay = episodesHistory.map(hist => ({
+                    season: hist.season,
+                    number: hist.episode,
+                    title: `Episode ${hist.episode}`, // No title available from history alone
+                    watched_at: hist.watched_at,
+                    file_path: hist.file_path,
+                    file_size: hist.file_size,
+                    formatted_file_size: hist.formatted_file_size,
+                    runtime: hist.runtime,
+                    historyEntry: hist
+                }));
+            }
+
+            if (episodesToDisplay.length > 0) {
+                // Sort episodes by watched date (newest first)
+                episodesToDisplay.sort((a, b) => {
+                    // Parse dates for comparison
+                    const dateA = a.watched_at ? new Date(a.watched_at) : new Date(0);
+                    const dateB = b.watched_at ? new Date(b.watched_at) : new Date(0);
+                    
+                    // Sort by date descending (newest first)
+                    return dateB - dateA;
+                });
+
+                episodesToDisplay.forEach(ep => {
+                    const epElement = document.createElement('div');
+                    epElement.className = 'episode-item';
+                    const epNumber = ep.number || '?';
+                    const seasonNumber = ep.season || 0;
+                    const epTitle = ep.title; // Already determined above
+                    
+                    // Use the direct watched_at from the episode object if available (from item.episodes)
+                    // Only fallback to historyEntry if needed
+                    const epWatchedDate = ep.watched_at ? formatDate(ep.watched_at) : 
+                                        ep.historyEntry ? formatDate(ep.historyEntry.watched_at) : 'N/A';
+                    
+                    const epFilePath = ep.file_path || ep.historyEntry?.file_path || 'N/A';
+                    const epFileSize = ep.formatted_file_size || formatFileSize(ep.file_size) || ep.historyEntry?.formatted_file_size || formatFileSize(ep.historyEntry?.file_size) || 'N/A';
+                    const epRuntime = ep.runtime || ep.historyEntry?.runtime; // Get runtime if available
+
+                    const runtimeHtml = epRuntime ? `<span title="Runtime"><i class="ph-duotone ph-clock"></i> ${epRuntime} min</span>` : '';
+                    epElement.innerHTML = `
+                        <div class="episode-info-main">
+                            <span class="episode-number">${seasonNumber > 0 ? `S${String(seasonNumber).padStart(2, '0')}` : ''}E${epNumber}</span>
+                            <span class="episode-title" title="${epTitle}">${epTitle}</span>
+                        </div>
+                        <div class="episode-info-meta">
+                            <span title="Watched Date"><i class="ph-duotone ph-calendar-check"></i> ${epWatchedDate}</span>
+                            <span title="File Size"><i class="ph-duotone ph-file"></i> ${epFileSize}</span>
+                            ${runtimeHtml}
+                            <span class="file-path-ep" title="${epFilePath}"><i class="ph-duotone ph-folder"></i> ${epFilePath.length > 25 ? '...' + epFilePath.slice(-22) : epFilePath}</span>
+                        </div>
+                    `;
+                    episodeListContainer.appendChild(epElement);
+                });
+            } else {
+                episodeListContainer.innerHTML = '<div class="no-episodes">No episode watch history found.</div>';
+            }
+        } else {
+            tvDetailsSection.style.display = 'none';
         }
     }
-    
-    // REMOVED: populateEpisodeList function as it's no longer used.
-    
+
+    // Helper to add an external link button if the ID exists
+    function addExternalLink(container, id, url, text, iconSrc) {
+        if (!id || !url) return;
+        
+        const link = document.createElement('a');
+        link.href = url;
+        link.target = '_blank';
+        link.rel = 'noopener';
+        link.className = 'external-link-btn';
+        link.title = `View on ${text}`;
+        
+        if (iconSrc && iconSrc.includes('http')) {
+            const icon = document.createElement('img');
+            icon.src = iconSrc;
+            icon.alt = text;
+            icon.className = 'icon';
+            link.appendChild(icon);
+        } else {
+            const icon = document.createElement('i');
+            icon.className = 'ph-duotone ph-link icon';
+            link.appendChild(icon);
+        }
+        
+        const textSpan = document.createElement('span');
+        textSpan.textContent = text;
+        link.appendChild(textSpan);
+        
+        container.appendChild(link);
+    }
+
+    // Make these functions globally accessible for data.js
+    window.loadHistory = loadHistory;
+    window.processHistoryData = processHistoryData;
+
     // Initial load
     loadHistory();
 });

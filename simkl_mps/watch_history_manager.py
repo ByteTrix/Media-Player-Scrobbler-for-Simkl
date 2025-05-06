@@ -193,7 +193,7 @@ class WatchHistoryManager:
                 return # Cannot proceed without source
 
             # Files we need to check/copy
-            required_files = ["index.html", "style.css", "script.js"]
+            required_files = ["index.html", "style.css", "script.js", "fonts.css"]
             needs_copy = False # Flag to track if any copy operation is needed
 
             # Check each required file and copy if missing or outdated
@@ -249,6 +249,35 @@ class WatchHistoryManager:
                                     needs_copy = True # Mark that at least one copy happened
                                 except Exception as asset_copy_err:
                                     logger.error(f"Failed to copy asset '{asset_file.name}' to {target_asset_file}: {asset_copy_err}")
+            
+            # Copy the fonts folder
+            source_fonts = source_dir / "fonts"
+            target_fonts = viewer_dir / "fonts"
+            if source_fonts.exists() and source_fonts.is_dir():
+                if not target_fonts.exists():
+                    try:
+                        os.makedirs(target_fonts, exist_ok=True)
+                        logger.debug(f"Created fonts directory: {target_fonts}")
+                    except Exception as mkdir_err:
+                        logger.error(f"Failed to create fonts directory {target_fonts}: {mkdir_err}")
+                
+                if target_fonts.exists(): # Proceed only if target fonts dir exists or was created
+                    for font_file in source_fonts.iterdir():
+                        if font_file.is_file():
+                            target_font_file = target_fonts / font_file.name
+                            font_needs_update = False
+                            if not target_font_file.exists():
+                                font_needs_update = True
+                            elif os.path.getmtime(font_file) > os.path.getmtime(target_font_file):
+                                font_needs_update = True
+
+                            if font_needs_update:
+                                try:
+                                    shutil.copy2(font_file, target_font_file)
+                                    logger.debug(f"Copied font '{font_file.name}' to {target_fonts}")
+                                    needs_copy = True # Mark that at least one copy happened
+                                except Exception as font_copy_err:
+                                    logger.error(f"Failed to copy font '{font_file.name}' to {target_font_file}: {font_copy_err}")
             
             if needs_copy:
                  logger.info("Watch history viewer files updated successfully.")
@@ -388,29 +417,45 @@ class WatchHistoryManager:
             logger.error(f"Error updating history data: {e}", exc_info=True)
     
     def add_entry(self, media_item, media_file_path=None, watched_progress=100):
-        """Add a new entry to watch history"""
+        """Add a new entry to watch history, or update existing show entries with new episodes"""
+        
         # Check if we already have this item in the history
         existing_entry = None
         existing_entry_index = -1
 
-        # Find existing entry by simkl_id and type
+        # Find existing entry by simkl_id regardless of type
+        # This ensures we always update existing shows rather than creating new entries
         for i, entry in enumerate(self.history):
-            if (entry.get("simkl_id") == media_item.get("simkl_id") and
-                entry.get("type") == media_item.get("type")):
+            if entry.get("simkl_id") == media_item.get("simkl_id"):
                 existing_entry = entry
                 existing_entry_index = i
                 break
 
         # --- Handle TV Shows/Anime ---
-        if existing_entry and media_item.get("type") in ["tv", "anime"] and "episode" in media_item:
+        if existing_entry and media_item.get("type") in ["tv", "show", "anime"] and "episode" in media_item:
             episode_number = media_item.get("episode")
 
-            # Always ensure season and episode are set at the top level
+            # Always ensure season and episode are set at the top level with the latest watched
             if "season" in media_item:
                 existing_entry["season"] = media_item.get("season")
             
             if "episode" in media_item:
                 existing_entry["episode"] = media_item.get("episode")
+
+            # Update basic metadata from the new media_item
+            if "poster_url" in media_item and media_item.get("poster_url"): # Use poster_url
+                existing_entry["poster_url"] = media_item.get("poster_url")
+            if "year" in media_item and media_item.get("year"):
+                existing_entry["year"] = media_item.get("year")
+            if "overview" in media_item and media_item.get("overview"):
+                existing_entry["overview"] = media_item.get("overview")
+            if "runtime" in media_item and media_item.get("runtime"):
+                existing_entry["runtime"] = media_item.get("runtime")
+            if "ids" in media_item and media_item.get("ids"):
+                existing_entry["ids"] = media_item.get("ids")
+                # Ensure imdb_id is at the top level if present in ids (for consistency)
+                if "imdb" in media_item.get("ids", {}):
+                    existing_entry["imdb_id"] = media_item["ids"]["imdb"]
 
             # Ensure episodes list exists
             if "episodes" not in existing_entry:
@@ -439,30 +484,47 @@ class WatchHistoryManager:
                     episode_data["file_path"] = str(media_file_path)
                     episode_data.update(self._get_file_metadata(media_file_path))
                 existing_entry["episodes"].append(episode_data)
+                logger.info(f"Added episode {episode_number} to existing show '{existing_entry['title']}' (ID: {existing_entry['simkl_id']})")
 
             # Update overall show watched_at and episode count
             existing_entry["watched_at"] = datetime.now().isoformat()
             existing_entry["episodes_watched"] = len(existing_entry.get("episodes", [])) # Recalculate count
 
-            # Move the updated show entry to the top
+            # Move the updated show entry to the top of the list (most recently watched)
             if existing_entry_index != -1:
-                 self.history.pop(existing_entry_index)
-                 self.history.insert(0, existing_entry)
+                self.history.pop(existing_entry_index)
+                self.history.insert(0, existing_entry)
 
         # --- Handle Movies ---
         elif existing_entry and media_item.get("type") == "movie":
             # Update watched_at timestamp and file info for the existing movie
             existing_entry["watched_at"] = datetime.now().isoformat()
+            
+            # Update metadata from new media_item
+            if "poster_url" in media_item and media_item.get("poster_url"): # Use poster_url
+                existing_entry["poster_url"] = media_item.get("poster_url")
+            if "year" in media_item and media_item.get("year"):
+                existing_entry["year"] = media_item.get("year")
+            if "overview" in media_item and media_item.get("overview"):
+                existing_entry["overview"] = media_item.get("overview")
+            if "runtime" in media_item and media_item.get("runtime"):
+                existing_entry["runtime"] = media_item.get("runtime")
+            if "ids" in media_item and media_item.get("ids"):
+                existing_entry["ids"] = media_item.get("ids")
+                # Ensure imdb_id is at the top level if present in ids
+                if "imdb" in media_item.get("ids", {}):
+                    existing_entry["imdb_id"] = media_item["ids"]["imdb"]
+                    
+            # Update file path and metadata if provided
             if media_file_path:
                 existing_entry["file_path"] = str(media_file_path)
                 existing_entry.update(self._get_file_metadata(media_file_path))
-            # --- Removed metadata update loop for existing movies ---
-            # Only watched_at and file info are updated now.
 
-            # Move the updated movie entry to the top
+            # Move the updated movie entry to the top of the list
             if existing_entry_index != -1:
-                 self.history.pop(existing_entry_index)
-                 self.history.insert(0, existing_entry)
+                self.history.pop(existing_entry_index)
+                self.history.insert(0, existing_entry)
+                logger.info(f"Updated movie '{existing_entry['title']}' (ID: {existing_entry['simkl_id']})")
 
         # --- Handle New Entries (Movie or TV Show not found) ---
         elif not existing_entry:
@@ -472,14 +534,14 @@ class WatchHistoryManager:
                 "title": media_item.get("title", "Unknown Title"),
                 "type": media_item.get("type", "movie"),
                 "watched_at": datetime.now().isoformat(),
-                "poster_url": media_item.get("poster_url", ""),
+                "poster_url": media_item.get("poster_url", ""), # Use poster_url
                 "year": media_item.get("year"),
                 "runtime": media_item.get("runtime"),
                 "overview": media_item.get("overview"),
                 "ids": media_item.get("ids", {})
             }
 
-            # Always add season/episode for TV shows regardless of existing episodes list
+            # Always add season/episode for TV shows
             if media_item.get("type") in ["tv", "show", "anime"]:
                 if "season" in media_item:
                     history_entry["season"] = media_item.get("season")
@@ -495,14 +557,12 @@ class WatchHistoryManager:
             if "ids" in history_entry and "imdb" in history_entry["ids"]:
                  history_entry["imdb_id"] = history_entry["ids"]["imdb"]
 
-            # --- Removed redundant season/episode copy block ---
-
             # For TV shows/anime, also add episode information to the episodes list
-            if history_entry["type"] in ["tv", "anime"] and "episode" in media_item: # Check history_entry type
+            if history_entry["type"] in ["tv", "show", "anime"] and "episode" in media_item:
                 history_entry["episodes_watched"] = 1
-                history_entry["total_episodes"] = media_item.get("total_episodes") # Store total episodes if available
+                history_entry["total_episodes"] = media_item.get("total_episodes")
 
-                # Initialize episodes list
+                # Initialize episodes list with the first episode
                 history_entry["episodes"] = [{
                     "number": media_item.get("episode"),
                     "title": media_item.get("episode_title", f"Episode {media_item.get('episode')}"),
@@ -513,15 +573,13 @@ class WatchHistoryManager:
                 if media_file_path and "episodes" in history_entry:
                     history_entry["episodes"][0]["file_path"] = str(media_file_path)
                     history_entry["episodes"][0].update(self._get_file_metadata(media_file_path))
+                
+                logger.info(f"Created new show entry for '{history_entry['title']}' (ID: {history_entry['simkl_id']}) with episode {media_item.get('episode')}")
+            else:
+                logger.info(f"Created new movie entry for '{history_entry['title']}' (ID: {history_entry['simkl_id']})")
             
             # Add the new entry to the beginning of the list
             self.history.insert(0, history_entry)
-
-            # --- ADD LOGGING ---
-            # Remove excessive logging messages
-            if media_item.get("type") in ["tv", "anime"]:
-                 logger.debug(f"New TV/Anime item data - Season: {media_item.get('season')}, Episode: {media_item.get('episode')}")
-            # --- END LOGGING ---
 
         # Limit history size if configured
         max_history = 500 # TODO: Make this configurable

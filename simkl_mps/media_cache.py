@@ -40,6 +40,73 @@ class MediaCache:
         except Exception as e:
             logger.error(f"Error saving cache: {e}")
 
+    def _filter_media_info(self, raw_info: dict) -> dict:
+        filtered = {}
+        
+        # Core fields extraction with fallbacks
+        simkl_id = raw_info.get('simkl_id')
+        if simkl_id is not None:
+            try: # Ensure simkl_id is an int if possible
+                filtered['simkl_id'] = int(simkl_id)
+            except ValueError:
+                filtered['simkl_id'] = simkl_id # Keep as string if not convertible
+
+        movie_name = raw_info.get('movie_name') or raw_info.get('title')
+        if movie_name:
+            filtered['movie_name'] = movie_name
+
+        poster_url = raw_info.get('poster_url') or raw_info.get('poster')
+        if poster_url:
+            filtered['poster_url'] = poster_url
+            
+        # Type and Year
+        if 'type' in raw_info:
+            filtered['type'] = raw_info['type']
+        if 'year' in raw_info:
+            filtered['year'] = raw_info['year']
+            
+        # IDs sub-dictionary
+        filtered_ids = {}
+        raw_ids_dict = raw_info.get('ids', {})
+        
+        final_simkl_id_for_ids = raw_ids_dict.get('simkl') or raw_ids_dict.get('simkl_id')
+        if final_simkl_id_for_ids is None and 'simkl_id' in filtered:
+             final_simkl_id_for_ids = filtered['simkl_id']
+        
+        if final_simkl_id_for_ids is not None:
+            try:
+                filtered_ids['simkl'] = int(final_simkl_id_for_ids)
+            except ValueError:
+                 filtered_ids['simkl'] = final_simkl_id_for_ids
+
+        imdb_id_val = raw_ids_dict.get('imdb') or raw_info.get('imdb_id')
+        if imdb_id_val:
+            filtered_ids['imdb'] = imdb_id_val
+            
+        anilist_id_val = raw_ids_dict.get('anilist')
+        if anilist_id_val:
+            filtered_ids['anilist'] = anilist_id_val
+            
+        if filtered_ids:
+            filtered['ids'] = filtered_ids
+
+        # Other allowed top-level fields
+        allowed_other_fields_can_be_null = ['overview']
+        allowed_other_fields_must_have_value = [
+            'source', 'duration_seconds', 
+            'original_input', 'original_filepath',
+            'season', 'episode' 
+        ]
+        for field in allowed_other_fields_can_be_null:
+            if field in raw_info:
+                filtered[field] = raw_info[field]
+
+        for field in allowed_other_fields_must_have_value:
+            if field in raw_info and raw_info[field] is not None:
+                filtered[field] = raw_info[field]
+        
+        return filtered
+
     def get(self, key):
         """
         Get media info from cache
@@ -54,32 +121,32 @@ class MediaCache:
 
     def set(self, key, media_info):
         """
-        Store media info in cache
+        Store media info in cache after filtering
         
         Args:
             key: The key to store under (title, filename, or path)
-            media_info: Dict with media details including 'type' ('movie', 'show', 'anime')
-                        and applicable fields like 'simkl_id', 'season', 'episode'
+            media_info: Dict with raw media details
         """
-        self.cache[key.lower()] = media_info
+        filtered_info = self._filter_media_info(media_info)
+        self.cache[key.lower()] = filtered_info
         self._save_cache()
         
-    def update(self, key, new_info):
+    def update(self, key, new_info_raw):
         """
-        Update existing media info in cache, preserving non-overwritten fields
+        Update existing media info in cache, ensuring the final result is filtered.
         
         Args:
             key: The key to update (title, filename, or path)
-            new_info: Dict with new/updated media details to merge
+            new_info_raw: Dict with new/updated raw media details to merge
         """
-        existing = self.get(key)
-        if existing:
-            # Merge new info with existing info, keeping existing values not in new_info
-            existing.update(new_info)
-            self.set(key, existing)
+        current_filtered = self.get(key) 
+        
+        if current_filtered:
+            merged_info_for_filtering = current_filtered.copy()
+            merged_info_for_filtering.update(new_info_raw)
+            self.set(key, merged_info_for_filtering) # self.set will apply _filter_media_info
         else:
-            # If no existing entry, just create one
-            self.set(key, new_info)
+            self.set(key, new_info_raw) # self.set will apply _filter_media_info
 
     def remove(self, key):
         """
