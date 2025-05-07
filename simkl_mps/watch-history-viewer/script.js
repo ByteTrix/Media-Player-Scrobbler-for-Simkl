@@ -182,8 +182,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const year = date.getFullYear();
             
             // Store with display label for better readability
-            watchesByMonth[monthKey] = { 
-                month: monthKey, 
+            watchesByMonth[monthKey] = {
+                month: monthKey,
                 count: 0,
                 label: new Date(year, month).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })
             };
@@ -194,6 +194,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if (item.watched_at) {
                 try {
                     const watchDate = new Date(item.watched_at);
+                    if (isNaN(watchDate.getTime())) { // Check for invalid date
+                        return; // Skip this item
+                    }
                     const watchMonth = watchDate.toISOString().slice(0, 7); // YYYY-MM
                     
                     if (watchesByMonth[watchMonth]) {
@@ -806,9 +809,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const watchedDate = formatDate(item.watched_at);
 
         let episodeInfoHtml = '';
-        if ((mediaType === 'tv' || mediaType === 'anime') && item.season > 0 && item.episode > 0) {
+        if ((mediaType === 'tv' || mediaType === 'anime' || mediaType === 'show') && item.season > 0 && item.episode > 0) {
             episodeInfoHtml = `<span class="episode-info" title="Season ${item.season}, Episode ${item.episode}"><i class="ph-duotone ph-television"></i> S${String(item.season).padStart(2, '0')}E${String(item.episode).padStart(2, '0')}</span>`;
-        } else if ((mediaType === 'tv' || mediaType === 'anime') && item.episode > 0) {
+        } else if ((mediaType === 'tv' || mediaType === 'anime' || mediaType === 'show') && item.episode > 0) {
             episodeInfoHtml = `<span class="episode-info" title="Episode ${item.episode}"><i class="ph-duotone ph-television"></i> E${item.episode}</span>`;
         }
 
@@ -1225,7 +1228,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const tvDetailsSection = contentWrapper.querySelector('.tv-details-section');
         const mediaType = item.type || 'movie';
 
-        if (mediaType === 'tv' || mediaType === 'anime') {
+        if (mediaType === 'tv' || mediaType === 'anime' || mediaType === 'show') {
             tvDetailsSection.style.display = 'block';
             
             // Find the latest watched episode info
@@ -1274,7 +1277,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Get all history entries for this specific show/anime ID, sorted by most recent watch (for fallback/metadata)
             const episodesHistory = historyData
-                .filter(entry => entry.simkl_id === item.simkl_id && (entry.type === 'tv' || entry.type === 'anime') && entry.episode > 0)
+                .filter(entry => entry.simkl_id === item.simkl_id && (entry.type === 'tv' || entry.type === 'anime' || entry.type === 'show') && entry.episode > 0)
                 .sort((a, b) => new Date(b.watched_at || 0) - new Date(a.watched_at || 0));
 
             let episodesToDisplay = [];

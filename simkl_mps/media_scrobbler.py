@@ -1406,6 +1406,7 @@ class MediaScrobbler:
 
         if not self.client_id or not self.access_token:
             logger.warning("[Backlog] Missing credentials. Cannot process.")
+            self._send_notification("Simkl Backlog Sync", "Missing API credentials to process backlog.")
             return {'processed': 0, 'attempted': 0, 'failed': True, 'reason': 'Missing credentials'}
 
         if not is_internet_connected():
@@ -1417,6 +1418,7 @@ class MediaScrobbler:
             return {'processed': 0, 'attempted': 0, 'failed': False, 'reason': 'No items'}
 
         logger.info(f"[Backlog] Processing {len(pending_items_dict)} items...")
+        self._send_notification("Simkl Backlog Sync", f"Started: Attempting to sync {len(pending_items_dict)} items...")
         success_count = 0
         attempted_this_cycle = 0
         failure_this_cycle = False
@@ -1465,6 +1467,7 @@ class MediaScrobbler:
                 
                 if not resolution_success:
                     logger.warning(f"[Backlog] Failed to resolve identity for '{display_title}' (Key: {item_key}): {api_error_msg}")
+                    self._send_notification("Simkl Backlog Sync", f"Error with '{display_title}': Failed to resolve identity ({api_error_msg or 'Unknown error'}). Will retry.")
                     self.backlog_cleaner.update_item(item_key, {
                         'attempt_count': attempt_count + 1,
                         'last_attempt_timestamp': current_time,
@@ -1485,6 +1488,7 @@ class MediaScrobbler:
 
                 if not simkl_id_to_sync or not media_type_to_sync:
                     logger.error(f"[Backlog] Resolved item '{title_to_sync}' missing Simkl ID or Type. Cannot sync.")
+                    self._send_notification("Simkl Backlog Sync", f"Error with '{title_to_sync}': Resolved item missing critical data. Will retry.")
                     self.backlog_cleaner.update_item(item_key, {
                         'attempt_count': attempt_count + 1, 'last_attempt_timestamp': current_time,
                         'last_error': "Resolved item missing ID/Type"
@@ -1516,6 +1520,7 @@ class MediaScrobbler:
 
                 if not payload:
                     logger.error(f"[Backlog] Failed to build payload for '{title_to_sync}' (ID: {simkl_id_to_sync}). Error in item data.")
+                    self._send_notification("Simkl Backlog Sync", f"Error with '{title_to_sync}': Failed to prepare item for sync. Will retry.")
                     self.backlog_cleaner.update_item(item_key, {
                         'attempt_count': attempt_count + 1, 'last_attempt_timestamp': current_time,
                         'last_error': "Payload build failed"
@@ -1566,6 +1571,7 @@ class MediaScrobbler:
 
                 if sync_api_error:
                     logger.warning(f"[Backlog] Sync failed for '{title_to_sync}': {sync_api_error}")
+                    self._send_notification("Simkl Backlog Sync", f"Error with '{title_to_sync}': Sync failed ({sync_api_error}). Will retry.")
                     self.backlog_cleaner.update_item(item_key, {
                         'attempt_count': attempt_count + 1,
                         'last_attempt_timestamp': current_time,
@@ -1578,10 +1584,19 @@ class MediaScrobbler:
                     if item_key in self._processing_backlog_items:
                         self._processing_backlog_items.remove(item_key)
         
-        if attempted_this_cycle > 0:
-            logger.info(f"[Backlog] Cycle complete. Attempted: {attempted_this_cycle}, Synced: {success_count}.")
-        elif len(pending_items_dict) > 0: # Items exist but none were attempted (e.g., all in cooldown)
-            logger.info("[Backlog] Cycle complete. No items ready for retry due to cooldowns.")
+        # Summary Notifications
+        if not pending_items_dict: # Should have been caught by initial check if backlog was empty
+            pass # No notification needed here as initial check handles it.
+        elif success_count == attempted_this_cycle and success_count > 0: # All attempted items succeeded
+            self._send_notification("Simkl Backlog Sync", f"Successful: Synced all {success_count} attempted items.")
+        elif success_count > 0 and success_count < attempted_this_cycle: # Some succeeded, some failed
+            self._send_notification("Simkl Backlog Sync", f"Partially Successful: Synced {success_count} items. {attempted_this_cycle - success_count} items had errors and will be retried.")
+        elif success_count == 0 and attempted_this_cycle > 0: # All attempted items failed
+            self._send_notification("Simkl Backlog Sync", f"Failed: Attempted {attempted_this_cycle} items, but none synced due to errors. Will retry.")
+        # Fallback log, no specific notification for this general case unless it's a new state.
+        elif attempted_this_cycle > 0 : # Generic completion if other states not met
+             logger.info(f"[Backlog] Cycle complete. Attempted: {attempted_this_cycle}, Synced: {success_count}.")
+
 
         return {'processed': success_count, 'attempted': attempted_this_cycle, 'failed': failure_this_cycle}
 

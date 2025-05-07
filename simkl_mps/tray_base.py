@@ -529,10 +529,14 @@ class TrayAppBase(abc.ABC): # Inherit from ABC for abstract methods
 
     # --- Watch Threshold Logic ---
 
-    def _apply_threshold_change(self, new_threshold: int):
+    def _apply_threshold_change(self, new_threshold: int | None):
         """Applies the threshold change: saves, updates scrobbler, notifies, updates UI."""
+        logger.debug(f"TrayBase: _apply_threshold_change called with new_threshold='{new_threshold}' (type: {type(new_threshold)})")
         current_threshold = get_setting('watch_completion_threshold', DEFAULT_THRESHOLD)
+        logger.debug(f"TrayBase: Current threshold from settings: {current_threshold}")
+
         if new_threshold is not None and new_threshold != current_threshold:
+            logger.info(f"TrayBase: Applying new threshold: {new_threshold}%")
             try:
                 set_setting('watch_completion_threshold', new_threshold)
                 logger.info(f"Watch completion threshold set to {new_threshold}%")
@@ -555,10 +559,10 @@ class TrayAppBase(abc.ABC): # Inherit from ABC for abstract methods
                 self.show_notification("Error", f"Failed to set watch threshold: {e}")
                 self.update_icon() # Still update icon on error
         elif new_threshold is None:
-             logger.debug("Threshold change cancelled or dialog failed.")
+             logger.warning("TrayBase: _apply_threshold_change received new_threshold=None. Change cancelled or dialog failed. No notification will be shown for this specific path.")
              self.update_icon() # Refresh menu state even on cancel/failure
         else: # Threshold is the same as current
-             logger.debug("Watch threshold not changed.")
+             logger.info(f"TrayBase: Watch threshold ({new_threshold}%) not changed from current ({current_threshold}%).")
              self.update_icon() # Refresh menu state even if not changed
 
     def _set_preset_threshold(self, threshold_value: int):
@@ -573,34 +577,51 @@ class TrayAppBase(abc.ABC): # Inherit from ABC for abstract methods
 
     def set_custom_watch_threshold(self, _=None):
         """Handles prompting the user for a custom threshold via platform-specific dialog."""
+        logger.debug("TrayBase: set_custom_watch_threshold called.")
         current_threshold = get_setting('watch_completion_threshold', DEFAULT_THRESHOLD)
+        logger.debug(f"TrayBase: Current threshold for custom dialog: {current_threshold}%")
         result_queue = queue.Queue()
 
         def _ask_in_thread():
             """Runs the platform-specific dialog in a separate thread."""
+            logger.debug("TrayBase: _ask_in_thread started.")
+            value_from_dialog = None  # Default to None
             try:
                 # Call the abstract method implemented by the subclass
-                threshold = self._ask_custom_threshold_dialog(current_threshold)
-                result_queue.put(threshold)
+                threshold_dialog_result = self._ask_custom_threshold_dialog(current_threshold)
+                value_from_dialog = threshold_dialog_result  # Store the actual result from dialog
+
+                # Log after successfully getting the value, before putting it on queue
+                logger.debug(f"TrayBase: _ask_custom_threshold_dialog returned: {threshold_dialog_result} (type: {type(threshold_dialog_result)})")
+                # The result_queue.put will now be in the finally block
             except Exception as e:
-                logger.error(f"Error in custom threshold dialog thread: {e}", exc_info=True)
-                result_queue.put(None) # Ensure queue gets an item even on error
+                # This catches errors from _ask_custom_threshold_dialog or subsequent logging if it were before this block
+                logger.error(f"TrayBase: Error in custom threshold dialog thread (_ask_in_thread): {e}", exc_info=True)
+                # value_from_dialog remains None (its initial value) or whatever it was if error occurred after assignment
+            finally:
+                # Ensure that whatever value was obtained (or None if error/cancel) is put on the queue
+                result_queue.put(value_from_dialog)
+                logger.debug(f"TrayBase: _ask_in_thread finished, put '{value_from_dialog}' on queue.")
 
         def _process_result():
             """Waits for the result from the queue and processes it."""
+            logger.debug("TrayBase: _process_result started, waiting for queue.")
+            new_threshold_from_queue = None # Initialize
             try:
                 # Block until the result is available from the dialog thread
-                new_threshold = result_queue.get(timeout=60) # Add timeout
+                new_threshold_from_queue = result_queue.get(timeout=60) # Add timeout
+                logger.debug(f"TrayBase: Value from result_queue: {new_threshold_from_queue} (type: {type(new_threshold_from_queue)})")
+                # Call _apply_threshold_change with the result from the queue
+                self._apply_threshold_change(new_threshold_from_queue)
             except queue.Empty:
-                 logger.warning("Timeout waiting for custom threshold dialog result.")
-                 new_threshold = None # or some default value
+                 logger.warning("TrayBase: Timeout waiting for custom threshold dialog result in _process_result.")
                  self.show_notification("Timeout", "Custom threshold dialog timed out.")
-            except queue.Empty:
-                 logger.warning("Timeout waiting for custom threshold dialog result.")
-                 self.update_icon() # Refresh menu state on timeout
+                 self._apply_threshold_change(None) # Explicitly pass None on timeout
             except Exception as e:
-                 logger.error(f"Error processing threshold result: {e}", exc_info=True)
-                 self.update_icon() # Refresh menu state on error
+                 logger.error(f"TrayBase: Error processing threshold result in _process_result: {e}", exc_info=True)
+                 self._apply_threshold_change(None) # Explicitly pass None on error
+            logger.debug("TrayBase: _process_result finished.")
+
 
         # Start the thread to show the dialog
         dialog_thread = threading.Thread(target=_ask_in_thread, daemon=True)
