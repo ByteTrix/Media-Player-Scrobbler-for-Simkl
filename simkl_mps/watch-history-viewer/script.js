@@ -33,6 +33,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentPage = 1;
     let itemsPerPage = 24; // Default for grid view
     let watchChart = null;
+    let isCardTransitioning = false; // State to track card opening/closing animation
 
     // Apply saved view
     if (currentView === 'list') {
@@ -60,7 +61,6 @@ document.addEventListener('DOMContentLoaded', () => {
     function getProxiedImageUrl(url) {
         // If no URL is provided, return a default placeholder
         if (!url) {
-            console.log('No URL provided to getProxiedImageUrl');
             return `https://via.placeholder.com/150x225.webp?text=No+Poster`;
         }
         
@@ -944,8 +944,11 @@ document.addEventListener('DOMContentLoaded', () => {
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && activeMediaCard) closeExpandedCard(); });
 
     // Expand a media card
-    function expandMediaCard(card) {
-        if (activeMediaCard) closeExpandedCard(); // Close any existing expanded card
+    function expandMediaCard(card) { // LINE 947
+        isCardTransitioning = true; // Card is now transitioning
+        if (activeMediaCard) {
+            closeExpandedCard(); // Close any existing expanded card
+        }
 
         const itemId = card.dataset.itemId;
         // Find the item data using a more robust method if IDs aren't always present
@@ -991,26 +994,39 @@ document.addEventListener('DOMContentLoaded', () => {
             card.classList.add('animating-open');
             
             // Listen for animation end
-            card.addEventListener('animationend', function onAnimEnd() {
-                card.classList.remove('animating-open');
-                card.removeEventListener('animationend', onAnimEnd);
-                
-                // Reset inline styles once animation is complete
-                card.style.position = '';
-                card.style.top = '';
-                card.style.left = '';
-                card.style.width = '';
-                card.style.height = '';
-                card.style.margin = '';
-                
-                // Continue with populating the expanded card
-                populateExpandedCard(card, item);
+            card.addEventListener('animationend', function onAnimEnd(event) {
+                // Make sure this is the animation we care about if multiple animations are on the card
+                if (event.animationName === 'card-expand') {
+
+                    // Bug 2 Fix: Check if the card is still active and meant to be expanded before populating
+                    if (activeMediaCard !== card || !card.classList.contains('expanded')) {
+                        card.classList.remove('animating-open'); // Clean up animation class
+                        // If closeExpandedCard was called, it should handle the full reset.
+                        isCardTransitioning = false; // Transition finished (aborted)
+                        return;
+                    }
+
+                    card.classList.remove('animating-open');
+                    
+                    // Reset inline styles once animation is complete
+                    card.style.position = '';
+                    card.style.top = '';
+                    card.style.left = '';
+                    card.style.width = '';
+                    card.style.height = '';
+                    card.style.margin = '';
+                    // z-index will be handled by .expanded class or overridden if necessary
+                    
+                    // Continue with populating the expanded card
+                    populateExpandedCard(card, item);
+                    isCardTransitioning = false; // Transition finished (populated)
+                }
             }, { once: true });
         }, 10);
     }
 
     // Populate the expanded card with content
-    function populateExpandedCard(card, item) {
+    function populateExpandedCard(card, item) { // LINE 1013
         // Clone template content
         const templateClone = expandedContentTemplate.content.cloneNode(true);
         const expandedHeader = templateClone.querySelector('.expanded-header');
@@ -1093,8 +1109,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Close the expanded card
-    function closeExpandedCard() {
-        if (!activeMediaCard) return;
+    function closeExpandedCard() { // LINE 1096
+        if (isCardTransitioning) {
+            return;
+        }
+        if (!activeMediaCard) {
+            return;
+        }
+
+        let cleanupPerformed = false; // Flag to prevent double cleanup
 
         // Get the original position and size from the CSS variables
         const origTop = activeMediaCard.style.getPropertyValue('--card-orig-top');
@@ -1102,32 +1125,104 @@ document.addEventListener('DOMContentLoaded', () => {
         const origWidth = activeMediaCard.style.getPropertyValue('--card-orig-width');
         const origHeight = activeMediaCard.style.getPropertyValue('--card-orig-height');
 
-        // Save references to elements we need to remove after animation
-        const header = activeMediaCard.querySelector('.expanded-header');
-        const closeBtn = activeMediaCard.querySelector('.close-button');
-        const contentWrapper = activeMediaCard.querySelector('.expanded-content-wrapper');
-
         // Start fade out animation for backdrop
         modalBackdrop.classList.remove('active');
 
-        // Set up fixed position for animation
+        // Set up fixed position for animation (to animate from its current expanded state)
+        const currentCardRect = activeMediaCard.getBoundingClientRect();
+
+        let startTop = currentCardRect.top;
+        let startLeft = currentCardRect.left;
+        let startWidth = currentCardRect.width;
+        let startHeight = currentCardRect.height;
+
+        const isGridView = currentView === 'grid';
+        const isUnpopulated = !activeMediaCard.querySelector('.expanded-header');
+
+        if (isGridView && isUnpopulated) {
+            const minSensibleHeight = 50;
+            const defaultExpandedMinHeight = 400;
+            if (startHeight < minSensibleHeight) {
+                startHeight = defaultExpandedMinHeight;
+            }
+            const minSensibleWidth = 50;
+            const defaultExpandedMinWidth = 320;
+            if (startWidth < minSensibleWidth) {
+                startWidth = defaultExpandedMinWidth;
+            }
+        }
+
         activeMediaCard.style.position = 'fixed';
-        activeMediaCard.style.top = '50%';
-        activeMediaCard.style.left = '50%';
-        activeMediaCard.style.width = '90%';
-        activeMediaCard.style.maxWidth = '850px';
-        activeMediaCard.style.transform = 'translate(-50%, -50%)';
+        activeMediaCard.style.top = `${startTop}px`;
+        activeMediaCard.style.left = `${startLeft}px`;
+        activeMediaCard.style.width = `${startWidth}px`;
+        activeMediaCard.style.height = `${startHeight}px`;
         activeMediaCard.style.zIndex = '1000';
 
         // Add closing animation class
         activeMediaCard.classList.add('animating-close');
+
+        // Perform critical body overflow cleanup early.
+        setTimeout(() => {
+            document.body.style.overflow = '';
+        }, 50);
         
         // Listen for animation end
-        activeMediaCard.addEventListener('animationend', function onCloseAnimEnd() {
-            activeMediaCard.classList.remove('animating-close');
-            activeMediaCard.removeEventListener('animationend', onCloseAnimEnd);
+        activeMediaCard.addEventListener('animationend', function onCloseAnimEnd(event) {
+            if (event.animationName === 'card-collapse') {
+
+                if (cleanupPerformed || !activeMediaCard || event.target !== activeMediaCard) {
+                    return;
+                }
+                
+                const cardIdForLog = activeMediaCard.dataset.itemId;
+
+                activeMediaCard.classList.remove('animating-close');
+                
+                activeMediaCard.style.position = '';
+                activeMediaCard.style.top = '';
+                activeMediaCard.style.left = '';
+                activeMediaCard.style.width = '';
+                activeMediaCard.style.height = '';
+                activeMediaCard.style.margin = '';
+                activeMediaCard.style.transform = '';
+                activeMediaCard.style.zIndex = '';
+                activeMediaCard.style.display = ''; // Ensure display is reset
+                activeMediaCard.style.removeProperty('--card-orig-top');
+                activeMediaCard.style.removeProperty('--card-orig-left');
+                activeMediaCard.style.removeProperty('--card-orig-width');
+                activeMediaCard.style.removeProperty('--card-orig-height');
+
+                const currentHeader = activeMediaCard.querySelector('.expanded-header');
+                const currentContentWrapper = activeMediaCard.querySelector('.expanded-content-wrapper');
+                if (currentHeader) activeMediaCard.removeChild(currentHeader);
+                if (currentContentWrapper) activeMediaCard.removeChild(currentContentWrapper);
+                
+                activeMediaCard.classList.remove('expanded');
+                
+                if (modalBackdrop) {
+                    modalBackdrop.style.display = 'none';
+                }
+                
+                if (currentView === 'list') {
+                    const finalRect = activeMediaCard.getBoundingClientRect();
+                }
+                
+                activeMediaCard = null;
+                cleanupPerformed = true;
+            }
+        }, { once: true });
+
+        // Fallback setTimeout to ensure cleanup if animationend doesn't fire
+        setTimeout(() => {
+            if (cleanupPerformed || !activeMediaCard) {
+                return;
+            }
             
-            // Reset all inline styles
+            const cardIdForLog = activeMediaCard.dataset.itemId;
+
+            activeMediaCard.classList.remove('animating-close');
+            
             activeMediaCard.style.position = '';
             activeMediaCard.style.top = '';
             activeMediaCard.style.left = '';
@@ -1136,17 +1231,34 @@ document.addEventListener('DOMContentLoaded', () => {
             activeMediaCard.style.margin = '';
             activeMediaCard.style.transform = '';
             activeMediaCard.style.zIndex = '';
-            
-            // Remove elements and cleanup
-            if (header) activeMediaCard.removeChild(header);
-            if (closeBtn) activeMediaCard.removeChild(closeBtn);
-            if (contentWrapper) activeMediaCard.removeChild(contentWrapper);
-            
+            activeMediaCard.style.display = ''; // Ensure display is reset
+            activeMediaCard.style.removeProperty('--card-orig-top');
+            activeMediaCard.style.removeProperty('--card-orig-left');
+            activeMediaCard.style.removeProperty('--card-orig-width');
+            activeMediaCard.style.removeProperty('--card-orig-height');
+
+            const currentHeader = activeMediaCard.querySelector('.expanded-header');
+            const currentContentWrapper = activeMediaCard.querySelector('.expanded-content-wrapper');
+            if (currentHeader) activeMediaCard.removeChild(currentHeader);
+            if (currentContentWrapper) activeMediaCard.removeChild(currentContentWrapper);
+
             activeMediaCard.classList.remove('expanded');
-            modalBackdrop.style.display = 'none';
-            document.body.style.overflow = ''; // Restore body scroll
+
+            if (modalBackdrop) {
+                modalBackdrop.style.display = 'none';
+            }
+            
+            document.body.style.overflow = ''; // Ensure body overflow is reset
+
+            if (currentView === 'list') {
+                // It's tricky to get finalRect if activeMediaCard is about to be nulled.
+                // For simplicity, this log might be omitted here or need careful handling if essential.
+                // However, the primary goal is reliable reset.
+            }
+
             activeMediaCard = null;
-        }, { once: true });
+            cleanupPerformed = true;
+        }, 400); // Animation is ~300ms, so 400ms should be a safe fallback duration.
     }
 
     // Format file size
