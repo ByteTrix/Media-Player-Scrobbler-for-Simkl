@@ -1026,11 +1026,57 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Populate the expanded card with content
-    function populateExpandedCard(card, item) { // LINE 1013
+    function populateExpandedCard(card, itemData) { // LINE 1029 - Modified
+        const cardIdForLog = card.dataset.itemId || card.id || 'unknown_card_populate';
+        console.debug(`populateExpandedCard for ${cardIdForLog}: Starting. Hiding original children.`);
+
+        // Hide original children and mark them
+        const originalChildren = Array.from(card.children);
+        originalChildren.forEach(child => {
+            child.style.display = 'none';
+            child.classList.add('original-card-child-hidden');
+            console.debug(`populateExpandedCard for ${cardIdForLog}: Hid and tagged original child:`, child);
+        });
+
+        // Create the single root element for all expanded content
+        const ephemeralRoot = document.createElement('div');
+        ephemeralRoot.classList.add('ephemeral-expanded-content-root');
+        console.debug(`populateExpandedCard for ${cardIdForLog}: Created ephemeral-expanded-content-root div.`);
+
         // Clone template content
-        const templateClone = expandedContentTemplate.content.cloneNode(true);
+        const template = document.getElementById('expanded-card-template');
+        if (!template) {
+            console.error(`populateExpandedCard for ${cardIdForLog}: expanded-card-template not found!`);
+            // Restore original children if template is missing
+            originalChildren.forEach(child => {
+                child.style.display = '';
+                child.classList.remove('original-card-child-hidden');
+            });
+            return;
+        }
+        const templateClone = template.content.cloneNode(true);
+        
+        // Ensure the template has content to avoid errors
+        if (!templateClone.firstElementChild) {
+            console.error(`populateExpandedCard for ${cardIdForLog}: expanded-card-template is empty!`);
+            originalChildren.forEach(child => {
+                child.style.display = '';
+                child.classList.remove('original-card-child-hidden');
+            });
+            return;
+        }
+
         const expandedHeader = templateClone.querySelector('.expanded-header');
         const expandedContentWrapper = templateClone.querySelector('.expanded-content-wrapper');
+
+        if (!expandedHeader || !expandedContentWrapper) {
+            console.error(`populateExpandedCard for ${cardIdForLog}: Template missing .expanded-header or .expanded-content-wrapper.`);
+             originalChildren.forEach(child => {
+                child.style.display = '';
+                child.classList.remove('original-card-child-hidden');
+            });
+            return;
+        }
 
         // Populate Header
         const posterBg = expandedHeader.querySelector('.expanded-poster-bg');
@@ -1038,227 +1084,249 @@ document.addEventListener('DOMContentLoaded', () => {
         const titleEl = expandedHeader.querySelector('.expanded-title');
         const metaYear = expandedHeader.querySelector('[data-field="release_year"] span');
         const metaRuntime = expandedHeader.querySelector('[data-field="runtime"] span');
-        const metaLastWatched = expandedHeader.querySelector('[data-field="last_watched_at"] span'); // Changed from user_rating
+        const metaLastWatched = expandedHeader.querySelector('[data-field="last_watched_at"] span');
 
-        // Determine the base image URLs (Simkl or Placeholder) for large and thumb sizes
-        let largeBaseUrl, thumbBaseUrl, baseImageUrl;
-        let posterValue = item.poster || item.poster_url; // Check for both field names
+        let largeBaseUrl, thumbBaseUrl;
+        let posterValue = itemData.poster || itemData.poster_url;
         
         if (posterValue && /^\d+\/\d+[a-f0-9]*$/.test(posterValue)) {
-            baseImageUrl = `https://simkl.in/posters/${posterValue}`;
-            largeBaseUrl = `${baseImageUrl}_c.webp`; // Large poster for background
-            thumbBaseUrl = `${baseImageUrl}_m.webp`; // Medium poster for thumb
+            const baseImageUrl = `https://simkl.in/posters/${posterValue}`;
+            largeBaseUrl = `${baseImageUrl}_c.webp`;
+            thumbBaseUrl = `${baseImageUrl}_m.webp`;
         } else {
-            // Use placeholders if no valid poster ID
-            const placeholderText = encodeURIComponent(item.title || 'No Image');
-            largeBaseUrl = `https://placehold.co/600x900?text=${placeholderText}`; // Larger placeholder
+            const placeholderText = encodeURIComponent(itemData.title || 'No Image');
+            largeBaseUrl = `https://placehold.co/600x900?text=${placeholderText}`;
             thumbBaseUrl = `https://placehold.co/300x450?text=${placeholderText}`;
         }
 
-        // Apply the proxy to the final base URLs
         const largePosterUrl = getProxiedImageUrl(largeBaseUrl);
         const thumbPosterUrl = getProxiedImageUrl(thumbBaseUrl);
 
-        posterBg.style.backgroundImage = `url('${largePosterUrl}')`;
-        posterThumbImg.src = thumbPosterUrl;
+        if (posterBg) posterBg.style.backgroundImage = `url('${largePosterUrl}')`;
+        if (posterThumbImg) posterThumbImg.src = thumbPosterUrl;
+        if (posterThumbImg && itemData.title) posterThumbImg.alt = itemData.title;
 
-        titleEl.textContent = item.title || 'No Title';
-        metaYear.textContent = item.year || '-';
-        metaRuntime.textContent = item.runtime ? `${item.runtime} min` : '-';
-        // Populate Last Watched Date
-        metaLastWatched.textContent = formatDate(item.watched_at);
+
+        if (titleEl) titleEl.textContent = itemData.title || 'No Title';
+        if (metaYear) metaYear.textContent = itemData.year || '-';
+        if (metaRuntime) metaRuntime.textContent = itemData.runtime ? `${itemData.runtime} min` : '-';
+        if (metaLastWatched) metaLastWatched.textContent = formatDate(itemData.watched_at);
 
         // Populate Content Details
-        populateExpandedContentDetails(expandedContentWrapper, item);
+        populateExpandedContentDetails(expandedContentWrapper, itemData);
 
         // Add close button listener
         const closeButton = templateClone.querySelector('.close-button');
-        closeButton.addEventListener('click', closeExpandedCard);
+        if (closeButton) closeButton.addEventListener('click', closeExpandedCard);
 
         // Add action button listeners
         const playMediaBtn = expandedContentWrapper.querySelector('.play-media');
         const openFolderBtn = expandedContentWrapper.querySelector('.open-folder');
         const searchOnlineBtn = expandedContentWrapper.querySelector('#search-online');
 
-        if (item.file_path) {
-            playMediaBtn.addEventListener('click', () => window.open(`file:///${item.file_path}`, '_blank'));
-            openFolderBtn.addEventListener('click', () => {
-                // Attempt to open the folder containing the file
+        if (itemData.file_path) {
+            if (playMediaBtn) playMediaBtn.addEventListener('click', () => window.open(`file:///${itemData.file_path}`, '_blank'));
+            if (openFolderBtn) openFolderBtn.addEventListener('click', () => {
                 try {
-                    const directory = item.file_path.substring(0, item.file_path.lastIndexOf('\\') || item.file_path.lastIndexOf('/'));
+                    const directory = itemData.file_path.substring(0, itemData.file_path.lastIndexOf('\\') || itemData.file_path.lastIndexOf('/'));
                     window.open(`file:///${directory}`, '_blank');
                 } catch (e) {
+                    console.error('Error opening folder:', e);
                     alert('Could not determine folder path.');
                 }
             });
         } else {
-            playMediaBtn.disabled = true;
-            playMediaBtn.title = "File path not available";
-            openFolderBtn.disabled = true;
-            openFolderBtn.title = "File path not available";
+            if (playMediaBtn) {
+                playMediaBtn.disabled = true;
+                playMediaBtn.title = "File path not available";
+            }
+            if (openFolderBtn) {
+                openFolderBtn.disabled = true;
+                openFolderBtn.title = "File path not available";
+            }
         }
         
-        // Update the search online button with the current title
-        if (searchOnlineBtn && item.title) {
-            const searchQuery = `${item.title} ${item.year || ''} watch online`;
+        if (searchOnlineBtn && itemData.title) {
+            const searchQuery = `${itemData.title} ${itemData.year || ''} watch online`;
             searchOnlineBtn.href = `https://www.google.com/search?q=${encodeURIComponent(searchQuery)}`;
         }
 
-        // Append the populated template to the card
-        card.appendChild(templateClone);
+        // Append the populated template's content INTO our new root
+        ephemeralRoot.appendChild(templateClone);
+        console.debug(`populateExpandedCard for ${cardIdForLog}: Appended template clone into ephemeralRoot. ephemeralRoot.innerHTML:`, ephemeralRoot.innerHTML);
+
+        // Append our new single root to the card
+        card.appendChild(ephemeralRoot);
+        console.debug(`populateExpandedCard for ${cardIdForLog}: Appended .ephemeral-expanded-content-root to card. card.innerHTML:`, card.innerHTML);
     }
 
     // Close the expanded card
-    function closeExpandedCard() { // LINE 1096
+    function closeExpandedCard() {
         if (isCardTransitioning) {
+            // console.debug('closeExpandedCard: Aborted, card is transitioning.');
             return;
         }
         if (!activeMediaCard) {
+            // console.debug('closeExpandedCard: Aborted, no activeMediaCard.');
             return;
         }
 
-        let cleanupPerformed = false; // Flag to prevent double cleanup
+        const cardElementToClean = activeMediaCard;
+        const cardIdToLog = cardElementToClean.dataset.itemId || (cardElementToClean.id || 'unknown_card');
+        let cleanupPerformed = false;
 
-        // Get the original position and size from the CSS variables
-        const origTop = activeMediaCard.style.getPropertyValue('--card-orig-top');
-        const origLeft = activeMediaCard.style.getPropertyValue('--card-orig-left');
-        const origWidth = activeMediaCard.style.getPropertyValue('--card-orig-width');
-        const origHeight = activeMediaCard.style.getPropertyValue('--card-orig-height');
+        // console.debug(`closeExpandedCard: Initiating close for card: ${cardIdToLog}`);
 
         // Start fade out animation for backdrop
-        modalBackdrop.classList.remove('active');
+        if (modalBackdrop) {
+            modalBackdrop.classList.remove('active');
+        }
 
         // Set up fixed position for animation (to animate from its current expanded state)
-        const currentCardRect = activeMediaCard.getBoundingClientRect();
-
+        const currentCardRect = cardElementToClean.getBoundingClientRect();
         let startTop = currentCardRect.top;
         let startLeft = currentCardRect.left;
         let startWidth = currentCardRect.width;
         let startHeight = currentCardRect.height;
 
+        // Adjust start dimensions if card is unpopulated (e.g., animation interrupted early)
         const isGridView = currentView === 'grid';
-        const isUnpopulated = !activeMediaCard.querySelector('.expanded-header');
+        const isUnpopulated = !cardElementToClean.querySelector('.expanded-card-header') && !cardElementToClean.querySelector('.expanded-header');
 
         if (isGridView && isUnpopulated) {
             const minSensibleHeight = 50;
-            const defaultExpandedMinHeight = 400;
-            if (startHeight < minSensibleHeight) {
-                startHeight = defaultExpandedMinHeight;
-            }
-            const minSensibleWidth = 50;
-            const defaultExpandedMinWidth = 320;
-            if (startWidth < minSensibleWidth) {
-                startWidth = defaultExpandedMinWidth;
-            }
-        }
+            const defaultExpandedMinHeight = 400; // Default or expected height
+            if (startHeight < minSensibleHeight) startHeight = defaultExpandedMinHeight;
 
-        activeMediaCard.style.position = 'fixed';
-        activeMediaCard.style.top = `${startTop}px`;
-        activeMediaCard.style.left = `${startLeft}px`;
-        activeMediaCard.style.width = `${startWidth}px`;
-        activeMediaCard.style.height = `${startHeight}px`;
-        activeMediaCard.style.zIndex = '1000';
+            const minSensibleWidth = 50;
+            const defaultExpandedMinWidth = 320; // Default or expected width
+            if (startWidth < minSensibleWidth) startWidth = defaultExpandedMinWidth;
+        }
+        
+        cardElementToClean.style.position = 'fixed';
+        cardElementToClean.style.top = `${startTop}px`;
+        cardElementToClean.style.left = `${startLeft}px`;
+        cardElementToClean.style.width = `${startWidth}px`;
+        cardElementToClean.style.height = `${startHeight}px`;
+        cardElementToClean.style.zIndex = '1000'; // Ensure it's above other elements during animation
 
         // Add closing animation class
-        activeMediaCard.classList.add('animating-close');
+        cardElementToClean.classList.add('animating-close');
 
         // Perform critical body overflow cleanup early.
+        // This was in the original code, keeping it for now.
         setTimeout(() => {
-            document.body.style.overflow = '';
+            if (!cleanupPerformed) { // Only if cleanup hasn't happened yet
+                 document.body.style.overflow = '';
+            }
         }, 50);
-        
-        // Listen for animation end
-        activeMediaCard.addEventListener('animationend', function onCloseAnimEnd(event) {
-            if (event.animationName === 'card-collapse') {
 
-                if (cleanupPerformed || !activeMediaCard || event.target !== activeMediaCard) {
+
+        const performFullCleanup = (cardElementToClean, idLog) => { // Renamed 'card' to 'cardElementToClean' for clarity
+            console.debug(`performFullCleanup for ${idLog}: Starting cleanup. Initial cardElementToClean.innerHTML:`, cardElementToClean.innerHTML);
+
+            // 1. Remove Expanded Content
+            const injectedView = cardElementToClean.querySelector('.ephemeral-expanded-content-root');
+            if (injectedView) {
+                console.debug(`Cleanup for ${idLog}: Found .ephemeral-expanded-content-root. outerHTML:`, injectedView.outerHTML, "Removing...");
+                injectedView.remove();
+                console.debug(`Cleanup for ${idLog}: .ephemeral-expanded-content-root REMOVED. Current innerHTML AFTER removal:`, cardElementToClean.innerHTML);
+            } else {
+                console.debug(`Cleanup for ${idLog}: .ephemeral-expanded-content-root NOT FOUND.`);
+            }
+
+            // 2. Restore Original Children
+            const originalChildrenToRestore = Array.from(cardElementToClean.querySelectorAll('.original-card-child-hidden'));
+            if (originalChildrenToRestore.length > 0) {
+                console.debug(`Cleanup for ${idLog}: Found ${originalChildrenToRestore.length} original children to restore.`);
+                originalChildrenToRestore.forEach(child => {
+                    child.style.display = ''; // Reset display
+                    child.classList.remove('original-card-child-hidden');
+                    console.debug(`Cleanup for ${idLog}: Restored original child:`, child);
+                });
+                console.debug(`Cleanup for ${idLog}: Finished restoring original children. cardElementToClean.innerHTML:`, cardElementToClean.innerHTML);
+            } else {
+                console.debug(`Cleanup for ${idLog}: No .original-card-child-hidden found to restore.`);
+            }
+            
+            // 3. Reset Card's Own Styles and Classes
+            cardElementToClean.classList.remove('expanded', 'animating-close');
+            
+            // Reset all relevant inline styles applied during expansion
+            ['position', 'top', 'left', 'width', 'height', 'z-index', 'opacity', 'transform', 'filter', 'margin'].forEach(prop => {
+                cardElementToClean.style.removeProperty(prop);
+            });
+            // Ensure display is correct for the normal card view
+            cardElementToClean.style.display = ''; // Or its original display if known and different
+            
+            // Remove CSS variables used for animation origin
+            cardElementToClean.style.removeProperty('--card-orig-top');
+            cardElementToClean.style.removeProperty('--card-orig-left');
+            cardElementToClean.style.removeProperty('--card-orig-width');
+            cardElementToClean.style.removeProperty('--card-orig-height');
+            console.debug(`Cleanup for ${idLog}: Reset card's own classes and styles.`);
+
+            // 4. Global Cleanup (Modal Backdrop and Body Overflow)
+            if (modalBackdrop) {
+                modalBackdrop.classList.remove('active'); // Ensure active is removed before hiding
+                modalBackdrop.style.display = 'none';
+                console.debug(`Cleanup for ${idLog}: Hid modal backdrop.`);
+            }
+            document.body.style.overflow = '';
+            console.debug(`Cleanup for ${idLog}: Reset body overflow.`);
+
+            // 5. Final Step: Nullify activeMediaCard
+            // This check ensures we only nullify if it's still the card we intended to clean.
+            // This is important because another card might have been opened quickly.
+            if (activeMediaCard === cardElementToClean) {
+                 activeMediaCard = null;
+                 console.debug(`performFullCleanup for ${idLog}: activeMediaCard nulled.`);
+            } else {
+                 console.debug(`performFullCleanup for ${idLog}: activeMediaCard was not this card, not nullifying. Current activeMediaCard:`, activeMediaCard);
+            }
+            console.debug(`performFullCleanup for ${idLog}: Cleanup complete. Final cardElementToClean.innerHTML:`, cardElementToClean.innerHTML);
+        };
+
+        // Animationend listener
+        const onAnimationEndHandler = (event) => {
+            if (event.animationName === 'card-collapse' && event.target === cardElementToClean) {
+                if (cleanupPerformed) {
+                    // console.debug(`closeExpandedCard (animationend) for ${cardIdToLog}: Cleanup already done.`);
                     return;
                 }
-                
-                const cardIdForLog = activeMediaCard.dataset.itemId;
-
-                activeMediaCard.classList.remove('animating-close');
-                
-                activeMediaCard.style.position = '';
-                activeMediaCard.style.top = '';
-                activeMediaCard.style.left = '';
-                activeMediaCard.style.width = '';
-                activeMediaCard.style.height = '';
-                activeMediaCard.style.margin = '';
-                activeMediaCard.style.transform = '';
-                activeMediaCard.style.zIndex = '';
-                activeMediaCard.style.display = ''; // Ensure display is reset
-                activeMediaCard.style.removeProperty('--card-orig-top');
-                activeMediaCard.style.removeProperty('--card-orig-left');
-                activeMediaCard.style.removeProperty('--card-orig-width');
-                activeMediaCard.style.removeProperty('--card-orig-height');
-
-                const currentHeader = activeMediaCard.querySelector('.expanded-header');
-                const currentContentWrapper = activeMediaCard.querySelector('.expanded-content-wrapper');
-                if (currentHeader) activeMediaCard.removeChild(currentHeader);
-                if (currentContentWrapper) activeMediaCard.removeChild(currentContentWrapper);
-                
-                activeMediaCard.classList.remove('expanded');
-                
-                if (modalBackdrop) {
-                    modalBackdrop.style.display = 'none';
-                }
-                
-                if (currentView === 'list') {
-                    const finalRect = activeMediaCard.getBoundingClientRect();
-                }
-                
-                activeMediaCard = null;
                 cleanupPerformed = true;
+                // console.debug(`Performing cleanup via animationend for card: ${cardIdToLog}`);
+                performFullCleanup(cardElementToClean, cardIdToLog);
+                // Listener is removed by { once: true } or manually if once:false
+                // cardElementToClean.removeEventListener('animationend', onAnimationEndHandler); // Already handled by once:true
             }
-        }, { once: true });
+        };
+        
+        cardElementToClean.addEventListener('animationend', onAnimationEndHandler, { once: true });
 
-        // Fallback setTimeout to ensure cleanup if animationend doesn't fire
+        // Fallback setTimeout
         setTimeout(() => {
-            if (cleanupPerformed || !activeMediaCard) {
+            if (cleanupPerformed) {
+                // console.debug(`closeExpandedCard (fallback setTimeout) for ${cardIdToLog}: Cleanup already done.`);
                 return;
             }
+            cleanupPerformed = true; // Set flag immediately
+            // console.debug(`Performing cleanup via fallback setTimeout for card: ${cardIdToLog}`);
             
-            const cardIdForLog = activeMediaCard.dataset.itemId;
-
-            activeMediaCard.classList.remove('animating-close');
-            
-            activeMediaCard.style.position = '';
-            activeMediaCard.style.top = '';
-            activeMediaCard.style.left = '';
-            activeMediaCard.style.width = '';
-            activeMediaCard.style.height = '';
-            activeMediaCard.style.margin = '';
-            activeMediaCard.style.transform = '';
-            activeMediaCard.style.zIndex = '';
-            activeMediaCard.style.display = ''; // Ensure display is reset
-            activeMediaCard.style.removeProperty('--card-orig-top');
-            activeMediaCard.style.removeProperty('--card-orig-left');
-            activeMediaCard.style.removeProperty('--card-orig-width');
-            activeMediaCard.style.removeProperty('--card-orig-height');
-
-            const currentHeader = activeMediaCard.querySelector('.expanded-header');
-            const currentContentWrapper = activeMediaCard.querySelector('.expanded-content-wrapper');
-            if (currentHeader) activeMediaCard.removeChild(currentHeader);
-            if (currentContentWrapper) activeMediaCard.removeChild(currentContentWrapper);
-
-            activeMediaCard.classList.remove('expanded');
-
-            if (modalBackdrop) {
-                modalBackdrop.style.display = 'none';
+            // Ensure animation class is removed if animation didn't fire/complete
+            if(cardElementToClean) { // Check if cardElementToClean is still valid
+                 cardElementToClean.classList.remove('animating-close');
+                 performFullCleanup(cardElementToClean, cardIdToLog);
+            } else {
+                // console.debug(`closeExpandedCard (fallback setTimeout) for ${cardIdToLog}: cardElementToClean became null before fallback cleanup.`);
+                // Still attempt global cleanups if card is gone
+                if (modalBackdrop) modalBackdrop.style.display = 'none';
+                document.body.style.overflow = '';
+                if (activeMediaCard === cardElementToClean) { // only null if it's still the same card
+                    activeMediaCard = null;
+                }
             }
-            
-            document.body.style.overflow = ''; // Ensure body overflow is reset
-
-            if (currentView === 'list') {
-                // It's tricky to get finalRect if activeMediaCard is about to be nulled.
-                // For simplicity, this log might be omitted here or need careful handling if essential.
-                // However, the primary goal is reliable reset.
-            }
-
-            activeMediaCard = null;
-            cleanupPerformed = true;
-        }, 400); // Animation is ~300ms, so 400ms should be a safe fallback duration.
+        }, 400); // Animation is ~300ms, so 400ms should be a safe fallback.
     }
 
     // Format file size
