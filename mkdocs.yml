@@ -1,8 +1,8 @@
 site_name: Media Player Scrobbler for SIMKL
 site_description: Automatic Movie Scrobbler for Simkl
 site_url: https://kavinthangavel.github.io/media-player-scrobbler-for-simkl/
-repo_name: kavinthangavel/media-player-scrobbler-for-simkl
-repo_url: https://github.com/kavinthangavel/media-player-scrobbler-for-simkl
+repo_name: ByteTrix/Media-Player-Scrobbler-for-Simkl
+repo_url: https://github.com/ByteTrix/Media-Player-Scrobbler-for-Simkl
 copyright: Copyright &copy; 2023-2025
 
 theme:

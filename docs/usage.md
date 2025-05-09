@@ -28,6 +28,27 @@ This guide explains how to use MPS for SIMKL to track your movies and sync with 
 - 
 > Note: Mac support is experimental and untested.
 
+## 📺 TV Shows & Anime Tracking
+
+MPS for SIMKL now supports automatic tracking of TV shows and anime, in addition to movies.
+
+- TV show and anime episodes are detected and scrobbled as you watch them in supported players.
+- All types (movies, shows, anime) appear in your local and online history.
+- For best results, use clear filenames (e.g. `Show.Name.S01E02.mkv` or `Anime.Title.12.mp4`).
+- See the [Media Players Guide](media-players.md) for player-specific setup.
+
+---
+
+## 📊 Local Watch History Viewer
+
+A new local watch history page is available! Open the `watch-history-viewer` folder in your browser to:
+- Browse all your watched movies, TV shows, and anime
+- Search, filter, and sort your history
+- View statistics and trends (charts, breakdowns)
+- Switch between grid/list views and dark/light themes
+
+See [Local Watch History](watch-history.md) for full details.
+
 ## 🔔 Tray Status Icons
 
 MPS for SIMKL uses the system tray/notification area to show its current status across all platforms:

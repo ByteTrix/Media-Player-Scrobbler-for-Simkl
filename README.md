@@ -35,6 +35,7 @@ After installation, authenticate with SIMKL and **configure your media players**
 - [Mac Guide](docs/mac-guide.md)
 - [Supported Media Players](docs/media-players.md)
 - [Usage Guide](docs/usage.md)
+- [Local Watch History](docs/watch-history.md)
 - [Advanced & Developer Guide](docs/configuration.md)
 - [Troubleshooting Guide](docs/troubleshooting.md)
 - [Todo List](docs/todo.md)
@@ -90,9 +91,9 @@ These tools can help organize and rename media files automatically, which can im
 <div align="center">
   <p>Made with ❤️ by <a href="https://github.com/kavinthangavel">kavinthangavel</a></p>
   <p>
-    <a href="https://github.com/kavinthangavel/media-player-scrobbler-for-simkl/stargazers">⭐ Star us on GitHub</a> •
-    <a href="https://github.com/kavinthangavel/media-player-scrobbler-for-simkl/issues">🐞 Report Bug</a> •
-    <a href="https://github.com/kavinthangavel/media-player-scrobbler-for-simkl/issues">✨ Request Feature</a>
+    <a href="https://github.com/ByteTrix/Media-Player-Scrobbler-for-Simkl/stargazers">⭐ Star us on GitHub</a> •
+    <a href="https://github.com/ByteTrix/Media-Player-Scrobbler-for-Simkl/issues">🐞 Report Bug</a> •
+    <a href="https://github.com/ByteTrix/Media-Player-Scrobbler-for-Simkl/issues">✨ Request Feature</a>
   </p>
 </div>
 

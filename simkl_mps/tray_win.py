@@ -183,7 +183,7 @@ Automatically track and scrobble your media to SIMKL."""
         """Show help information using Tkinter as fallback"""
         try:
             # Open documentation or show help dialog
-            help_url = "https://github.com/kavinthangavel/Media-Player-Scrobbler-for-Simkl/wiki"
+            help_url = "https://github.com/ByteTrix/Media-Player-Scrobbler-for-Simkl/wiki"
             webbrowser.open(help_url)
         except Exception as e:
             logger.error(f"Error showing help: {e}")
