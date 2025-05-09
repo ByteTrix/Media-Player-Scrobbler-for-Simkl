@@ -45,7 +45,8 @@ MPS for SIMKL now supports **automatic tracking of TV shows and anime** in addit
 
 ## Sample
 
-<video src="../samples/watch_history.mp4" controls style="max-width: 100%; border-radius: 8px; box-shadow: 0 2px 12px rgba(0,0,0,0.15); margin: 1em 0;">Your browser does not support the video tag.</video>
+https://github.com/user-attachments/assets/b4337aa2-6cb6-4946-b2a2-496e122fbc2a
+
 
 ---
 
