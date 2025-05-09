@@ -18,7 +18,7 @@
 - 📈 **Accurate Position Tracking** – For supported players (configure via [Media Players Guide](docs/media-players.md))
 - 🔌 **Offline Support** – Queues updates when offline
 - 🧠 **Smart Movie Detection** – Intelligent filename parsing
-- 🍿 **Movie-Focused** – Currently optimized for movies (TV show tracking planned)
+- 🍿 **Media-Focused** – Optimized for every type of media (Movies,TV Shows and Anime)
 
 ## ⚡ Quick Start
 
