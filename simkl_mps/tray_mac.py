@@ -191,11 +191,11 @@ Automatically track and scrobble your media to SIMKL."""
         """Show help information on macOS"""
         try:
             # Open documentation
-            help_url = "https://github.com/kavinthangavel/Media-Player-Scrobbler-for-Simkl#readme"
+            help_url = "https://github.com/ByteTrix/Media-Player-Scrobbler-for-Simkl#readme"
             webbrowser.open(help_url)
         except Exception as e:
             logger.error(f"Error showing help: {e}")
-            self.show_notification("Help", "Visit https://github.com/kavinthangavel/Media-Player-Scrobbler-for-Simkl#readme for help")
+            self.show_notification("Help", "Visit https://github.com/ByteTrix/Media-Player-Scrobbler-for-Simkl#readme for help")
         return 0
 
     def exit_app(self, _=None):

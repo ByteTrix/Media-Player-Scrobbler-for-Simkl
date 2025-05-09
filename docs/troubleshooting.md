@@ -45,5 +45,5 @@ This guide helps you solve common problems with MPS for SIMKL.
   - Linux: `~/.local/share/kavinthangavel/simkl-mps/simkl_mps.log`
 
 ## Still Need Help?
-- Check [GitHub Issues](https://github.com/kavinthangavel/media-player-scrobbler-for-simkl/issues).
+- Check [GitHub Issues](https://github.com/ByteTrix/media-player-scrobbler-for-simkl/issues).
 - Open a new issue with OS, app version, logs, and steps to reproduce.

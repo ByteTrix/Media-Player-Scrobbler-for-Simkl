@@ -13,18 +13,16 @@ Tracks completed features and planned improvements for MPS for SIMKL.
 - [x] 🧠 Smart movie detection
 - [x] 📦 PyPI package 
 - [x] 💻 Cross-platform testing
-- [x] 😍 New icon/logo [#11](https://github.com/kavinthangavel/Media-Player-Scrobbler-for-Simkl/pull/11)
-- [x] 🎛️ Enhanced tray controls [#3](https://github.com/kavinthangavel/Media-Player-Scrobbler-for-Simkl/pull/3)
-- [x] 🔔 Improved notifications [#19](https://github.com/kavinthangavel/Media-Player-Scrobbler-for-Simkl/pull/19)
-- [x] ⛓️ Enhanced authentication [#28](https://github.com/kavinthangavel/Media-Player-Scrobbler-for-Simkl/pull/28)
-- [x] ©️ Enhanced Media Name Tracking [#44](https://github.com/kavinthangavel/Media-Player-Scrobbler-for-Simkl/pull/44)
-- [x] 💾 Option to set/edit completion percentage in tray app [#48](https://github.com/kavinthangavel/Media-Player-Scrobbler-for-Simkl/pull/48)
-
+- [x] 😍 New icon/logo [#11](https://github.com/ByteTrix/Media-Player-Scrobbler-for-Simkl/pull/11)
+- [x] 🎛️ Enhanced tray controls [#3](https://github.com/ByteTrix/Media-Player-Scrobbler-for-Simkl/pull/3)
+- [x] 🔔 Improved notifications [#19](https://github.com/ByteTrix/Media-Player-Scrobbler-for-Simkl/pull/19)
+- [x] ⛓️ Enhanced authentication [#28](https://github.com/ByteTrix/Media-Player-Scrobbler-for-Simkl/pull/28)
+- [x] ©️ Enhanced Media Name Tracking [#44](https://github.com/ByteTrix/Media-Player-Scrobbler-for-Simkl/pull/44)
+- [x] 💾 Option to set/edit completion percentage in tray app [#48](https://github.com/ByteTrix/Media-Player-Scrobbler-for-Simkl/pull/48)
+- [x] 📺 TV shows and anime scrobbling
+- [x] 🕒 Local Watch History page (HTML/CSS/JS)
 
 ## 🚧 In Progress
-
-- [ ] 🔎 Add option for mark as watched history (Local)
-- [ ] 📺 Add support for TV shows/Anime tracking
 
 ## 📝 Planned Features
 

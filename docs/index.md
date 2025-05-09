@@ -1,6 +1,6 @@
 # 🎬 MPS for SIMKL
 
-[![GitHub License](https://img.shields.io/github/license/kavinthangavel/media-player-scrobbler-for-simkl)](https://github.com/kavinthangavel/media-player-scrobbler-for-simkl/blob/main/LICENSE)
+[![GitHub License](https://img.shields.io/github/license/ByteTrix/Media-Player-Scrobbler-for-Simkl)](https://github.com/ByteTrix/Media-Player-Scrobbler-for-Simkl/blob/main/LICENSE)
 [![PyPI Version](https://img.shields.io/pypi/v/simkl-mps)](https://pypi.org/project/simkl-mps/)
 [![Python Versions](https://img.shields.io/pypi/pyversions/simkl-mps)](https://pypi.org/project/simkl-mps/)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-blue.svg)]()
@@ -24,6 +24,7 @@ After installation, authenticate with SIMKL and **configure your media players**
 - [Mac Guide](mac-guide.md)
 - [Supported Media Players](media-players.md)
 - [Usage Guide](usage.md)
+- [Local Watch History](watch-history.md) <!-- NEW -->
 - [Advanced & Developer Guide](configuration.md)
 - [Troubleshooting Guide](troubleshooting.md)
 - [Todo List](todo.md)
@@ -56,15 +57,15 @@ graph TD
 
 ## 📝 License
 
-MPS for SIMKL is licensed under the GNU GPL v3 License. See the [LICENSE](https://github.com/kavinthangavel/media-player-scrobbler-for-simkl/blob/main/LICENSE) file for details.
+MPS for SIMKL is licensed under the GNU GPL v3 License. See the [LICENSE](https://github.com/ByteTrix/Media-Player-Scrobbler-for-Simkl/blob/main/LICENSE) file for details.
 
 ---
 
 <div align="center">
   <p>Made with ❤️ by <a href="https://github.com/kavinthangavel">kavinthangavel</a></p>
   <p>
-    <a href="https://github.com/kavinthangavel/media-player-scrobbler-for-simkl/stargazers">⭐ Star us on GitHub</a> •
-    <a href="https://github.com/kavinthangavel/media-player-scrobbler-for-simkl/issues">🐞 Report Bug</a> •
-    <a href="https://github.com/kavinthangavel/media-player-scrobbler-for-simkl/issues">✨ Request Feature</a>
+    <a href="https://github.com/ByteTrix/Media-Player-Scrobbler-for-Simkl/stargazers">⭐ Star us on GitHub</a> •
+    <a href="https://github.com/ByteTrix/Media-Player-Scrobbler-for-Simkl/issues">🐞 Report Bug</a> •
+    <a href="https://github.com/ByteTrix/Media-Player-Scrobbler-for-Simkl/issues">✨ Request Feature</a>
   </p>
 </div>

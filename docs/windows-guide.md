@@ -26,7 +26,7 @@ flowchart LR
     style J fill:#fbbc05,stroke:#333,stroke-width:2px,color:#fff
 ```
 
-1. [Download the latest installer](https://github.com/kavinthangavel/media-player-scrobbler-for-simkl/releases/latest)
+1. [Download the latest installer](https://github.com/ByteTrix/Media-Player-Scrobbler-for-Simkl/releases/latest)
 2. **Right-click** the installer and select **"Run as administrator"** (recommended)
 3. Follow the setup wizard:
    - Accept the license agreement
