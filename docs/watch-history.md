@@ -56,4 +56,39 @@ MPS for SIMKL now supports **automatic tracking of TV shows and anime** in addit
 
 ---
 
+## 👨‍💻 Developer Guide: Watch History
+
+### Overview
+The local watch history system is managed by the `WatchHistoryManager` (see `simkl_mps/watch_history_manager.py`). It tracks all watched movies, TV shows, and anime, and powers the local history viewer.
+
+### File Locations
+- **History Data:**
+  - `watch_history.json` is stored in your data directory (e.g. `~/.kavinthangavel/simkl-mps/` or click open config dir in tray app .
+- **Viewer:**
+  - The HTML/JS viewer is auto-copied to `~/kavinthangavel/simkl-mps/watch-history-viewer/`.
+  - The viewer loads `data.js` (auto-generated from your history).
+
+### How It Works
+- All scrobbled media (movies, TV, anime) are added/updated in `watch_history.json`.
+- For TV/anime, episodes are tracked in an `episodes` array inside each show entry.
+- The manager ensures the viewer files are always up-to-date and generates a `data.js` file for the UI.
+- The viewer can be opened from the tray menu or by opening `index.html` in the viewer folder.
+
+### Editing & Debugging
+- **Manual Edits:** You can edit `watch_history.json` directly (with a text editor), but be careful—ensure valid JSON format.
+- **Debugging:**
+  - Errors and actions are logged to `simkl_mps.log` in the same app data directory.
+  - If the viewer fails to load, check for JSON errors or missing fields.
+  - The manager will auto-repair an empty or corrupt history file.
+- **Resetting:**
+  - To clear all history, use the tray menu or delete `watch_history.json` (a new one will be created).
+
+### Developer Tips
+- The manager supports pagination, sorting, and filtering for advanced integrations.
+- You can add custom fields to history entries for experiments (the viewer will ignore unknown fields).
+- To test the viewer with sample data, replace `watch_history.json` and reload the viewer.
+- The `add_entry` method is the main entry point for programmatic updates.
+
+---
+
 For more details, see the main [Usage Guide](usage.md) and [Media Players Guide](media-players.md).

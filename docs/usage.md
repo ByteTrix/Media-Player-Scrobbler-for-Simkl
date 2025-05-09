@@ -66,6 +66,22 @@ Right-click the tray icon to access the app menu with options to:
 - Access settings
 - Exit the application
 
+## 🚦 Real-World Performance Timings
+
+**Online:**
+- Player Detection: ~4.2 sec
+- Movie Info Scrobble: ~3.7 sec
+- Notification: ~1.5 sec
+- Completion Detection Delay: ~5.2 sec
+- Completion Sync: ~13.3 sec
+- Completion Notification: ~1.5 sec
+
+**Offline:**
+- Movie Scrobble: ~1.2 sec
+- Notification: ~0.5 sec
+- Completion Save: ~3 sec
+- Completion Notification: ~0.5 sec
+
 ## 🛠️ Common Operations
 
 - **Tray:** Right-click for menu, status, and tools.

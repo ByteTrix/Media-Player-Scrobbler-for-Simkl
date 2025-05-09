@@ -55,9 +55,19 @@ graph LR
 
 ## 🚦 Performance Notes
 
-- **Movie identification:** 15–30 seconds (typical)
-- **Mark as watched (online):** 2–8 seconds (best connection)
-- **Offline scrobble:** 4–10 seconds to process title, 1–3 seconds to add to backlog after threshold
+**Online:**
+- Player Detection: ~4.2 sec
+- Movie Info Scrobble: ~3.7 sec
+- Notification: ~1.5 sec
+- Completion Detection Delay: ~5.2 sec
+- Completion Sync: ~13.3 sec
+- Completion Notification: ~1.5 sec
+
+**Offline:**
+- Movie Scrobble: ~1.2 sec
+- Notification: ~0.5 sec
+- Completion Save: ~3 sec
+- Completion Notification: ~0.5 sec
 
 ## 📝 License
 
