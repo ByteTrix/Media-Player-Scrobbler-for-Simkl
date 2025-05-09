@@ -1044,9 +1044,9 @@ document.addEventListener('DOMContentLoaded', () => {
         console.debug(`populateExpandedCard for ${cardIdForLog}: Created ephemeral-expanded-content-root div.`);
 
         // Clone template content
-        const template = document.getElementById('expanded-card-template');
+        const template = document.getElementById('expanded-content-template');
         if (!template) {
-            console.error(`populateExpandedCard for ${cardIdForLog}: expanded-card-template not found!`);
+            console.error(`populateExpandedCard for ${cardIdForLog}: expanded-content-template not found!`);
             // Restore original children if template is missing
             originalChildren.forEach(child => {
                 child.style.display = '';
