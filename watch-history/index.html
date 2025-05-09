@@ -512,6 +512,66 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#developer-guide-watch-history" class="md-nav__link">
+    <span class="md-ellipsis">
+      👨‍💻 Developer Guide: Watch History
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="👨‍💻 Developer Guide: Watch History">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      Overview
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#file-locations" class="md-nav__link">
+    <span class="md-ellipsis">
+      File Locations
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#how-it-works_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      How It Works
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#editing-debugging" class="md-nav__link">
+    <span class="md-ellipsis">
+      Editing &amp; Debugging
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#developer-tips" class="md-nav__link">
+    <span class="md-ellipsis">
+      Developer Tips
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -585,6 +645,42 @@
 <li>All data is processed locally; no data is sent anywhere.</li>
 </ul>
 <hr />
+<h2 id="developer-guide-watch-history">👨‍💻 Developer Guide: Watch History<a class="headerlink" href="#developer-guide-watch-history" title="Permanent link">&para;</a></h2>
+<h3 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h3>
+<p>The local watch history system is managed by the <code>WatchHistoryManager</code> (see <code>simkl_mps/watch_history_manager.py</code>). It tracks all watched movies, TV shows, and anime, and powers the local history viewer.</p>
+<h3 id="file-locations">File Locations<a class="headerlink" href="#file-locations" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>History Data:</strong></li>
+<li><code>watch_history.json</code> is stored in your data directory (e.g. <code>~/.kavinthangavel/simkl-mps/</code> or click open config dir in tray app .</li>
+<li><strong>Viewer:</strong></li>
+<li>The HTML/JS viewer is auto-copied to <code>~/kavinthangavel/simkl-mps/watch-history-viewer/</code>.</li>
+<li>The viewer loads <code>data.js</code> (auto-generated from your history).</li>
+</ul>
+<h3 id="how-it-works_1">How It Works<a class="headerlink" href="#how-it-works_1" title="Permanent link">&para;</a></h3>
+<ul>
+<li>All scrobbled media (movies, TV, anime) are added/updated in <code>watch_history.json</code>.</li>
+<li>For TV/anime, episodes are tracked in an <code>episodes</code> array inside each show entry.</li>
+<li>The manager ensures the viewer files are always up-to-date and generates a <code>data.js</code> file for the UI.</li>
+<li>The viewer can be opened from the tray menu or by opening <code>index.html</code> in the viewer folder.</li>
+</ul>
+<h3 id="editing-debugging">Editing &amp; Debugging<a class="headerlink" href="#editing-debugging" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Manual Edits:</strong> You can edit <code>watch_history.json</code> directly (with a text editor), but be careful—ensure valid JSON format.</li>
+<li><strong>Debugging:</strong></li>
+<li>Errors and actions are logged to <code>simkl_mps.log</code> in the same app data directory.</li>
+<li>If the viewer fails to load, check for JSON errors or missing fields.</li>
+<li>The manager will auto-repair an empty or corrupt history file.</li>
+<li><strong>Resetting:</strong></li>
+<li>To clear all history, use the tray menu or delete <code>watch_history.json</code> (a new one will be created).</li>
+</ul>
+<h3 id="developer-tips">Developer Tips<a class="headerlink" href="#developer-tips" title="Permanent link">&para;</a></h3>
+<ul>
+<li>The manager supports pagination, sorting, and filtering for advanced integrations.</li>
+<li>You can add custom fields to history entries for experiments (the viewer will ignore unknown fields).</li>
+<li>To test the viewer with sample data, replace <code>watch_history.json</code> and reload the viewer.</li>
+<li>The <code>add_entry</code> method is the main entry point for programmatic updates.</li>
+</ul>
+<hr />
 <p>For more details, see the main <a href="../usage/">Usage Guide</a> and <a href="../media-players/">Media Players Guide</a>.</p>
 
 
@@ -608,7 +704,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="May 9, 2025 07:40:32">May 9, 2025</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="May 9, 2025 09:28:07">May 9, 2025</span>
   </span>
 
     
