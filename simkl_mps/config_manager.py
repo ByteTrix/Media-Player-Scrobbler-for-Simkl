@@ -113,6 +113,7 @@ def get_setting(key, default=None):
 
 def set_setting(key, value):
     """Sets a specific setting value and saves it."""
+    log.debug(f"ConfigManager: set_setting received key='{key}', value='{value}' (type: {type(value)})")
     # Validate certain settings before saving
     if key == 'watch_completion_threshold':
         try:
@@ -125,6 +126,7 @@ def set_setting(key, value):
              log.error(f"Attempted to set non-integer watch_completion_threshold: {value}.")
              return # Do not save invalid value
     
+    log.debug(f"ConfigManager: set_setting proceeding for key='{key}' before user_subdir check.")
     if key == 'user_subdir' and value != get_setting('user_subdir'):
         log.info(f"Updating user subdirectory from '{get_setting('user_subdir')}' to '{value}'")
         # Reinitialize paths with the new user_subdir
@@ -133,10 +135,20 @@ def set_setting(key, value):
         # Now we need to reload settings to get all the settings from the new location
         settings = load_settings()  # This will now load from (or create at) the new location
         settings[key] = value # set the new value
+        log.debug(f"ConfigManager: set_setting (user_subdir branch) - settings to save: {settings}")
         save_settings(settings)     # This will save to the new location
         
         log.info(f"Updated app data directory to: {APP_DATA_DIR}")
         return
+    else:
+        # This branch is taken if key is not 'user_subdir' OR if it is 'user_subdir' but the value is not changing.
+        # For any key (including 'user_subdir' if its value isn't changing, though less critical there),
+        # load current settings, update the specific key, and save.
+        current_settings = load_settings()
+        current_settings[key] = value
+        log.debug(f"ConfigManager: set_setting (non-user_subdir or non-changing user_subdir) - settings to save: {current_settings}")
+        save_settings(current_settings)
+        log.info(f"ConfigManager: Setting for '{key}' updated and saved.")
 
 def get_app_data_dir():
     """Returns the current app data directory path."""

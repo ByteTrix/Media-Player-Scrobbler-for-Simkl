@@ -33,6 +33,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentPage = 1;
     let itemsPerPage = 24; // Default for grid view
     let watchChart = null;
+    let isCardTransitioning = false; // State to track card opening/closing animation
 
     // Apply saved view
     if (currentView === 'list') {
@@ -60,7 +61,6 @@ document.addEventListener('DOMContentLoaded', () => {
     function getProxiedImageUrl(url) {
         // If no URL is provided, return a default placeholder
         if (!url) {
-            console.log('No URL provided to getProxiedImageUrl');
             return `https://via.placeholder.com/150x225.webp?text=No+Poster`;
         }
         
@@ -182,8 +182,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const year = date.getFullYear();
             
             // Store with display label for better readability
-            watchesByMonth[monthKey] = { 
-                month: monthKey, 
+            watchesByMonth[monthKey] = {
+                month: monthKey,
                 count: 0,
                 label: new Date(year, month).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })
             };
@@ -194,6 +194,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if (item.watched_at) {
                 try {
                     const watchDate = new Date(item.watched_at);
+                    if (isNaN(watchDate.getTime())) { // Check for invalid date
+                        return; // Skip this item
+                    }
                     const watchMonth = watchDate.toISOString().slice(0, 7); // YYYY-MM
                     
                     if (watchesByMonth[watchMonth]) {
@@ -806,9 +809,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const watchedDate = formatDate(item.watched_at);
 
         let episodeInfoHtml = '';
-        if ((mediaType === 'tv' || mediaType === 'anime') && item.season > 0 && item.episode > 0) {
+        if ((mediaType === 'tv' || mediaType === 'anime' || mediaType === 'show') && item.season > 0 && item.episode > 0) {
             episodeInfoHtml = `<span class="episode-info" title="Season ${item.season}, Episode ${item.episode}"><i class="ph-duotone ph-television"></i> S${String(item.season).padStart(2, '0')}E${String(item.episode).padStart(2, '0')}</span>`;
-        } else if ((mediaType === 'tv' || mediaType === 'anime') && item.episode > 0) {
+        } else if ((mediaType === 'tv' || mediaType === 'anime' || mediaType === 'show') && item.episode > 0) {
             episodeInfoHtml = `<span class="episode-info" title="Episode ${item.episode}"><i class="ph-duotone ph-television"></i> E${item.episode}</span>`;
         }
 
@@ -941,8 +944,11 @@ document.addEventListener('DOMContentLoaded', () => {
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && activeMediaCard) closeExpandedCard(); });
 
     // Expand a media card
-    function expandMediaCard(card) {
-        if (activeMediaCard) closeExpandedCard(); // Close any existing expanded card
+    function expandMediaCard(card) { // LINE 947
+        isCardTransitioning = true; // Card is now transitioning
+        if (activeMediaCard) {
+            closeExpandedCard(); // Close any existing expanded card
+        }
 
         const itemId = card.dataset.itemId;
         // Find the item data using a more robust method if IDs aren't always present
@@ -988,30 +994,89 @@ document.addEventListener('DOMContentLoaded', () => {
             card.classList.add('animating-open');
             
             // Listen for animation end
-            card.addEventListener('animationend', function onAnimEnd() {
-                card.classList.remove('animating-open');
-                card.removeEventListener('animationend', onAnimEnd);
-                
-                // Reset inline styles once animation is complete
-                card.style.position = '';
-                card.style.top = '';
-                card.style.left = '';
-                card.style.width = '';
-                card.style.height = '';
-                card.style.margin = '';
-                
-                // Continue with populating the expanded card
-                populateExpandedCard(card, item);
+            card.addEventListener('animationend', function onAnimEnd(event) {
+                // Make sure this is the animation we care about if multiple animations are on the card
+                if (event.animationName === 'card-expand') {
+
+                    // Bug 2 Fix: Check if the card is still active and meant to be expanded before populating
+                    if (activeMediaCard !== card || !card.classList.contains('expanded')) {
+                        card.classList.remove('animating-open'); // Clean up animation class
+                        // If closeExpandedCard was called, it should handle the full reset.
+                        isCardTransitioning = false; // Transition finished (aborted)
+                        return;
+                    }
+
+                    card.classList.remove('animating-open');
+                    
+                    // Reset inline styles once animation is complete
+                    card.style.position = '';
+                    card.style.top = '';
+                    card.style.left = '';
+                    card.style.width = '';
+                    card.style.height = '';
+                    card.style.margin = '';
+                    // z-index will be handled by .expanded class or overridden if necessary
+                    
+                    // Continue with populating the expanded card
+                    populateExpandedCard(card, item);
+                    isCardTransitioning = false; // Transition finished (populated)
+                }
             }, { once: true });
         }, 10);
     }
 
     // Populate the expanded card with content
-    function populateExpandedCard(card, item) {
+    function populateExpandedCard(card, itemData) { // LINE 1029 - Modified
+        const cardIdForLog = card.dataset.itemId || card.id || 'unknown_card_populate';
+        console.debug(`populateExpandedCard for ${cardIdForLog}: Starting. Hiding original children.`);
+
+        // Hide original children and mark them
+        const originalChildren = Array.from(card.children);
+        originalChildren.forEach(child => {
+            child.style.display = 'none';
+            child.classList.add('original-card-child-hidden');
+            console.debug(`populateExpandedCard for ${cardIdForLog}: Hid and tagged original child:`, child);
+        });
+
+        // Create the single root element for all expanded content
+        const ephemeralRoot = document.createElement('div');
+        ephemeralRoot.classList.add('ephemeral-expanded-content-root');
+        console.debug(`populateExpandedCard for ${cardIdForLog}: Created ephemeral-expanded-content-root div.`);
+
         // Clone template content
-        const templateClone = expandedContentTemplate.content.cloneNode(true);
+        const template = document.getElementById('expanded-content-template');
+        if (!template) {
+            console.error(`populateExpandedCard for ${cardIdForLog}: expanded-content-template not found!`);
+            // Restore original children if template is missing
+            originalChildren.forEach(child => {
+                child.style.display = '';
+                child.classList.remove('original-card-child-hidden');
+            });
+            return;
+        }
+        const templateClone = template.content.cloneNode(true);
+        
+        // Ensure the template has content to avoid errors
+        if (!templateClone.firstElementChild) {
+            console.error(`populateExpandedCard for ${cardIdForLog}: expanded-card-template is empty!`);
+            originalChildren.forEach(child => {
+                child.style.display = '';
+                child.classList.remove('original-card-child-hidden');
+            });
+            return;
+        }
+
         const expandedHeader = templateClone.querySelector('.expanded-header');
         const expandedContentWrapper = templateClone.querySelector('.expanded-content-wrapper');
+
+        if (!expandedHeader || !expandedContentWrapper) {
+            console.error(`populateExpandedCard for ${cardIdForLog}: Template missing .expanded-header or .expanded-content-wrapper.`);
+             originalChildren.forEach(child => {
+                child.style.display = '';
+                child.classList.remove('original-card-child-hidden');
+            });
+            return;
+        }
 
         // Populate Header
         const posterBg = expandedHeader.querySelector('.expanded-poster-bg');
@@ -1019,131 +1084,249 @@ document.addEventListener('DOMContentLoaded', () => {
         const titleEl = expandedHeader.querySelector('.expanded-title');
         const metaYear = expandedHeader.querySelector('[data-field="release_year"] span');
         const metaRuntime = expandedHeader.querySelector('[data-field="runtime"] span');
-        const metaLastWatched = expandedHeader.querySelector('[data-field="last_watched_at"] span'); // Changed from user_rating
+        const metaLastWatched = expandedHeader.querySelector('[data-field="last_watched_at"] span');
 
-        // Determine the base image URLs (Simkl or Placeholder) for large and thumb sizes
-        let largeBaseUrl, thumbBaseUrl, baseImageUrl;
-        let posterValue = item.poster || item.poster_url; // Check for both field names
+        let largeBaseUrl, thumbBaseUrl;
+        let posterValue = itemData.poster || itemData.poster_url;
         
         if (posterValue && /^\d+\/\d+[a-f0-9]*$/.test(posterValue)) {
-            baseImageUrl = `https://simkl.in/posters/${posterValue}`;
-            largeBaseUrl = `${baseImageUrl}_c.webp`; // Large poster for background
-            thumbBaseUrl = `${baseImageUrl}_m.webp`; // Medium poster for thumb
+            const baseImageUrl = `https://simkl.in/posters/${posterValue}`;
+            largeBaseUrl = `${baseImageUrl}_c.webp`;
+            thumbBaseUrl = `${baseImageUrl}_m.webp`;
         } else {
-            // Use placeholders if no valid poster ID
-            const placeholderText = encodeURIComponent(item.title || 'No Image');
-            largeBaseUrl = `https://placehold.co/600x900?text=${placeholderText}`; // Larger placeholder
+            const placeholderText = encodeURIComponent(itemData.title || 'No Image');
+            largeBaseUrl = `https://placehold.co/600x900?text=${placeholderText}`;
             thumbBaseUrl = `https://placehold.co/300x450?text=${placeholderText}`;
         }
 
-        // Apply the proxy to the final base URLs
         const largePosterUrl = getProxiedImageUrl(largeBaseUrl);
         const thumbPosterUrl = getProxiedImageUrl(thumbBaseUrl);
 
-        posterBg.style.backgroundImage = `url('${largePosterUrl}')`;
-        posterThumbImg.src = thumbPosterUrl;
+        if (posterBg) posterBg.style.backgroundImage = `url('${largePosterUrl}')`;
+        if (posterThumbImg) posterThumbImg.src = thumbPosterUrl;
+        if (posterThumbImg && itemData.title) posterThumbImg.alt = itemData.title;
 
-        titleEl.textContent = item.title || 'No Title';
-        metaYear.textContent = item.year || '-';
-        metaRuntime.textContent = item.runtime ? `${item.runtime} min` : '-';
-        // Populate Last Watched Date
-        metaLastWatched.textContent = formatDate(item.watched_at);
+
+        if (titleEl) titleEl.textContent = itemData.title || 'No Title';
+        if (metaYear) metaYear.textContent = itemData.year || '-';
+        if (metaRuntime) metaRuntime.textContent = itemData.runtime ? `${itemData.runtime} min` : '-';
+        if (metaLastWatched) metaLastWatched.textContent = formatDate(itemData.watched_at);
 
         // Populate Content Details
-        populateExpandedContentDetails(expandedContentWrapper, item);
+        populateExpandedContentDetails(expandedContentWrapper, itemData);
 
         // Add close button listener
         const closeButton = templateClone.querySelector('.close-button');
-        closeButton.addEventListener('click', closeExpandedCard);
+        if (closeButton) closeButton.addEventListener('click', closeExpandedCard);
 
         // Add action button listeners
         const playMediaBtn = expandedContentWrapper.querySelector('.play-media');
         const openFolderBtn = expandedContentWrapper.querySelector('.open-folder');
         const searchOnlineBtn = expandedContentWrapper.querySelector('#search-online');
 
-        if (item.file_path) {
-            playMediaBtn.addEventListener('click', () => window.open(`file:///${item.file_path}`, '_blank'));
-            openFolderBtn.addEventListener('click', () => {
-                // Attempt to open the folder containing the file
+        if (itemData.file_path) {
+            if (playMediaBtn) playMediaBtn.addEventListener('click', () => window.open(`file:///${itemData.file_path}`, '_blank'));
+            if (openFolderBtn) openFolderBtn.addEventListener('click', () => {
                 try {
-                    const directory = item.file_path.substring(0, item.file_path.lastIndexOf('\\') || item.file_path.lastIndexOf('/'));
+                    const directory = itemData.file_path.substring(0, itemData.file_path.lastIndexOf('\\') || itemData.file_path.lastIndexOf('/'));
                     window.open(`file:///${directory}`, '_blank');
                 } catch (e) {
+                    console.error('Error opening folder:', e);
                     alert('Could not determine folder path.');
                 }
             });
         } else {
-            playMediaBtn.disabled = true;
-            playMediaBtn.title = "File path not available";
-            openFolderBtn.disabled = true;
-            openFolderBtn.title = "File path not available";
+            if (playMediaBtn) {
+                playMediaBtn.disabled = true;
+                playMediaBtn.title = "File path not available";
+            }
+            if (openFolderBtn) {
+                openFolderBtn.disabled = true;
+                openFolderBtn.title = "File path not available";
+            }
         }
         
-        // Update the search online button with the current title
-        if (searchOnlineBtn && item.title) {
-            const searchQuery = `${item.title} ${item.year || ''} watch online`;
+        if (searchOnlineBtn && itemData.title) {
+            const searchQuery = `${itemData.title} ${itemData.year || ''} watch online`;
             searchOnlineBtn.href = `https://www.google.com/search?q=${encodeURIComponent(searchQuery)}`;
         }
 
-        // Append the populated template to the card
-        card.appendChild(templateClone);
+        // Append the populated template's content INTO our new root
+        ephemeralRoot.appendChild(templateClone);
+        console.debug(`populateExpandedCard for ${cardIdForLog}: Appended template clone into ephemeralRoot. ephemeralRoot.innerHTML:`, ephemeralRoot.innerHTML);
+
+        // Append our new single root to the card
+        card.appendChild(ephemeralRoot);
+        console.debug(`populateExpandedCard for ${cardIdForLog}: Appended .ephemeral-expanded-content-root to card. card.innerHTML:`, card.innerHTML);
     }
 
     // Close the expanded card
     function closeExpandedCard() {
-        if (!activeMediaCard) return;
+        if (isCardTransitioning) {
+            // console.debug('closeExpandedCard: Aborted, card is transitioning.');
+            return;
+        }
+        if (!activeMediaCard) {
+            // console.debug('closeExpandedCard: Aborted, no activeMediaCard.');
+            return;
+        }
 
-        // Get the original position and size from the CSS variables
-        const origTop = activeMediaCard.style.getPropertyValue('--card-orig-top');
-        const origLeft = activeMediaCard.style.getPropertyValue('--card-orig-left');
-        const origWidth = activeMediaCard.style.getPropertyValue('--card-orig-width');
-        const origHeight = activeMediaCard.style.getPropertyValue('--card-orig-height');
+        const cardElementToClean = activeMediaCard;
+        const cardIdToLog = cardElementToClean.dataset.itemId || (cardElementToClean.id || 'unknown_card');
+        let cleanupPerformed = false;
 
-        // Save references to elements we need to remove after animation
-        const header = activeMediaCard.querySelector('.expanded-header');
-        const closeBtn = activeMediaCard.querySelector('.close-button');
-        const contentWrapper = activeMediaCard.querySelector('.expanded-content-wrapper');
+        // console.debug(`closeExpandedCard: Initiating close for card: ${cardIdToLog}`);
 
         // Start fade out animation for backdrop
-        modalBackdrop.classList.remove('active');
+        if (modalBackdrop) {
+            modalBackdrop.classList.remove('active');
+        }
 
-        // Set up fixed position for animation
-        activeMediaCard.style.position = 'fixed';
-        activeMediaCard.style.top = '50%';
-        activeMediaCard.style.left = '50%';
-        activeMediaCard.style.width = '90%';
-        activeMediaCard.style.maxWidth = '850px';
-        activeMediaCard.style.transform = 'translate(-50%, -50%)';
-        activeMediaCard.style.zIndex = '1000';
+        // Set up fixed position for animation (to animate from its current expanded state)
+        const currentCardRect = cardElementToClean.getBoundingClientRect();
+        let startTop = currentCardRect.top;
+        let startLeft = currentCardRect.left;
+        let startWidth = currentCardRect.width;
+        let startHeight = currentCardRect.height;
+
+        // Adjust start dimensions if card is unpopulated (e.g., animation interrupted early)
+        const isGridView = currentView === 'grid';
+        const isUnpopulated = !cardElementToClean.querySelector('.expanded-card-header') && !cardElementToClean.querySelector('.expanded-header');
+
+        if (isGridView && isUnpopulated) {
+            const minSensibleHeight = 50;
+            const defaultExpandedMinHeight = 400; // Default or expected height
+            if (startHeight < minSensibleHeight) startHeight = defaultExpandedMinHeight;
+
+            const minSensibleWidth = 50;
+            const defaultExpandedMinWidth = 320; // Default or expected width
+            if (startWidth < minSensibleWidth) startWidth = defaultExpandedMinWidth;
+        }
+        
+        cardElementToClean.style.position = 'fixed';
+        cardElementToClean.style.top = `${startTop}px`;
+        cardElementToClean.style.left = `${startLeft}px`;
+        cardElementToClean.style.width = `${startWidth}px`;
+        cardElementToClean.style.height = `${startHeight}px`;
+        cardElementToClean.style.zIndex = '1000'; // Ensure it's above other elements during animation
 
         // Add closing animation class
-        activeMediaCard.classList.add('animating-close');
+        cardElementToClean.classList.add('animating-close');
+
+        // Perform critical body overflow cleanup early.
+        // This was in the original code, keeping it for now.
+        setTimeout(() => {
+            if (!cleanupPerformed) { // Only if cleanup hasn't happened yet
+                 document.body.style.overflow = '';
+            }
+        }, 50);
+
+
+        const performFullCleanup = (cardElementToClean, idLog) => { // Renamed 'card' to 'cardElementToClean' for clarity
+            console.debug(`performFullCleanup for ${idLog}: Starting cleanup. Initial cardElementToClean.innerHTML:`, cardElementToClean.innerHTML);
+
+            // 1. Remove Expanded Content
+            const injectedView = cardElementToClean.querySelector('.ephemeral-expanded-content-root');
+            if (injectedView) {
+                console.debug(`Cleanup for ${idLog}: Found .ephemeral-expanded-content-root. outerHTML:`, injectedView.outerHTML, "Removing...");
+                injectedView.remove();
+                console.debug(`Cleanup for ${idLog}: .ephemeral-expanded-content-root REMOVED. Current innerHTML AFTER removal:`, cardElementToClean.innerHTML);
+            } else {
+                console.debug(`Cleanup for ${idLog}: .ephemeral-expanded-content-root NOT FOUND.`);
+            }
+
+            // 2. Restore Original Children
+            const originalChildrenToRestore = Array.from(cardElementToClean.querySelectorAll('.original-card-child-hidden'));
+            if (originalChildrenToRestore.length > 0) {
+                console.debug(`Cleanup for ${idLog}: Found ${originalChildrenToRestore.length} original children to restore.`);
+                originalChildrenToRestore.forEach(child => {
+                    child.style.display = ''; // Reset display
+                    child.classList.remove('original-card-child-hidden');
+                    console.debug(`Cleanup for ${idLog}: Restored original child:`, child);
+                });
+                console.debug(`Cleanup for ${idLog}: Finished restoring original children. cardElementToClean.innerHTML:`, cardElementToClean.innerHTML);
+            } else {
+                console.debug(`Cleanup for ${idLog}: No .original-card-child-hidden found to restore.`);
+            }
+            
+            // 3. Reset Card's Own Styles and Classes
+            cardElementToClean.classList.remove('expanded', 'animating-close');
+            
+            // Reset all relevant inline styles applied during expansion
+            ['position', 'top', 'left', 'width', 'height', 'z-index', 'opacity', 'transform', 'filter', 'margin'].forEach(prop => {
+                cardElementToClean.style.removeProperty(prop);
+            });
+            // Ensure display is correct for the normal card view
+            cardElementToClean.style.display = ''; // Or its original display if known and different
+            
+            // Remove CSS variables used for animation origin
+            cardElementToClean.style.removeProperty('--card-orig-top');
+            cardElementToClean.style.removeProperty('--card-orig-left');
+            cardElementToClean.style.removeProperty('--card-orig-width');
+            cardElementToClean.style.removeProperty('--card-orig-height');
+            console.debug(`Cleanup for ${idLog}: Reset card's own classes and styles.`);
+
+            // 4. Global Cleanup (Modal Backdrop and Body Overflow)
+            if (modalBackdrop) {
+                modalBackdrop.classList.remove('active'); // Ensure active is removed before hiding
+                modalBackdrop.style.display = 'none';
+                console.debug(`Cleanup for ${idLog}: Hid modal backdrop.`);
+            }
+            document.body.style.overflow = '';
+            console.debug(`Cleanup for ${idLog}: Reset body overflow.`);
+
+            // 5. Final Step: Nullify activeMediaCard
+            // This check ensures we only nullify if it's still the card we intended to clean.
+            // This is important because another card might have been opened quickly.
+            if (activeMediaCard === cardElementToClean) {
+                 activeMediaCard = null;
+                 console.debug(`performFullCleanup for ${idLog}: activeMediaCard nulled.`);
+            } else {
+                 console.debug(`performFullCleanup for ${idLog}: activeMediaCard was not this card, not nullifying. Current activeMediaCard:`, activeMediaCard);
+            }
+            console.debug(`performFullCleanup for ${idLog}: Cleanup complete. Final cardElementToClean.innerHTML:`, cardElementToClean.innerHTML);
+        };
+
+        // Animationend listener
+        const onAnimationEndHandler = (event) => {
+            if (event.animationName === 'card-collapse' && event.target === cardElementToClean) {
+                if (cleanupPerformed) {
+                    // console.debug(`closeExpandedCard (animationend) for ${cardIdToLog}: Cleanup already done.`);
+                    return;
+                }
+                cleanupPerformed = true;
+                // console.debug(`Performing cleanup via animationend for card: ${cardIdToLog}`);
+                performFullCleanup(cardElementToClean, cardIdToLog);
+                // Listener is removed by { once: true } or manually if once:false
+                // cardElementToClean.removeEventListener('animationend', onAnimationEndHandler); // Already handled by once:true
+            }
+        };
         
-        // Listen for animation end
-        activeMediaCard.addEventListener('animationend', function onCloseAnimEnd() {
-            activeMediaCard.classList.remove('animating-close');
-            activeMediaCard.removeEventListener('animationend', onCloseAnimEnd);
+        cardElementToClean.addEventListener('animationend', onAnimationEndHandler, { once: true });
+
+        // Fallback setTimeout
+        setTimeout(() => {
+            if (cleanupPerformed) {
+                // console.debug(`closeExpandedCard (fallback setTimeout) for ${cardIdToLog}: Cleanup already done.`);
+                return;
+            }
+            cleanupPerformed = true; // Set flag immediately
+            // console.debug(`Performing cleanup via fallback setTimeout for card: ${cardIdToLog}`);
             
-            // Reset all inline styles
-            activeMediaCard.style.position = '';
-            activeMediaCard.style.top = '';
-            activeMediaCard.style.left = '';
-            activeMediaCard.style.width = '';
-            activeMediaCard.style.height = '';
-            activeMediaCard.style.margin = '';
-            activeMediaCard.style.transform = '';
-            activeMediaCard.style.zIndex = '';
-            
-            // Remove elements and cleanup
-            if (header) activeMediaCard.removeChild(header);
-            if (closeBtn) activeMediaCard.removeChild(closeBtn);
-            if (contentWrapper) activeMediaCard.removeChild(contentWrapper);
-            
-            activeMediaCard.classList.remove('expanded');
-            modalBackdrop.style.display = 'none';
-            document.body.style.overflow = ''; // Restore body scroll
-            activeMediaCard = null;
-        }, { once: true });
+            // Ensure animation class is removed if animation didn't fire/complete
+            if(cardElementToClean) { // Check if cardElementToClean is still valid
+                 cardElementToClean.classList.remove('animating-close');
+                 performFullCleanup(cardElementToClean, cardIdToLog);
+            } else {
+                // console.debug(`closeExpandedCard (fallback setTimeout) for ${cardIdToLog}: cardElementToClean became null before fallback cleanup.`);
+                // Still attempt global cleanups if card is gone
+                if (modalBackdrop) modalBackdrop.style.display = 'none';
+                document.body.style.overflow = '';
+                if (activeMediaCard === cardElementToClean) { // only null if it's still the same card
+                    activeMediaCard = null;
+                }
+            }
+        }, 400); // Animation is ~300ms, so 400ms should be a safe fallback.
     }
 
     // Format file size
@@ -1225,7 +1408,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const tvDetailsSection = contentWrapper.querySelector('.tv-details-section');
         const mediaType = item.type || 'movie';
 
-        if (mediaType === 'tv' || mediaType === 'anime') {
+        if (mediaType === 'tv' || mediaType === 'anime' || mediaType === 'show') {
             tvDetailsSection.style.display = 'block';
             
             // Find the latest watched episode info
@@ -1274,7 +1457,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Get all history entries for this specific show/anime ID, sorted by most recent watch (for fallback/metadata)
             const episodesHistory = historyData
-                .filter(entry => entry.simkl_id === item.simkl_id && (entry.type === 'tv' || entry.type === 'anime') && entry.episode > 0)
+                .filter(entry => entry.simkl_id === item.simkl_id && (entry.type === 'tv' || entry.type === 'anime' || entry.type === 'show') && entry.episode > 0)
                 .sort((a, b) => new Date(b.watched_at || 0) - new Date(a.watched_at || 0));
 
             let episodesToDisplay = [];

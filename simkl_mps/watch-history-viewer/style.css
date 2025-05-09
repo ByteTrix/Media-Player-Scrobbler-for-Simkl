@@ -805,7 +805,7 @@ body.dark-mode .history-grid.list-view .file-details {
     width: 90%;
     max-width: 850px; /* Slightly narrower */
     max-height: 90vh;
-    overflow: hidden;
+    /* overflow: hidden; */ /* Removed to allow child scrolling */
     z-index: 1000;
     border-radius: var(--border-radius-lg);
     animation: none; /* Remove default animation - we'll set it in JavaScript */
@@ -827,6 +827,15 @@ body.dark-mode .history-grid.list-view .file-details {
     border-radius: var(--border-radius-lg) !important;
     padding: 0 !important;
     will-change: transform, opacity, width, height; /* Performance optimization */
+}
+
+/* Styles for the dynamically created root of expanded content */
+.ephemeral-expanded-content-root {
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1; /* Take available vertical space in the parent flex container */
+    min-height: 0; /* Important for scrollable children in flex containers */
+    width: 100%; /* Ensure it takes full width */
 }
 
 /* Define keyframe animations for card expansion */
