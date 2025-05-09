@@ -648,78 +648,56 @@ class TrayAppBase(abc.ABC): # Inherit from ABC for abstract methods
         current_threshold = get_setting('watch_completion_threshold', DEFAULT_THRESHOLD)
         is_preset = lambda val: current_threshold == val
 
-        # Start with basic items
+        # Start with app title and status
         menu_items = [
-            pystray.MenuItem("^_^ MPS for SIMKL", None),
+            pystray.MenuItem("MPS for SIMKL", None),
             pystray.Menu.SEPARATOR,
-            pystray.MenuItem(lambda item: f"Status: {self.get_status_text()}", None, enabled=False), # Use lambda for dynamic text
+            pystray.MenuItem(lambda item: f"Status: {self.get_status_text()}", None, enabled=False),
             pystray.Menu.SEPARATOR,
         ]
 
-        # Add Start/Stop item dynamically
+        # Monitoring controls (unchanged)
         if self.status == "running":
-            menu_items.append(pystray.MenuItem("Stop Monitoring", self.stop_monitoring))
-        else: # Covers "stopped", "paused", "error"
+            menu_items.append(pystray.MenuItem("Pause Monitoring", self.stop_monitoring))
+        else:
             menu_items.append(pystray.MenuItem("Start Monitoring", self.start_monitoring))
-
-        # --- Threshold Submenu ---
-        threshold_submenu = pystray.Menu(
-            pystray.MenuItem(
-                '65%',
-                lambda: self._set_preset_threshold(65),
-                checked=lambda item: is_preset(65),
-                radio=True
-            ),
-            pystray.MenuItem(
-                '80% (Default)',
-                lambda: self._set_preset_threshold(80),
-                checked=lambda item: is_preset(80),
-                radio=True
-            ),
-            pystray.MenuItem(
-                '90%',
-                lambda: self._set_preset_threshold(90),
-                checked=lambda item: is_preset(90),
-                radio=True
-            ),
-            pystray.Menu.SEPARATOR,
-            pystray.MenuItem(
-                'Custom...',
-                self.set_custom_watch_threshold # Call base class method
-            )
-        )
-
-        # Add Tools submenu
         menu_items.append(pystray.Menu.SEPARATOR)
-        menu_items.append(pystray.MenuItem("Tools", pystray.Menu(
+
+        # --- History & Tools submenu ---
+        threshold_submenu = pystray.Menu(
+            pystray.MenuItem('65%', lambda: self._set_preset_threshold(65), checked=lambda item: is_preset(65), radio=True),
+            pystray.MenuItem('80% (Default)', lambda: self._set_preset_threshold(80), checked=lambda item: is_preset(80), radio=True),
+            pystray.MenuItem('90%', lambda: self._set_preset_threshold(90), checked=lambda item: is_preset(90), radio=True),
+            pystray.Menu.SEPARATOR,
+            pystray.MenuItem('Custom...', self.set_custom_watch_threshold)
+        )
+        menu_items.append(pystray.MenuItem("History && Tools", pystray.Menu(
             pystray.MenuItem("Local Watch History", self.open_watch_history),
-            pystray.MenuItem("Watch Threshold (%)", threshold_submenu),
             pystray.MenuItem("Process Backlog Now", self.process_backlog),
             pystray.MenuItem("Open Logs", self.open_logs),
+        )))
+
+        # --- Settings submenu ---
+        menu_items.append(pystray.MenuItem("Settings", pystray.Menu(
+            pystray.MenuItem("Watch Threshold (%)", threshold_submenu),
             pystray.MenuItem("Open Config Directory", self.open_config_dir),
         )))
 
-        # Add Online Services submenu
-        menu_items.append(pystray.MenuItem("Online Services", pystray.Menu(
+        # --- Online submenu ---
+        menu_items.append(pystray.MenuItem("Online", pystray.Menu(
             pystray.MenuItem("SIMKL Website", self.open_simkl),
             pystray.MenuItem("SIMKL Watch History", self.open_simkl_history),
         )))
+
+        # --- Support submenu ---
+        menu_items.append(pystray.MenuItem("Support", pystray.Menu(
+            pystray.MenuItem("Check for Updates", lambda: self.check_updates_thread() if hasattr(self, 'check_updates_thread') else None),
+            pystray.MenuItem("Help", self.show_help),
+            pystray.MenuItem("About", self.show_about),
+        )))
+
+        # --- Exit (always last, separated) ---
         menu_items.append(pystray.Menu.SEPARATOR)
-
-        # Check for Updates (Platform-specific action, but item is common)
-        # The actual check logic might differ, but the menu item itself can be defined here.
-        # The platform-specific check_updates_thread method will be called.
-        menu_items.append(
-            pystray.MenuItem(
-                "Check for Updates",
-                # Assuming each subclass implements check_updates_thread or similar
-                lambda: self.check_updates_thread() if hasattr(self, 'check_updates_thread') else None
-            )
-        )
-
-        # Add final items
-        menu_items.append(pystray.MenuItem("About", self.show_about))
-        menu_items.append(pystray.MenuItem("Help", self.show_help))
         menu_items.append(pystray.MenuItem("Exit", self.exit_app))
 
         return menu_items
