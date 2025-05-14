@@ -7,7 +7,7 @@
 <div align="center">
   <img src="simkl_mps/assets/simkl-mps.png" alt="SIMKL MPS Logo" width="120"/>
   <br/>
-  <em>Automatic movie tracking for all your media players</em>
+  <em>Automatic media tracking for all your media players</em>
 </div>
 
 ## ✨ Features
