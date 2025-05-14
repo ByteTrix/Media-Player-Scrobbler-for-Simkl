@@ -17,7 +17,7 @@
 - 🖥️ **Native Executable** – System tray, auto-update, and background service (Windows)
 - 📈 **Accurate Position Tracking** – For supported players (configure via [Media Players Guide](docs/media-players.md))
 - 🔌 **Offline Support** – Queues updates when offline
-- 🧠 **Smart Movie Detection** – Intelligent filename parsing
+- 🧠 **Smart Media Detection** – Intelligent filename parsing
 - 🍿 **Media-Focused** – Optimized for every type of media (Movies,TV Shows and Anime)
 
 ## ⚡ Quick Start
@@ -45,7 +45,7 @@ After installation, authenticate with SIMKL and **configure your media players**
 ```mermaid
 graph LR
     A[Media Player] -->|Player Title| B[Simkl Scrobbler]
-    B -->|Parse Title| C[Movie Identification]
+    B -->|Parse Title| C[Media Identification]
     C -->|Track Progress| D[Simkl API]
     D -->|Mark as Watched| E[Simkl Profile]
     
@@ -57,14 +57,14 @@ graph LR
 
 **Online:**
 - Player Detection: ~4.2 sec
-- Movie Info Scrobble: ~3.7 sec
+- Media Info Scrobble: ~3.7 sec
 - Notification: ~1.5 sec
 - Completion Detection Delay: ~5.2 sec
 - Completion Sync: ~13.3 sec
 - Completion Notification: ~1.5 sec
 
 **Offline:**
-- Movie Scrobble: ~1.2 sec
+- Media Scrobble: ~1.2 sec
 - Notification: ~0.5 sec
 - Completion Save: ~3 sec
 - Completion Notification: ~0.5 sec
