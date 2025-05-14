@@ -1,9 +1,7 @@
 # 🎬 Media Player Scrobbler for Simkl
 
-[![Python Version](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://www.python.org/downloads/)
-[![License: GPL-3.0](https://img.shields.io/badge/License-GPL%20v3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-blue.svg)]()
-
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/ByteTrix/Media-Player-Scrobbler-for-Simkl)
 <div align="center">
   <img src="simkl_mps/assets/simkl-mps.png" alt="SIMKL MPS Logo" width="120"/>
   <br/>
