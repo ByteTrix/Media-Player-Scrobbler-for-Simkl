@@ -8,9 +8,7 @@ This guide provides comprehensive information about compatible media players and
 
 ```mermaid
 graph TD
-    A[Tracking Methods] --> B[Basic Tracking]
-    A --> C[Advanced Tracking]
-    B -->|Window Title Only| D[Limited Accuracy]
+    A[Tracking Methods] --> C[Advanced Tracking]
     C -->|Player API Integration| E[High Accuracy]
     C --> F[Required Setup]
     F --> G[Player Configuration]
@@ -30,14 +28,11 @@ Follow the platform-specific instructions below to set up your preferred media p
 | MPV                   | ✅      | ✅    | ✅    | ✅              | Moderate               |
 | MPC-HC/BE             | ✅      | ❌    | ❌    | ✅              | Easy                   |
 | MPC-QT                | ✅      | ❌    | ✅    | ✅              | Easy                   |
-| Windows Media Player  | ✅      | ❌    | ❌    | ❌              | Not Available          |
-| QuickTime             | ❌      | ✅    | ❌    | ❌              | Not Available          |
 | MPV Wrappers*         | ✅      | ✅    | ✅    | ✅              | Moderate               |
-| Other Players         | ✅      | ✅    | ✅    | ❌              | Not Available          |
 
 *MPV Wrappers: Celluloid, MPV.net, SMPlayer, IINA, Haruna, etc.
 
-> **Note**: The application currently supports **movie tracking only**. TV show support is planned for future updates.
+> **Note**: For **advanced tracking** with accurate playback position and duration, you must use one of the supported players (VLC, MPV, MPC-HC/BE, MPC-QT, or MPV wrappers) with proper configuration.
 
 ---
 
@@ -277,18 +272,13 @@ Follow the same configuration steps as shown in the Windows VLC section above.
 graph LR
     A[Player Integration Methods] --> B[Web Interface]
     A --> C[IPC Socket]
-    A --> D[Window Title]
     B --> E[VLC, MPC]
     C --> F[MPV]
-    D --> G[Other Players]
     E --> H[Position + Filename]
     F --> H
-    G --> I[Filename Only]
     H --> J[High Accuracy]
-    I --> K[Basic Accuracy]
     style A fill:#4285f4,stroke:#333,stroke-width:2px,color:#fff
     style J fill:#34a853,stroke:#333,stroke-width:2px,color:#fff
-    style K fill:#fbbc05,stroke:#333,stroke-width:2px
 ```
 
 ### Advanced Tracking
@@ -298,12 +288,6 @@ With advanced tracking (properly configured players):
 - Accurate determination of when a movie is completed
 - Better handling of pauses and skips
 
-### Basic Tracking
-Without player configuration:
-- Relies only on window titles
-- Less accurate progress estimation
-- May miss some watch events
-- More prone to false positives/negatives
 
 ---
 

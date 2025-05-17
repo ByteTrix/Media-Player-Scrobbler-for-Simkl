@@ -219,9 +219,10 @@ def search_file(file_path, client_id, part=None):
 
     headers = {
         'Content-Type': 'application/json',
-        'simkl-api-key': client_id
+        'simkl-api-key': client_id,
+        'User-Agent': USER_AGENT
     }
-    headers = _add_user_agent(headers)
+    
     data = {'file': file_path}
     if part is not None:
         data['part'] = part

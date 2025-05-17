@@ -42,7 +42,16 @@ from simkl_mps.config_manager import get_setting, DEFAULT_THRESHOLD
 from simkl_mps.watch_history_manager import WatchHistoryManager
 
 class MediaScrobbler:
-    """Handles the scrobbling of media (movies, episodes) to SIMKL"""
+    """
+    Handles the scrobbling of media (movies, episodes) to SIMKL.
+    
+    Features:
+    - Detects media from player window titles and/or file paths
+    - Works with or without player position/duration data
+    - Uses time-based fallbacks when position/duration isn't available
+    - Falls back to accumulated watch time when web interfaces aren't available
+    - Supports multiple media types (movies, episodes, anime)
+    """
 
     def __init__(self, app_data_dir, client_id=None, access_token=None, testing_mode=False):
         self.app_data_dir = pathlib.Path(app_data_dir) # Ensure it's a Path object
@@ -166,34 +175,44 @@ class MediaScrobbler:
                 from simkl_mps.players import VLCIntegration
                 self._vlc_integration = VLCIntegration()
             return self._vlc_integration
+            
+        # MPC-HC/BE support (Windows only)
         if any(p in process_name_lower for p in ['mpc-hc.exe', 'mpc-hc64.exe', 'mpc-be.exe', 'mpc-be64.exe']):
             if not self._mpc_integration:
                 from simkl_mps.players.mpc import MPCIntegration
                 self._mpc_integration = MPCIntegration()
             return self._mpc_integration
+            
+        # MPC-QT support
         if 'mpc-qt' in process_name_lower:
             if not self._mpcqt_integration:
                 from simkl_mps.players.mpcqt import MPCQTIntegration
                 self._mpcqt_integration = MPCQTIntegration()
             return self._mpcqt_integration
+            
+        # MPV support
         if 'mpv' in process_name_lower: # Covers standalone mpv
             if not self._mpv_integration:
                 from simkl_mps.players.mpv import MPVIntegration
                 self._mpv_integration = MPVIntegration()
             return self._mpv_integration
         
-        # Fallback for MPV wrappers (must be checked after standalone mpv)
+        # MPV Wrapper support (must be checked after standalone mpv)
         if not self._mpv_wrapper_integration:
             from simkl_mps.players.mpv_wrappers import MPVWrapperIntegration
             self._mpv_wrapper_integration = MPVWrapperIntegration()
-        if self._mpv_wrapper_integration.is_mpv_wrapper(process_name_lower):
+            
+        if self._mpv_wrapper_integration and self._mpv_wrapper_integration.is_mpv_wrapper(process_name_lower):
             return self._mpv_wrapper_integration
             
+        # Unsupported players: Windows Media Player, QuickTime, and other players
+        # that don't support getting position/duration data
         return None
-
+        
     def get_player_position_duration(self, process_name):
         """
         Get current position and total duration from supported media players.
+        Returns None, None if not available, but logs connection failures only periodically.
         """
         position, duration = None, None
         if not process_name:
@@ -216,12 +235,23 @@ class MediaScrobbler:
                         logger.debug(f"Invalid pos/dur from {player_name}: pos={position}, dur={duration}")
                 else:
                     logger.debug(f"{player_name} integration couldn't get position/duration.")
-            except RequestException as e:
+            except requests.RequestException as e:
                 now = time.time()
                 last_log_time = self._last_connection_error_log.get(process_name, 0)
                 if now - last_log_time > 60: # Log connection errors at most once per minute per player
                     logger.warning(f"Could not connect to {process_name} web interface. Error: {e}")
                     self._last_connection_error_log[process_name] = now
+                    
+                    # Send notification about web interface connection error
+                    player_type = self._get_player_type(process_name_lower)
+                    if player_type:
+                        config_instructions = self._get_player_config_instructions(player_type)
+                        logger.info(f"[DEBUG] Sending notification for {player_type} connection error: {config_instructions}")
+                        self._send_notification(
+                            f"{player_type} Connection Error",
+                            f"Could not connect to {player_type} web interface. {config_instructions}",
+                            online_only=False
+                        )
             except Exception as e:
                 logger.error(f"Error getting pos/dur from {process_name} ({getattr(integration, '__class__', type(integration)).__name__}): {e}", exc_info=True)
         
@@ -238,13 +268,28 @@ class MediaScrobbler:
         process_name_lower = process_name.lower()
         integration = self._get_player_integration(process_name_lower)
         
-        if integration and hasattr(integration, 'get_current_filepath'):
+        if integration and hasattr(integration, 'get_current_filepath'):            
             try:
                 filepath = integration.get_current_filepath(process_name)
                 if filepath:
                     player_name = integration.__class__.__name__.replace("Integration", "")
                     logger.debug(f"Retrieved filepath from {player_name}: {filepath}")
                     return filepath
+            except requests.RequestException as e:
+                now = time.time()
+                last_log_time = self._last_connection_error_log.get(process_name, 0)
+                if now - last_log_time > 60: # Log and notify at most once per minute per player
+                    logger.warning(f"Could not connect to {process_name} web interface for filepath. Error: {e}")
+                    self._last_connection_error_log[process_name] = now
+                    # Send notification about web interface connection error
+                    player_type = self._get_player_type(process_name_lower)
+                    if player_type:
+                        config_instructions = self._get_player_config_instructions(player_type)
+                        self._send_notification(
+                            f"{player_type} Connection Error",
+                            f"Could not connect to {player_type} web interface. {config_instructions}",
+                            online_only=False
+                        )
             except Exception as e:
                 logger.error(f"Error getting filepath from {process_name} ({integration.__class__.__name__}): {e}", exc_info=True)
         return None
@@ -255,73 +300,51 @@ class MediaScrobbler:
         self.access_token = access_token
 
     def process_window(self, window_info):
-        """Process the current window and update scrobbling state"""
+        """Process the current window and update scrobbling state (advanced tracking only, no window title parsing)."""
         self._last_window_info = window_info
 
-        if not is_video_player(window_info):
+        process_name = window_info.get('process_name')
+        if not process_name:
             if self.currently_tracking:
                 logger.info("Media playback ended: Player closed or changed focus.")
                 self.stop_tracking()
             return None
 
-        process_name = window_info.get('process_name')
-        filepath = None
-        detected_title = None # This will be the raw title from filename or window
-        detection_source = "unknown"
-        detection_details = None
-
-        if process_name:
-            filepath = self.get_current_filepath(process_name)
-            if filepath:
-                detected_title = parse_filename_from_path(filepath)
-                if detected_title:
-                    detection_source = "filename"
-                    detection_details = os.path.basename(filepath)
-
-        if not detected_title:
-            raw_window_title = window_info.get('title', '')
-            detected_title = parse_movie_title(raw_window_title)
-            if detected_title:
-                detection_source = "window_title"
-                detection_details = raw_window_title
-
-        if not detected_title:
+        process_name_lower = process_name.lower()
+        integration = self._get_player_integration(process_name_lower)
+        if not integration or not hasattr(integration, 'get_current_filepath'):
+            # Not a supported player for advanced tracking
             if self.currently_tracking:
-                logger.debug(f"Unable to identify media in '{window_info.get('title', '')}' or from filepath.")
+                logger.info("Media playback ended: Unsupported player or player closed.")
                 self.stop_tracking()
             return None
 
+        filepath = self.get_current_filepath(process_name)
+        if not filepath:
+            if self.currently_tracking:
+                logger.info("Media playback ended: No file detected from supported player.")
+                self.stop_tracking()
+            return None
+
+        detected_title = parse_filename_from_path(filepath)
+        detection_source = "filename"
+        detection_details = os.path.basename(filepath)
+
         identified_type_guessit = 'movie' # Default assumption
         guessit_info = None
-        string_to_parse_with_guessit = None
-
-        if filepath:
-            # If a filepath is available, use its basename for guessit
-            string_to_parse_with_guessit = os.path.basename(filepath)
-        elif detection_source == "window_title" and detection_details:
-            # If no filepath, but title was from window_title,
-            # use detection_details (raw window title) for guessit.
-            # guessit can often parse filenames embedded in other text.
-            string_to_parse_with_guessit = detection_details
+        string_to_parse_with_guessit = os.path.basename(filepath)
 
         if string_to_parse_with_guessit and guessit:
             try:
                 logger.debug(f"Attempting to parse with guessit: '{string_to_parse_with_guessit}'")
                 current_guessit_info = guessit.guessit(string_to_parse_with_guessit)
                 guessit_info = current_guessit_info # Store full info from guessit
-
-                # Update identified_type_guessit based on guessit's findings, defaulting to 'movie'
-                # if 'type' is not in current_guessit_info. This matches original behavior.
                 identified_type_guessit = current_guessit_info.get('type', 'movie')
-                
                 logger.debug(f"Guessit identified: '{identified_type_guessit}' from '{string_to_parse_with_guessit}'. Info: {guessit_info}")
             except Exception as e:
                 logger.warning(f"Guessit failed to parse '{string_to_parse_with_guessit}': {e}")
-                # In case of error, guessit_info remains None, and identified_type_guessit remains its initial default.
         elif not guessit:
             logger.debug("Guessit library not available. Skipping extended guessit parsing.")
-        elif not string_to_parse_with_guessit:
-            logger.debug("No suitable string (filepath or window title details) available for guessit. Skipping guessit parsing.")
 
         if self.currently_tracking and self.currently_tracking != detected_title:
             logger.info(f"Media change detected: '{detected_title}' now playing (was '{self.currently_tracking}').")
@@ -329,15 +352,8 @@ class MediaScrobbler:
 
         if not self.currently_tracking:
             log_prefix = f"Detected {identified_type_guessit}"
-            if detection_source == "filename":
-                logger.info(f"{log_prefix} from filename: '{detected_title}' (from: {detection_details})")
-            elif detection_source == "window_title":
-                logger.info(f"{log_prefix} from window title: '{detected_title}'")
-            else: # Should not happen if detected_title is set
-                logger.info(f"Starting tracking for '{detected_title}' (type: {identified_type_guessit})")
-
+            logger.info(f"{log_prefix} from filename: '{detected_title}' (from: {detection_details})")
             self._start_new_media_item(detected_title, filepath, identified_type_guessit, guessit_info)
-
 
         self._update_tracking(window_info) # Update tracking state, position, etc.
 
@@ -481,8 +497,6 @@ class MediaScrobbler:
         logger.warning("_start_new_movie is deprecated. Called with: " + movie_title)
         # For safety, redirect to the new method with some defaults if called.
         self._start_new_media_item(movie_title, None, 'movie')
-
-
     def _update_tracking(self, window_info=None):
         """Update tracking for the current media, including position, duration, and state."""
         if not self.currently_tracking or not self.last_update_time:
@@ -508,9 +522,8 @@ class MediaScrobbler:
         # Get position and duration from player
         pos, dur = None, None
         if process_name:
-            pos, dur = self.get_player_position_duration(process_name)
-
-        position_updated_from_player = False
+            pos, dur = self.get_player_position_duration(process_name)        
+            position_updated_from_player = False
         if pos is not None and dur is not None and dur > 0:
             if self.total_duration_seconds is None or abs(self.total_duration_seconds - dur) > 2: # Allow small variance
                 logger.info(f"Updating total duration for '{self.movie_name or self.currently_tracking}' from {self.total_duration_seconds}s to {dur}s via player.")
@@ -550,9 +563,7 @@ class MediaScrobbler:
             self.state = new_state
             self._log_playback_event("state_change", {"previous_state": self.previous_state})
 
-        self.last_update_time = current_time
-
-        # Attempt identification if Simkl ID is still missing
+        self.last_update_time = current_time        # Attempt identification if Simkl ID is still missing
         if not self.simkl_id and self.currently_tracking:
             cache_key_for_lookup = os.path.basename(self.current_filepath).lower() if self.current_filepath else self.currently_tracking.lower()
             cached_info = self.media_cache.get(cache_key_for_lookup)
@@ -571,9 +582,7 @@ class MediaScrobbler:
         # Use self.last_scrobble_time to track when the last "scrobble_update" event was logged
         if state_changed or position_updated_from_player or (current_time - self.last_scrobble_time > DEFAULT_POLL_INTERVAL):
             self._log_playback_event("progress_update") # Generic progress event
-            # self.last_scrobble_time = current_time # Update this only when returning scrobble data below
-
-        # Check completion threshold
+            # self.last_scrobble_time = current_time # Update this only when returning scrobble data below        # Check completion threshold
         if not self.completed and (current_time - self.last_progress_check > 5): # Check every 5s
             completion_pct = self._calculate_percentage(use_position=position_updated_from_player)
             if completion_pct and completion_pct >= self.completion_threshold:
@@ -731,10 +740,17 @@ class MediaScrobbler:
             result = search_file(filepath, self.client_id)
 
             if result:
+                logger.info(f"SIMKL API returned result for file search: {result}")
                 self._process_simkl_search_result(result, filepath, cache_key, "simkl_search_file")
             else:
-                logger.info(f"Simkl /search/file found no match for '{filepath}'. Storing guessit fallback if available.")
-                self._store_guessit_fallback_data(filepath, guessit_info, cache_key)
+                logger.warning(f"Simkl /search/file found no match for '{filepath}'. Trying alternative with title search.")
+                # If file search fails, try title search as a fallback
+                if self.currently_tracking:
+                    logger.info(f"Attempting title search with: '{self.currently_tracking}'")
+                    self._identify_movie(self.currently_tracking)
+                else:
+                    logger.info(f"Simkl /search/file found no match for '{filepath}'. Storing guessit fallback if available.")
+                    self._store_guessit_fallback_data(filepath, guessit_info, cache_key)
 
         except RequestException as e:
             logger.warning(f"Network error during Simkl file identification for '{filepath}': {e}")
@@ -2107,3 +2123,39 @@ class MediaScrobbler:
             )
         else:
             logger.warning(f"[CacheEnhance] Failed to fetch full details for {media_type} ID {simkl_id} (details object was None).")
+            
+    def _get_player_type(self, process_name_lower):
+        """Identify player type from process name for notification purposes"""
+        # Only identify players that support position/duration data
+        if 'vlc' in process_name_lower:
+            return "VLC"
+        if any(p in process_name_lower for p in ['mpc-hc.exe', 'mpc-hc64.exe', 'mpc-be.exe', 'mpc-be64.exe']):
+            return "MPC-HC/BE"
+        if 'mpc-qt' in process_name_lower:
+            return "MPC-QT"
+        if 'mpv' in process_name_lower:
+            return "MPV"
+        
+        # Check for MPV wrappers if not already detected as regular MPV
+        if self._mpv_wrapper_integration and self._mpv_wrapper_integration.is_mpv_wrapper(process_name_lower):
+            wrapper_exe, wrapper_name, _ = self._mpv_wrapper_integration.get_wrapper_info(process_name_lower)
+            if wrapper_name:
+                return f"{wrapper_name} (MPV Wrapper)"
+            return "MPV Wrapper"
+        # Unsupported players: Windows Media Player, QuickTime, etc.
+        return None
+        
+    def _get_player_config_instructions(self, player_type):
+        """Get configuration instructions for enabling web interface in specific players"""
+        if player_type == "VLC":
+            return "Enable web interface in VLC: Tools → Preferences → Interface → Main interfaces → Check 'Web'"
+        if player_type in ["MPC-HC/BE", "MPC-HC", "MPC-BE"]:
+            return "Enable web interface in MPC: View → Options → Player → Web Interface → Check 'Listen on port'"
+        if player_type == "MPC-QT":
+            return "Enable web interface in MPC-QT: View → Options → Player → Web Interface → Check 'Enable web server'"        
+        if player_type == "MPV":
+            return "Enable IPC socket in mpv.conf: add 'input-ipc-server=\\.\\pipe\\mpvsocket' line"
+        if "MPV Wrapper" in player_type:
+            return "Enable IPC socket in mpv.conf of your player. Check documentation for details."
+        
+        return "Please check if web interface/IPC is enabled in your player settings."
