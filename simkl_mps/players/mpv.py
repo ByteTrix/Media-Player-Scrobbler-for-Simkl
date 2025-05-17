@@ -8,6 +8,7 @@ import time
 from configparser import ConfigParser, NoOptionError, NoSectionError
 from pathlib import Path
 from threading import Lock
+import requests
 
 # Conditional imports
 if platform.system() == "Windows":
@@ -426,29 +427,33 @@ class MPVIntegration:
         return results
 
     def get_position_duration(self, process_name=None) -> tuple[float | None, float | None]:
-        """Get current playback position and duration from MPV."""
-        props = self.get_properties(['time-pos', 'duration'])
-        
         try:
-            position = props.get('time-pos')
-            duration = props.get('duration')
+            props = self.get_properties(['time-pos', 'duration'])
             
-            # Convert to proper number types
-            pos = float(position) if position is not None else None
-            dur = float(duration) if duration is not None else None
-            
-            if pos is not None and dur is not None and dur > 0:
-                # Ensure position is within valid range
-                pos = max(0.0, min(pos, dur))
-                logger.debug(f"MPV playback: position={pos:.2f}s, duration={dur:.2f}s")
-                return round(pos, 2), round(dur, 2)
-            else:
-                logger.debug(f"Invalid MPV position/duration: pos={position}, dur={duration}")
-                return None, None
+            try:
+                position = props.get('time-pos')
+                duration = props.get('duration')
                 
-        except (TypeError, ValueError) as e:
-            logger.debug(f"Error converting MPV position/duration: {e}")
-            return None, None
+                # Convert to proper number types
+                pos = float(position) if position is not None else None
+                dur = float(duration) if duration is not None else None
+                
+                if pos is not None and dur is not None and dur > 0:
+                    # Ensure position is within valid range
+                    pos = max(0.0, min(pos, dur))
+                    logger.debug(f"MPV playback: position={pos:.2f}s, duration={dur:.2f}s")
+                    return round(pos, 2), round(dur, 2)
+                else:
+                    logger.debug(f"Invalid MPV position/duration: pos={position}, dur={duration}")
+                    return None, None
+                    
+            except (TypeError, ValueError) as e:
+                logger.debug(f"Error converting MPV position/duration: {e}")
+                return None, None
+        except MPVError as e:
+            logger.debug(f"MPV connection error: {e}")
+            # Raise as requests.RequestException for notification logic
+            raise requests.RequestException(f"MPV IPC connection failed: {e}")
 
     def get_current_filepath(self, process_name=None) -> str | None:
         """
@@ -460,39 +465,44 @@ class MPVIntegration:
         Returns:
             str | None: Filepath of the current media, or None if unavailable
         """
-        props = self.get_properties(['path', 'working-directory'])
-        
-        fpath = props.get('path')
-        working_dir = props.get('working-directory')
-        
-        if not fpath:
-            return None
-            
-        # Build absolute path if needed
         try:
-            path_obj = Path(fpath)
+            props = self.get_properties(['path', 'working-directory'])
             
-            # If path is relative and we have a working directory
-            if not path_obj.is_absolute() and working_dir:
-                full_path = Path(working_dir) / path_obj
-                fpath = str(full_path.resolve())
-            else:
-                fpath = str(path_obj)
+            fpath = props.get('path')
+            working_dir = props.get('working-directory')
+            
+            if not fpath:
+                return None
                 
-            # Handle file:// URIs
-            if fpath.startswith('file://'):
-                from urllib.parse import unquote
-                fpath = unquote(fpath[7:])  # Remove file:// prefix
-                # On Windows, also remove the leading '/'
-                if self.platform == 'Windows' and fpath.startswith('/'):
-                    fpath = fpath[1:]
+            # Build absolute path if needed
+            try:
+                path_obj = Path(fpath)
+                
+                # If path is relative and we have a working directory
+                if not path_obj.is_absolute() and working_dir:
+                    full_path = Path(working_dir) / path_obj
+                    fpath = str(full_path.resolve())
+                else:
+                    fpath = str(path_obj)
                     
-            logger.debug(f"MPV current file: {fpath}")
-            return fpath
-            
-        except Exception as e:
-            logger.warning(f"Error resolving MPV filepath: {e}")
-            return fpath  # Return the original path as fallback
+                # Handle file:// URIs
+                if fpath.startswith('file://'):
+                    from urllib.parse import unquote
+                    fpath = unquote(fpath[7:])  # Remove file:// prefix
+                    # On Windows, also remove the leading '/'
+                    if self.platform == 'Windows' and fpath.startswith('/'):
+                        fpath = fpath[1:]
+                        
+                logger.debug(f"MPV current file: {fpath}")
+                return fpath
+                
+            except Exception as e:
+                logger.warning(f"Error resolving MPV filepath: {e}")
+                return fpath  # Return the original path as fallback
+        except MPVError as e:
+            logger.debug(f"MPV connection error: {e}")
+            # Raise as requests.RequestException for notification logic
+            raise requests.RequestException(f"MPV IPC connection failed: {e}")
 
     def is_paused(self) -> bool | None:
         """Check if MPV playback is paused."""

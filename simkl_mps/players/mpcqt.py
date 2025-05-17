@@ -114,9 +114,12 @@ class MPCQTIntegration:
                 if port:
                     self.working_port = port  # Remember working port
                 return dict(matches)
-            return None
-        except requests.RequestException:
-            return None
+            else:
+                # Raise an exception if the web interface is unreachable (non-200 status)
+                raise requests.RequestException(f"MPC-QT web interface returned status {response.status_code} for {url}")
+        except requests.RequestException as e:
+            # Always raise so the notification logic in media_scrobbler.py is triggered
+            raise
     
     def get_position_duration(self, process_name=None):
         """

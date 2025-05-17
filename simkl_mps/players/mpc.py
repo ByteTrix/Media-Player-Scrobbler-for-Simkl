@@ -61,7 +61,6 @@ class MPCIntegration:
             # Try to get port from registry
             port = self._read_registry_port()
             if port:
-                logger.info(f"Found MPC port in registry: {port}")
                 return f"http://localhost:{port}"
         except Exception as e:
             logger.debug(f"Could not read MPC port from registry: {e}")
@@ -123,10 +122,22 @@ class MPCIntegration:
                 matches = PATTERN.findall(text)
                 if port:
                     self.working_port = port  # Remember working port
+                    # Log only if this port matches the registry-detected port
+                    registry_port = None
+                    if self.platform == 'windows':
+                        try:
+                            registry_port = self._read_registry_port()
+                        except Exception:
+                            pass
+                    if registry_port and str(port) == str(registry_port):
+                        logger.info(f"Found MPC port in registry and successfully connected to web interface: {port}")
                 return dict(matches)
-            return None
-        except requests.RequestException:
-            return None
+            else:
+                # Raise an exception if the web interface is unreachable (non-200 status)
+                raise requests.RequestException(f"MPC web interface returned status {response.status_code} for {url}")
+        except requests.RequestException as e:
+            # Always raise so the notification logic in media_scrobbler.py is triggered
+            raise
     
     def get_position_duration(self, process_name=None):
         """

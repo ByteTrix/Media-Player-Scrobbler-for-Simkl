@@ -188,6 +188,8 @@ class VLCIntegration:
             logger.debug(f"Connected to VLC on port {port} but no valid position/duration data")
         except requests.exceptions.RequestException as e:
             logger.debug(f"Could not connect to VLC on port {port} with auth={password != ''}: {str(e)}")
+            # Raise so the notification logic in media_scrobbler.py is triggered
+            raise requests.RequestException(f"VLC web interface connection failed on port {port}: {e}")
         except Exception as e:
             logger.debug(f"Error processing VLC data: {e}")
         

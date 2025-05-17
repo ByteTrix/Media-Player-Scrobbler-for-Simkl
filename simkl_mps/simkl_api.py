@@ -200,7 +200,7 @@ def _fallback_search_movie(title, client_id, access_token):
 
 def search_file(file_path, client_id, part=None):
     """
-    Searches for media based on a file path using the Simkl /search/file endpoint.
+    Searches for only tv/anime based on a file path using the Simkl /search/file endpoint.
 
     Args:
         file_path (str): The full path to the media file.
@@ -219,9 +219,10 @@ def search_file(file_path, client_id, part=None):
 
     headers = {
         'Content-Type': 'application/json',
-        'simkl-api-key': client_id
+        'simkl-api-key': client_id,
+        'User-Agent': USER_AGENT
     }
-    headers = _add_user_agent(headers)
+    
     data = {'file': file_path}
     if part is not None:
         data['part'] = part
