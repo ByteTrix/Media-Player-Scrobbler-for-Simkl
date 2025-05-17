@@ -597,15 +597,6 @@
   
 </li>
         
-          <li class="md-nav__item">
-  <a href="#basic-tracking" class="md-nav__link">
-    <span class="md-ellipsis">
-      Basic Tracking
-    </span>
-  </a>
-  
-</li>
-        
       </ul>
     </nav>
   
@@ -961,15 +952,6 @@
   
 </li>
         
-          <li class="md-nav__item">
-  <a href="#basic-tracking" class="md-nav__link">
-    <span class="md-ellipsis">
-      Basic Tracking
-    </span>
-  </a>
-  
-</li>
-        
       </ul>
     </nav>
   
@@ -1041,16 +1023,14 @@
 <h2 id="important-media-player-configuration">⚠️ Important: Media Player Configuration<a class="headerlink" href="#important-media-player-configuration" title="Permanent link">&para;</a></h2>
 <p><strong>Media player configuration is a critical step for accurate movie tracking.</strong> While the application can work with basic window title detection, configuring your media players for advanced tracking significantly improves accuracy and reliability.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>graph TD
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    A[Tracking Methods] --&gt; B[Basic Tracking]
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    A --&gt; C[Advanced Tracking]
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    B --&gt;|Window Title Only| D[Limited Accuracy]
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    C --&gt;|Player API Integration| E[High Accuracy]
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    C --&gt; F[Required Setup]
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    F --&gt; G[Player Configuration]
-<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    G --&gt; H[Optimal Performance]
-<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    style A fill:#4285f4,stroke:#333,stroke-width:2px,color:#fff
-<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    style C fill:#34a853,stroke:#333,stroke-width:2px,color:#fff
-<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    style H fill:#fbbc05,stroke:#333,stroke-width:2px,color:#fff
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    A[Tracking Methods] --&gt; C[Advanced Tracking]
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    C --&gt;|Player API Integration| E[High Accuracy]
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    C --&gt; F[Required Setup]
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    F --&gt; G[Player Configuration]
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    G --&gt; H[Optimal Performance]
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    style A fill:#4285f4,stroke:#333,stroke-width:2px,color:#fff
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    style C fill:#34a853,stroke:#333,stroke-width:2px,color:#fff
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    style H fill:#fbbc05,stroke:#333,stroke-width:2px,color:#fff
 </code></pre></div>
 <p>Follow the platform-specific instructions below to set up your preferred media player for the best tracking experience.</p>
 <h2 id="compatibility-matrix">🗂️ Compatibility Matrix<a class="headerlink" href="#compatibility-matrix" title="Permanent link">&para;</a></h2>
@@ -1099,22 +1079,6 @@
 <td style="text-align: center;">Easy</td>
 </tr>
 <tr>
-<td>Windows Media Player</td>
-<td style="text-align: center;">✅</td>
-<td style="text-align: center;">❌</td>
-<td style="text-align: center;">❌</td>
-<td style="text-align: center;">❌</td>
-<td style="text-align: center;">Not Available</td>
-</tr>
-<tr>
-<td>QuickTime</td>
-<td style="text-align: center;">❌</td>
-<td style="text-align: center;">✅</td>
-<td style="text-align: center;">❌</td>
-<td style="text-align: center;">❌</td>
-<td style="text-align: center;">Not Available</td>
-</tr>
-<tr>
 <td>MPV Wrappers*</td>
 <td style="text-align: center;">✅</td>
 <td style="text-align: center;">✅</td>
@@ -1122,19 +1086,11 @@
 <td style="text-align: center;">✅</td>
 <td style="text-align: center;">Moderate</td>
 </tr>
-<tr>
-<td>Other Players</td>
-<td style="text-align: center;">✅</td>
-<td style="text-align: center;">✅</td>
-<td style="text-align: center;">✅</td>
-<td style="text-align: center;">❌</td>
-<td style="text-align: center;">Not Available</td>
-</tr>
 </tbody>
 </table>
 <p>*MPV Wrappers: Celluloid, MPV.net, SMPlayer, IINA, Haruna, etc.</p>
 <blockquote>
-<p><strong>Note</strong>: The application currently supports <strong>movie tracking only</strong>. TV show support is planned for future updates.</p>
+<p><strong>Note</strong>: For <strong>advanced tracking</strong> with accurate playback position and duration, you must use one of the supported players (VLC, MPV, MPC-HC/BE, MPC-QT, or MPV wrappers) with proper configuration.</p>
 </blockquote>
 <hr />
 <h2 id="windows-media-player-configuration">🪟 Windows Media Player Configuration<a class="headerlink" href="#windows-media-player-configuration" title="Permanent link">&para;</a></h2>
@@ -1332,18 +1288,13 @@
 <div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>graph LR
 <a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>    A[Player Integration Methods] --&gt; B[Web Interface]
 <a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>    A --&gt; C[IPC Socket]
-<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>    A --&gt; D[Window Title]
-<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>    B --&gt; E[VLC, MPC]
-<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>    C --&gt; F[MPV]
-<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a>    D --&gt; G[Other Players]
-<a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a>    E --&gt; H[Position + Filename]
-<a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a>    F --&gt; H
-<a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a>    G --&gt; I[Filename Only]
-<a id="__codelineno-11-11" name="__codelineno-11-11" href="#__codelineno-11-11"></a>    H --&gt; J[High Accuracy]
-<a id="__codelineno-11-12" name="__codelineno-11-12" href="#__codelineno-11-12"></a>    I --&gt; K[Basic Accuracy]
-<a id="__codelineno-11-13" name="__codelineno-11-13" href="#__codelineno-11-13"></a>    style A fill:#4285f4,stroke:#333,stroke-width:2px,color:#fff
-<a id="__codelineno-11-14" name="__codelineno-11-14" href="#__codelineno-11-14"></a>    style J fill:#34a853,stroke:#333,stroke-width:2px,color:#fff
-<a id="__codelineno-11-15" name="__codelineno-11-15" href="#__codelineno-11-15"></a>    style K fill:#fbbc05,stroke:#333,stroke-width:2px
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>    B --&gt; E[VLC, MPC]
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>    C --&gt; F[MPV]
+<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>    E --&gt; H[Position + Filename]
+<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a>    F --&gt; H
+<a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a>    H --&gt; J[High Accuracy]
+<a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a>    style A fill:#4285f4,stroke:#333,stroke-width:2px,color:#fff
+<a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a>    style J fill:#34a853,stroke:#333,stroke-width:2px,color:#fff
 </code></pre></div>
 <h3 id="advanced-tracking">Advanced Tracking<a class="headerlink" href="#advanced-tracking" title="Permanent link">&para;</a></h3>
 <p>With advanced tracking (properly configured players):
@@ -1351,12 +1302,6 @@
 - Precise tracking of watch progress
 - Accurate determination of when a movie is completed
 - Better handling of pauses and skips</p>
-<h3 id="basic-tracking">Basic Tracking<a class="headerlink" href="#basic-tracking" title="Permanent link">&para;</a></h3>
-<p>Without player configuration:
-- Relies only on window titles
-- Less accurate progress estimation
-- May miss some watch events
-- More prone to false positives/negatives</p>
 <hr />
 <h2 id="filename-best-practices">🏷️ Filename Best Practices<a class="headerlink" href="#filename-best-practices" title="Permanent link">&para;</a></h2>
 <p>For optimal movie identification, follow these naming conventions:</p>
@@ -1509,7 +1454,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="April 28, 2025 12:21:49">April 28, 2025</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="May 17, 2025 16:02:04">May 17, 2025</span>
   </span>
 
     
