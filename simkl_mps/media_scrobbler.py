@@ -293,14 +293,35 @@ class MediaScrobbler:
 
         identified_type_guessit = 'movie' # Default assumption
         guessit_info = None
-        if filepath and guessit:
+        string_to_parse_with_guessit = None
+
+        if filepath:
+            # If a filepath is available, use its basename for guessit
+            string_to_parse_with_guessit = os.path.basename(filepath)
+        elif detection_source == "window_title" and detection_details:
+            # If no filepath, but title was from window_title,
+            # use detection_details (raw window title) for guessit.
+            # guessit can often parse filenames embedded in other text.
+            string_to_parse_with_guessit = detection_details
+
+        if string_to_parse_with_guessit and guessit:
             try:
-                filename_for_guessit = os.path.basename(filepath)
-                guessit_info = guessit.guessit(filename_for_guessit)
-                identified_type_guessit = guessit_info.get('type', 'movie') # 'movie' or 'episode'
-                logger.debug(f"Guessit identified: '{identified_type_guessit}' from '{filename_for_guessit}'. Info: {guessit_info}")
+                logger.debug(f"Attempting to parse with guessit: '{string_to_parse_with_guessit}'")
+                current_guessit_info = guessit.guessit(string_to_parse_with_guessit)
+                guessit_info = current_guessit_info # Store full info from guessit
+
+                # Update identified_type_guessit based on guessit's findings, defaulting to 'movie'
+                # if 'type' is not in current_guessit_info. This matches original behavior.
+                identified_type_guessit = current_guessit_info.get('type', 'movie')
+                
+                logger.debug(f"Guessit identified: '{identified_type_guessit}' from '{string_to_parse_with_guessit}'. Info: {guessit_info}")
             except Exception as e:
-                logger.warning(f"Guessit failed to parse '{filepath}': {e}")
+                logger.warning(f"Guessit failed to parse '{string_to_parse_with_guessit}': {e}")
+                # In case of error, guessit_info remains None, and identified_type_guessit remains its initial default.
+        elif not guessit:
+            logger.debug("Guessit library not available. Skipping extended guessit parsing.")
+        elif not string_to_parse_with_guessit:
+            logger.debug("No suitable string (filepath or window title details) available for guessit. Skipping guessit parsing.")
 
         if self.currently_tracking and self.currently_tracking != detected_title:
             logger.info(f"Media change detected: '{detected_title}' now playing (was '{self.currently_tracking}').")
