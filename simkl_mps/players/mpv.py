@@ -167,6 +167,9 @@ class MPVIntegration:
                     raise MPVError(f"Failed to open MPV pipe {self.ipc_path}.")
 
                 self.connection = handle
+                if not hasattr(self, '_connection_logged'):
+                    logger.info(f"Successfully connected to MPV IPC on path: {self.ipc_path}")
+                    self._connection_logged = True
                 logger.debug(f"Connected to MPV pipe: {self.ipc_path}")
 
             else:  # POSIX (Linux/macOS)
@@ -180,6 +183,9 @@ class MPVIntegration:
                     raise MPVError(f"Connection timed out for MPV IPC path: {self.ipc_path}.")
                 
                 self.connection = sock
+                if not hasattr(self, '_connection_logged'):
+                    logger.info(f"Successfully connected to MPV IPC on path: {self.ipc_path}")
+                    self._connection_logged = True
                 logger.debug(f"Connected to MPV socket: {self.ipc_path}")
 
         except Exception as e:

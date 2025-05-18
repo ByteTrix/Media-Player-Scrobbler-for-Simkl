@@ -148,7 +148,9 @@ class MPCQTIntegration:
             if variables and variables.get('duration', '0') != '0':
                 position = int(variables.get('position', 0)) / 1000.0  # MPC-QT reports in milliseconds
                 duration = int(variables.get('duration', 0)) / 1000.0
-                logger.info(f"Successfully connected to MPC-QT web interface on port {port}")
+                if not hasattr(self, '_connection_logged'):
+                    logger.info(f"Successfully connected to MPC-QT web interface on port {port}")
+                    self._connection_logged = True
                 self.working_port = port  # Remember this working port
                 return position, duration
                 

@@ -129,8 +129,11 @@ class MPCIntegration:
                             registry_port = self._read_registry_port()
                         except Exception:
                             pass
+                    # Only log once per session
                     if registry_port and str(port) == str(registry_port):
-                        logger.info(f"Found MPC port in registry and successfully connected to web interface: {port}")
+                        if not hasattr(self, '_connection_logged'):
+                            logger.info(f"Found MPC port in registry and successfully connected to web interface: {port}")
+                            self._connection_logged = True
                 return dict(matches)
             else:
                 # Raise an exception if the web interface is unreachable (non-200 status)

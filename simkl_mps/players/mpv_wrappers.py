@@ -472,6 +472,9 @@ class MPVWrapperIntegration:
         pos, dur = self.mpv_integration.get_position_duration(process_name)
         
         if pos is not None and dur is not None:
+            if not hasattr(self, '_connection_logged'):
+                logger.info(f"Successfully connected to {wrapper_name} (MPV Wrapper) IPC for process: {process_name}")
+                self._connection_logged = True
             logger.debug(f"Retrieved position data from {wrapper_name}: position={pos}s, duration={dur}s")
             return pos, dur
         else:

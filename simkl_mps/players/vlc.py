@@ -169,15 +169,13 @@ class VLCIntegration:
             if 'time' in data and 'length' in data:
                 position = data.get('time')
                 duration = data.get('length')
-                
-                # Get additional info for logging
                 filename = data.get('information', {}).get('category', {}).get('meta', {}).get('filename', 'Unknown file')
-                
-                logger.info(f"Successfully connected to VLC web interface on port {port}")
+                # Only log once per session
+                if not hasattr(self, '_connection_logged'):
+                    logger.info(f"Successfully connected to VLC web interface on port {port}")
+                    self._connection_logged = True
                 logger.debug(f"VLC is playing: {filename}")
                 logger.debug(f"Retrieved position data from VLC: position={position}s, duration={duration}s")
-                
-                # Save successful config for future attempts
                 self.last_successful_config = config
                 
                 # Validate data
