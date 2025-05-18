@@ -12,7 +12,7 @@ import re
 import requests
 import pathlib
 from difflib import SequenceMatcher
-from datetime import datetime, timedelta
+from datetime import datetime, timezone
 import threading
 from collections import deque
 from requests.exceptions import RequestException
@@ -1136,7 +1136,9 @@ class MediaScrobbler:
                  return False
 
         # --- Construct Payload ---
-        payload = self._build_add_to_history_payload()
+        # Use self.watched_at if available, else None (handled in payload builder)
+        watched_at = getattr(self, 'watched_at', None)
+        payload = self._build_add_to_history_payload(watched_at=watched_at)
         if not payload:
             logger.error(f"Could not construct valid payload for '{display_title}' (Type: {self.media_type}, S:{self.season}, E:{self.episode}).")
             return False
@@ -1190,6 +1192,14 @@ class MediaScrobbler:
         # item_key_for_backlog is the Simkl ID, or filepath, or temp_id
         # backlog_data_payload is the 'additional_data' for backlog_cleaner.add
         
+        # Ensure watched_at is always present in the backlog payload
+        if 'watched_at' not in backlog_data_payload or not backlog_data_payload['watched_at']:
+            # Use self.watched_at if available, else current UTC time
+            watched_at = getattr(self, 'watched_at', None)
+            if not watched_at:
+                watched_at = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
+            backlog_data_payload['watched_at'] = watched_at
+
         self.backlog_cleaner.add(item_key_for_backlog, title_for_backlog, additional_data=backlog_data_payload)
         
         # Use a consistent cache key for cooldown, based on current filepath or raw title
@@ -1248,8 +1258,8 @@ class MediaScrobbler:
                         if self.episode is not None and not isinstance(self.episode, int): self.episode = None
 
 
-    def _build_add_to_history_payload(self):
-        """Constructs the payload for Simkl's add_to_history endpoint."""
+    def _build_add_to_history_payload(self, watched_at=None):
+        """Constructs the payload for Simkl's add_to_history endpoint, with watched_at support."""
         if not self.simkl_id: return None
         
         try:
@@ -1260,16 +1270,20 @@ class MediaScrobbler:
             logger.error(f"Invalid Simkl ID format for payload: {self.simkl_id}. Must be integer.")
             return None
 
+        # Use provided watched_at or fallback to now (UTC, ISO8601)
+        if not watched_at:
+            watched_at = datetime.utcnow().isoformat() + "Z"
+
         payload = {}
         if self.media_type == 'movie':
-            payload = {"movies": [{"ids": item_ids}]}
+            payload = {"movies": [{"ids": item_ids, "watched_at": watched_at}]}
         elif self.media_type == 'show':
             if self.season is not None and self.episode is not None:
                 try:
                     payload = {
                         "shows": [{
                             "ids": item_ids,
-                            "seasons": [{"number": int(self.season), "episodes": [{"number": int(self.episode)}]}]
+                            "seasons": [{"number": int(self.season), "episodes": [{"number": int(self.episode), "watched_at": watched_at}]}]
                         }]
                     }
                 except ValueError:
@@ -1282,7 +1296,7 @@ class MediaScrobbler:
             # If Simkl API for anime consistently uses seasons, this might need adjustment or reliance on S/E resolution.
             if self.episode is not None:
                 try:
-                    anime_episode_payload = [{"number": int(self.episode)}]
+                    anime_episode_payload = [{"number": int(self.episode), "watched_at": watched_at}]
                     show_item = {"ids": item_ids}
                     if self.season is not None: # If season is known, nest episode under it
                          show_item["seasons"] = [{"number": int(self.season), "episodes": anime_episode_payload}]
@@ -1325,7 +1339,7 @@ class MediaScrobbler:
             'type': media_type or 'movie',          # Simkl type ('movie', 'show', 'anime')
             'season': season,
             'episode': episode,
-            'watched_at': datetime.utcnow().isoformat() + "Z",
+            'watched_at': datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
             'ids': {'simkl': simkl_id} # Ensure base 'ids' with simkl_id
         }
         if media_file_path_for_history:
@@ -1521,7 +1535,7 @@ class MediaScrobbler:
                 episode_to_sync = item_data.get('episode')
                 original_filepath_from_backlog = item_data.get('original_filepath') or \
                                                  (item_key if os.path.exists(str(item_key)) else None)
-
+                watched_at_to_sync = item_data.get('watched_at') # Extract watched_at from backlog item
 
                 if not simkl_id_to_sync or not media_type_to_sync:
                     logger.error(f"[Backlog] Resolved item '{title_to_sync}' missing Simkl ID or Type. Cannot sync.")
@@ -1547,7 +1561,7 @@ class MediaScrobbler:
                 self.season = season_to_sync
                 self.episode = episode_to_sync
                 
-                payload = self._build_add_to_history_payload()
+                payload = self._build_add_to_history_payload(watched_at=watched_at_to_sync) # Pass watched_at
 
                 # Restore original scrobbler state
                 self.simkl_id = temp_state_simkl_id
@@ -1572,7 +1586,6 @@ class MediaScrobbler:
                     if sync_result:
                         success_count += 1
                         logger.info(f"[Backlog] Successfully synced '{title_to_sync}'. Removing from backlog.")
-                        self.backlog_cleaner.remove(item_key)
 
                         # After successful sync, fetch and cache additional details
                         cache_key_for_update = (os.path.basename(original_filepath_from_backlog).lower()
@@ -1598,6 +1611,7 @@ class MediaScrobbler:
                             original_filepath=original_filepath_from_backlog,
                             api_details_to_use=item_data.get('_api_details_for_history') # Pass if _resolve fetched them
                         )
+                        self.backlog_cleaner.remove(item_key)
                     else:
                         sync_api_error = "Simkl API add_to_history call failed (returned False/None)."
                 except RequestException as e:
