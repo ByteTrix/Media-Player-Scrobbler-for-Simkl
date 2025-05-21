@@ -17,12 +17,12 @@ sudo apt install pipx python3-pip python3-dev python3-setuptools wmctrl xdotool 
 
 **For Fedora/RHEL/CentOS:**
 ```bash
-sudo dnf install python3-pip python3-devel gobject-introspection-devel cairo-devel pkg-config python3-gobject gtk3 wmctrl xdotool libnotify
+sudo dnf install pipx python3-pip python3-devel gobject-introspection-devel cairo-devel pkg-config python3-gobject gtk3 wmctrl xdotool libnotify
 ```
 
 **For Arch Linux:**
 ```bash
-sudo pacman -S python-pip python-setuptools python-gobject gtk3 gobject-introspection cairo pkg-config wmctrl xdotool libnotify
+sudo pacman -S pipx python-pip python-setuptools python-gobject gtk3 gobject-introspection cairo pkg-config wmctrl xdotool libnotify
 ```
 
 ### Installation Process
