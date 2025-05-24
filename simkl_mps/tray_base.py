@@ -635,20 +635,17 @@ class TrayAppBase(abc.ABC): # Inherit from ABC for abstract methods
         # The menu action returns immediately, work happens in background threads.
         return 0 # Return value expected by some tray libraries
 
-    # --- End Watch Threshold Logic ---
-
-    def check_first_run(self):
+    # --- End Watch Threshold Logic ---    def check_first_run(self):
         """Check if this is the first time the app is being run"""
         # Platform-specific implementation required
         self.is_first_run = False # Default value, should be overridden
-        
+
     def _build_pystray_menu_items(self):
         """Builds the list of pystray menu items common to multiple platforms."""
         # Get current threshold for radio button state
         current_threshold = get_setting('watch_completion_threshold', DEFAULT_THRESHOLD)
         is_preset = lambda val: current_threshold == val
 
-        # Start with app title and status
         menu_items = [
             pystray.MenuItem("MPS for SIMKL", None),
             pystray.Menu.SEPARATOR,
@@ -671,10 +668,12 @@ class TrayAppBase(abc.ABC): # Inherit from ABC for abstract methods
             pystray.Menu.SEPARATOR,
             pystray.MenuItem('Custom...', self.set_custom_watch_threshold)
         )
-        menu_items.append(pystray.MenuItem("History && Tools", pystray.Menu(
+        menu_items.append(pystray.MenuItem("History and Tools", pystray.Menu(
             pystray.MenuItem("Local Watch History", self.open_watch_history),
             pystray.MenuItem("Process Backlog Now", self.process_backlog),
             pystray.MenuItem("Open Logs", self.open_logs),
+            pystray.MenuItem("Clear Cache", self.clear_cache),
+            pystray.MenuItem("Clear All Data and Logs", self.clear_all_data),
         )))
 
         # --- Settings submenu ---
@@ -701,3 +700,170 @@ class TrayAppBase(abc.ABC): # Inherit from ABC for abstract methods
         menu_items.append(pystray.MenuItem("Exit", self.exit_app))
 
         return menu_items
+
+    def clear_cache(self, _=None):
+        """Clear disk and in-memory cache, backlog, and update tray menu."""
+        logger.info("Clearing cache from tray menu...")
+        try:
+            from simkl_mps.media_cache import MediaCache
+            MediaCache.clear_media_cache_all_locations(APP_DATA_DIR)
+            from simkl_mps.backlog_cleaner import BacklogCleaner
+            backlog_cleaner = BacklogCleaner(APP_DATA_DIR)
+            backlog_cleaner.clear()
+            # Clear in-memory cache and reset tracked media in scrobbler if running
+            if self.scrobbler:
+                if hasattr(self.scrobbler, 'monitor') and hasattr(self.scrobbler.monitor, 'scrobbler'):
+                    scrobbler = self.scrobbler.monitor.scrobbler
+                    if hasattr(scrobbler, 'media_cache'):
+                        scrobbler.media_cache.cache.clear()
+                        scrobbler.media_cache._save_cache()
+                for attr in ('currently_tracking', 'movie_name', 'show_name', 'media_title', 'media_type', 'season', 'episode'):
+                    if hasattr(self.scrobbler, attr):
+                        setattr(self.scrobbler, attr, None)
+            self.show_notification("simkl-mps", "Cache cleared.")
+            self.update_icon()
+        except Exception as e:
+            logger.error(f"Error clearing cache: {e}")
+            self.show_notification("simkl-mps Error", f"Failed to clear cache: {e}")
+        return 0    
+    def clear_all_data(self, _=None):
+        """Clear all user data, logs, cache, backlog, playback log, watch history, and .env file."""
+        logger.info("Clearing all data and logs from tray menu...")
+        cleared_items = []
+        failed_items = []
+        
+        try:
+            # Clear media cache
+            from simkl_mps.media_cache import MediaCache
+            MediaCache.clear_media_cache_all_locations(APP_DATA_DIR)
+            cleared_items.append("media cache")
+            
+            # Clear backlog
+            from simkl_mps.backlog_cleaner import BacklogCleaner
+            backlog_cleaner = BacklogCleaner(APP_DATA_DIR)
+            backlog_cleaner.clear()
+            cleared_items.append("backlog")
+            
+            # Clear log file content (instead of deleting the file to avoid "file in use" errors)
+            log_path = APP_DATA_DIR / "simkl_mps.log"
+            if log_path.exists():
+                try:
+                    # Clear the log file content instead of deleting it
+                    with open(log_path, 'w', encoding='utf-8') as f:
+                        f.write("")  # Clear the file content
+                    logger.info("Log file content cleared.")
+                    cleared_items.append("log file")
+                except (PermissionError, OSError) as log_error:
+                    # If we can't clear the log, continue with other cleanup
+                    logger.warning(f"Could not clear log file (file may be in use): {log_error}")
+                    failed_items.append("log file")
+            
+            # Clear playback log (in workspace root and app data dir)
+            playback_log_paths = [
+                Path("playback_log.jsonl"),  # Workspace root
+                APP_DATA_DIR / "playback_log.jsonl",  # App data directory
+            ]
+            for playback_log_path in playback_log_paths:
+                if playback_log_path.exists():
+                    try:
+                        playback_log_path.unlink()
+                        logger.info(f"Deleted playback log: {playback_log_path}")
+                        cleared_items.append(f"playback log ({playback_log_path.name})")
+                    except (PermissionError, OSError) as e:
+                        # If file is locked, try to clear its contents instead
+                        try:
+                            with open(playback_log_path, 'w', encoding='utf-8') as f:
+                                f.write("")
+                            logger.info(f"Cleared playback log content: {playback_log_path}")
+                            cleared_items.append(f"playback log content cleared ({playback_log_path.name})")
+                        except Exception as e2:
+                            logger.warning(f"Could not clear or delete playback log {playback_log_path}: {e2}")
+                            failed_items.append(f"playback log ({playback_log_path.name})")
+            
+            # Clear backlog.json (in workspace root and app data dir)
+            backlog_json_paths = [
+                Path("backlog.json"),  # Workspace root  
+                APP_DATA_DIR / "backlog.json",  # App data directory
+            ]
+            for backlog_json_path in backlog_json_paths:
+                if backlog_json_path.exists():
+                    try:
+                        backlog_json_path.unlink()
+                        logger.info(f"Deleted backlog file: {backlog_json_path}")
+                        cleared_items.append(f"backlog file ({backlog_json_path.name})")
+                    except (PermissionError, OSError) as e:
+                        logger.warning(f"Could not delete backlog file {backlog_json_path}: {e}")
+                        failed_items.append(f"backlog file ({backlog_json_path.name})")
+            
+            # Clear .env file (in workspace root and app data dir)
+            env_paths = [
+                Path(".env"),  # Workspace root
+                APP_DATA_DIR / ".env",  # App data directory
+                APP_DATA_DIR / ".simkl_mps.env",  # App-specific env file
+            ]
+            for env_path in env_paths:
+                if env_path.exists():
+                    try:
+                        env_path.unlink()
+                        logger.info(f"Deleted environment file: {env_path}")
+                        cleared_items.append(f"environment file ({env_path.name})")
+                    except (PermissionError, OSError) as e:
+                        logger.warning(f"Could not delete environment file {env_path}: {e}")
+                        failed_items.append(f"environment file ({env_path.name})")
+            
+            # Clear watch history (via scrobbler if available)
+            if self.scrobbler and hasattr(self.scrobbler, 'watch_history_manager'):
+                whm = self.scrobbler.watch_history_manager
+                if hasattr(whm, 'clear_history'):
+                    try:
+                        whm.clear_history()
+                        cleared_items.append("watch history")
+                    except Exception as e:
+                        logger.warning(f"Could not clear watch history: {e}")
+                        failed_items.append("watch history")
+            
+            # Clear settings file
+            settings_file = APP_DATA_DIR / "settings.json"
+            if settings_file.exists():
+                try:
+                    settings_file.unlink()
+                    logger.info(f"Deleted settings file: {settings_file}")
+                    cleared_items.append("settings file")
+                except (PermissionError, OSError) as e:
+                    logger.warning(f"Could not delete settings file: {e}")
+                    failed_items.append("settings file")
+            
+            # Clear in-memory cache and reset tracked media in scrobbler if running
+            if self.scrobbler:
+                if hasattr(self.scrobbler, 'monitor') and hasattr(self.scrobbler.monitor, 'scrobbler'):
+                    scrobbler = self.scrobbler.monitor.scrobbler
+                    if hasattr(scrobbler, 'media_cache'):
+                        scrobbler.media_cache.cache.clear()
+                        scrobbler.media_cache._save_cache()
+                for attr in ('currently_tracking', 'movie_name', 'show_name', 'media_title', 'media_type', 'season', 'episode'):
+                    if hasattr(self.scrobbler, attr):
+                        setattr(self.scrobbler, attr, None)
+                cleared_items.append("in-memory cache")
+            
+            # Prepare notification message
+            if cleared_items and not failed_items:
+                message = f"Successfully Cleared All Data"
+                notification_title = "simkl-mps"
+            elif cleared_items and failed_items:
+                message = f"Cleared Some but Failed: {', '.join(failed_items)}"
+                notification_title = "simkl-mps - Partial Success"
+            elif failed_items:
+                message = f"Failed to clear: {', '.join(failed_items)}"
+                notification_title = "simkl-mps Error"
+            else:
+                message = "No data found to clear"
+                notification_title = "simkl-mps"
+            
+            self.show_notification(notification_title, message)
+            self.update_icon()
+            self.exit_app()  # Exit the tray app after notifying the user
+            
+        except Exception as e:
+            logger.error(f"Error clearing all data: {e}")
+            self.show_notification("simkl-mps Error", f"Failed to clear all data: {e}")
+        return 0

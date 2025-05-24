@@ -241,20 +241,19 @@ class MediaScrobbler:
                 if now - last_log_time > 60: # Log connection errors at most once per minute per player
                     logger.warning(f"Could not connect to {process_name} web interface. Error: {e}")
                     self._last_connection_error_log[process_name] = now
-                    
-                    # Send notification about web interface connection error
-                    player_type = self._get_player_type(process_name_lower)
-                    if player_type:
-                        config_instructions = self._get_player_config_instructions(player_type)
-                        logger.info(f"[DEBUG] Sending notification for {player_type} connection error: {config_instructions}")
-                        self._send_notification(
-                            f"{player_type} Connection Error",
-                            f"Could not connect to {player_type} web interface. {config_instructions}",
-                            online_only=False
-                        )
+                    # Only notify if currently tracking a file
+                    if self.currently_tracking:
+                        player_type = self._get_player_type(process_name_lower)
+                        if player_type:
+                            config_instructions = self._get_player_config_instructions(player_type)
+                            logger.info(f"[DEBUG] Sending notification for {player_type} connection error: {config_instructions}")
+                            self._send_notification(
+                                f"{player_type} Connection Error",
+                                f"Could not connect to {player_type}. {config_instructions}",
+                                online_only=False
+                            )
             except Exception as e:
                 logger.error(f"Error getting pos/dur from {process_name} ({getattr(integration, '__class__', type(integration)).__name__}): {e}", exc_info=True)
-        
         return None, None
 
 
@@ -525,23 +524,20 @@ class MediaScrobbler:
             pos, dur = self.get_player_position_duration(process_name)        
             position_updated_from_player = False
         if pos is not None and dur is not None and dur > 0:
-            if self.total_duration_seconds is None or abs(self.total_duration_seconds - dur) > 2: # Allow small variance
+            if self.total_duration_seconds is None or abs(self.total_duration_seconds - dur) > 2:
                 logger.info(f"Updating total duration for '{self.movie_name or self.currently_tracking}' from {self.total_duration_seconds}s to {dur}s via player.")
                 self.total_duration_seconds = dur
-                self.estimated_duration = dur # Player duration is a good estimate
-
+                self.estimated_duration = dur
             # Detect seeks
             if self.state == PLAYING and self.current_position_seconds is not None:
-                # Compare current player position with expected position based on elapsed time
                 expected_pos_increase = elapsed_since_last_update
                 actual_pos_increase = pos - self.current_position_seconds
-                # If the difference between actual and expected increase is significant, it's likely a seek
-                # Threshold for seek detection (e.g., 2 seconds)
-                seek_threshold = 2.0 
-                if abs(actual_pos_increase - expected_pos_increase) > seek_threshold and elapsed_since_last_update > 0.1:
+                seek_threshold = 2.0
+                min_seek_display = 0.5
+                # Only log seek if significant and not a tiny/zero change
+                if abs(actual_pos_increase - expected_pos_increase) > seek_threshold and abs(actual_pos_increase) > min_seek_display and elapsed_since_last_update > 0.1:
                     logger.info(f"Seek detected for '{self.movie_name or self.currently_tracking}': Position changed by {actual_pos_increase:.1f}s in {elapsed_since_last_update:.1f}s (Expected ~{expected_pos_increase:.1f}s).")
                     self._log_playback_event("seek", {"previous_position_seconds": round(self.current_position_seconds, 2), "new_position_seconds": pos})
-
             self.current_position_seconds = pos
             position_updated_from_player = True
         
@@ -696,8 +692,7 @@ class MediaScrobbler:
         self.media_type = None
         self.season = None
         self.episode = None
-        # self.last_backlog_attempt_time should persist for items, not cleared globally here.
-
+        # self.last_backlog_attempt_time should persist for items, not cleared globally here.        
         return {
             "raw_title": final_raw_title,
             "movie_name": final_movie_name,
@@ -705,13 +700,41 @@ class MediaScrobbler:
             "media_type": final_media_type,
             "season": final_season,
             "episode": final_episode,
-            "state": STOPPED, # Final state is always STOPPED
+            "state": STOPPED,
             "progress": self._calculate_percentage(use_position=True) or self._calculate_percentage(use_accumulated=True), # Recalculate with final values
             "watched_seconds": round(final_watch_time, 2),
             "current_position_seconds": final_pos,
             "total_duration_seconds": final_total_duration,
             "estimated_duration_seconds": final_estimated_duration
         }
+
+    def _find_cached_episode(self, show_title, season, episode):
+        """
+        Find a cached episode entry for the same show+season+episode combination.
+        Returns the cached info if found, None otherwise.
+        """
+        all_cached_entries = self.media_cache.get_all()
+        show_title_lower = show_title.lower()
+        
+        for cache_key, cache_data in all_cached_entries.items():
+            if not isinstance(cache_data, dict):
+                continue
+                
+            # Check if this entry matches our show+season+episode
+            cached_title = cache_data.get('movie_name', '')
+            cached_season = cache_data.get('season')
+            cached_episode = cache_data.get('episode')
+            cached_simkl_id = cache_data.get('simkl_id')
+            
+            # Must have a valid Simkl ID and match show+season+episode
+            if (cached_simkl_id and 
+                not str(cached_simkl_id).startswith("temp_") and
+                cached_season == season and 
+                cached_episode == episode and
+                cached_title.lower() == show_title_lower):
+                return cache_data
+                
+        return None
 
     def _identify_media_from_filepath(self, filepath, guessit_info=None):
         """
@@ -729,6 +752,23 @@ class MediaScrobbler:
             logger.info(f"Using cached Simkl info for file '{cache_key}': ID {cached_info['simkl_id']}")
             self._apply_cached_info_to_state(cached_info)
             return
+
+        # For episodes, check if we have cached info for the same show+season+episode combination
+        # to avoid redundant API calls for the same episode with different filenames
+        if guessit_info and guessit_info.get('type') == 'episode':
+            show_title = guessit_info.get('title')
+            season = guessit_info.get('season')
+            episode = guessit_info.get('episode')
+            
+            if show_title and season is not None and episode is not None:
+                # Check all cached entries for the same show+season+episode
+                existing_episode_info = self._find_cached_episode(show_title, season, episode)
+                if existing_episode_info:
+                    logger.info(f"Found existing cached episode for '{show_title}' S{season}E{episode}: ID {existing_episode_info['simkl_id']}")
+                    # Cache this filename pointing to the same episode info to avoid future lookups
+                    self.media_cache.set(cache_key, existing_episode_info)
+                    self._apply_cached_info_to_state(existing_episode_info)
+                    return
 
         if not is_internet_connected():
             logger.warning(f"Offline: Cannot identify '{filepath}' via Simkl API. Using guessit fallback if available.")
@@ -1388,10 +1428,8 @@ class MediaScrobbler:
                 # If fetched, update cache using the centralized cache_media_info method
                 if current_details and cache_key_for_details:
                     logger.info(f"Watch History: Fetched details for ID {simkl_id}. Updating cache via cache_media_info.")
-                    
                     # Poster ID processing
                     raw_poster_url_hist = current_details.get('poster')
-
                     self.cache_media_info(
                         original_title_key=cache_key_for_details,
                         simkl_id=simkl_id,
@@ -1795,8 +1833,6 @@ class MediaScrobbler:
                                     logger.info(f"[Offline Sync Thread] Synced {processed} of {attempted} items from backlog.")
                                 elif attempted > 0 : # Attempted but none succeeded
                                     logger.info(f"[Offline Sync Thread] Attempted {attempted} backlog items, none synced this cycle.")
-                                # If attempted is 0, it means process_backlog found no items ready (e.g. all in cooldown)
-                            # else: result might be legacy, handle if necessary or phase out.
                         else:
                             logger.debug("[Offline Sync Thread] Internet detected, but no backlog items to process.")
                     else:
@@ -1943,7 +1979,7 @@ class MediaScrobbler:
             
             # Ensure essential fields are correctly set from the latest information
             if display_name: merged_data["movie_name"] = display_name
-            if media_type: merged_data["type"] = media_type # API type is canonical
+            if media_type: merged_data["type"] = media_type
             merged_data["simkl_id"] = simkl_id # Ensure it's the correct int type
 
             self.media_cache.update(existing_key_for_id, merged_data)

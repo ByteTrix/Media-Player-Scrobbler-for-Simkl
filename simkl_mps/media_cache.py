@@ -196,3 +196,39 @@ class MediaCache:
         """
         return {key: info for key, info in self.cache.items() 
                 if info.get('type') == media_type}
+    
+    @staticmethod
+    def clear_media_cache(app_data_dir: pathlib.Path, cache_file="media_cache.json"):
+        """Static helper to clear the media cache file and in-memory cache."""
+        cache_path = app_data_dir / cache_file
+        try:
+            if cache_path.exists():
+                cache_path.unlink()
+                logger.info(f"Deleted media cache file: {cache_path}")
+        except Exception as e:
+            logger.error(f"Error deleting media cache file {cache_path}: {e}")
+        # Also clear in-memory cache if any instance exists
+        # (This is a static method, so only affects file. Instance must clear its own .cache)
+
+    @staticmethod
+    def get_cache_file_path():
+        """Return the path to the media cache file in the user's home directory."""
+        from pathlib import Path
+        home = Path.home()
+        cache_path = home / "kavinthangavel" / "simkl-mps" / "media_cache.json"
+        return cache_path
+
+    @staticmethod
+    def clear_media_cache_all_locations(app_data_dir: pathlib.Path, cache_file="media_cache.json"):
+        """Clear the media cache file in both app_data_dir and the user's home directory."""
+        # App data dir
+        cache_path1 = app_data_dir / cache_file
+        # User home dir
+        cache_path2 = MediaCache.get_cache_file_path()
+        for cache_path in [cache_path1, cache_path2]:
+            try:
+                if cache_path.exists():
+                    cache_path.unlink()
+                    logger.info(f"Deleted media cache file: {cache_path}")
+            except Exception as e:
+                logger.error(f"Error deleting media cache file {cache_path}: {e}")
