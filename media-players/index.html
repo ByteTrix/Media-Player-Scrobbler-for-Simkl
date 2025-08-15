@@ -10,7 +10,7 @@
       
       
       
-        <link rel="canonical" href="https://kavinthangavel.github.io/media-player-scrobbler-for-simkl/media-players/">
+        <link rel="canonical" href="https://bytetrix.github.io/media-player-scrobbler-for-simkl/media-players/">
       
       
         <link rel="prev" href="../usage/">
@@ -445,6 +445,15 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#potplayer-recommended-zero-configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      PotPlayer (Recommended - Zero Configuration)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#mpc-hcbe-media-player-classic" class="md-nav__link">
     <span class="md-ellipsis">
       MPC-HC/BE (Media Player Classic)
@@ -800,6 +809,15 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#potplayer-recommended-zero-configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      PotPlayer (Recommended - Zero Configuration)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#mpc-hcbe-media-player-classic" class="md-nav__link">
     <span class="md-ellipsis">
       MPC-HC/BE (Media Player Classic)
@@ -1079,6 +1097,14 @@
 <td style="text-align: center;">Easy</td>
 </tr>
 <tr>
+<td>PotPlayer</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">❌</td>
+<td style="text-align: center;">❌</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">None (Auto-detected)</td>
+</tr>
+<tr>
 <td>MPV Wrappers*</td>
 <td style="text-align: center;">✅</td>
 <td style="text-align: center;">✅</td>
@@ -1149,6 +1175,22 @@
 <p><strong>Verification:</strong>
 - Play a movie in your MPV wrapper player
 - The scrobbler should connect and show accurate position data</p>
+<h3 id="potplayer-recommended-zero-configuration">PotPlayer (Recommended - Zero Configuration)<a class="headerlink" href="#potplayer-recommended-zero-configuration" title="Permanent link">&para;</a></h3>
+<p><strong>PotPlayer</strong> is a Windows media player that provides excellent integration with zero configuration required. The scrobbler automatically detects and connects to PotPlayer using Windows messaging API.</p>
+<p><strong>How it Works:</strong>
+- Uses Windows messaging API for direct communication with PotPlayer
+- Automatically caches the current filename when detected
+- Filters out UI states like "Chapter 16", "Show main menu", etc.
+- Cleans filename by removing "(With subtitles)" and similar appendages
+- Provides accurate position/duration data in real-time</p>
+<p><strong>Supported Versions:</strong>
+- PotPlayer 32-bit and 64-bit (PotPlayerMini64.exe recommended)
+- All recent versions with standard Windows messaging support</p>
+<p><strong>Verification:</strong>
+- Play a movie in PotPlayer
+- The scrobbler automatically connects (no web interface needed)
+- You should see accurate position tracking and movie detection
+- Check logs for "Successfully connected to PotPlayer via Windows messaging"</p>
 <h3 id="mpc-hcbe-media-player-classic">MPC-HC/BE (Media Player Classic)<a class="headerlink" href="#mpc-hcbe-media-player-classic" title="Permanent link">&para;</a></h3>
 <p><strong>Step-by-Step Configuration:</strong>
 1. Open MPC-HC or MPC-BE
@@ -1396,6 +1438,7 @@
 <th>VLC</th>
 <th>MPV</th>
 <th>MPC-HC/BE</th>
+<th>PotPlayer</th>
 </tr>
 </thead>
 <tbody>
@@ -1404,11 +1447,13 @@
 <td>★★★★☆</td>
 <td>★★☆☆☆</td>
 <td>★★★★☆</td>
+<td>★★★★★</td>
 </tr>
 <tr>
 <td>Cross-platform</td>
 <td>✅</td>
 <td>✅</td>
+<td>❌</td>
 <td>❌</td>
 </tr>
 <tr>
@@ -1416,22 +1461,36 @@
 <td>Very High</td>
 <td>High</td>
 <td>Very High</td>
+<td>Very High</td>
 </tr>
 <tr>
 <td>Resource usage</td>
 <td>Moderate</td>
 <td>Low</td>
 <td>Low</td>
+<td>Low</td>
+</tr>
+<tr>
+<td>Configuration required</td>
+<td>Yes</td>
+<td>Yes</td>
+<td>Yes</td>
+<td>None</td>
 </tr>
 <tr>
 <td>Recommended for</td>
 <td>Beginners</td>
 <td>Power users</td>
 <td>Windows users</td>
+<td>Windows users</td>
 </tr>
 </tbody>
 </table>
-<p>The best player for tracking depends on your platform and preferences, but properly configured <strong>VLC</strong> offers the most universal compatibility and reliable tracking.</p>
+<p><strong>Recommendations by use case:</strong>
+- <strong>Zero configuration needed</strong>: <strong>PotPlayer</strong> (Windows only) - works immediately out of the box
+- <strong>Cross-platform compatibility</strong>: <strong>VLC</strong> - most universal option with reliable tracking
+- <strong>Advanced features &amp; customization</strong>: <strong>MPV</strong> - for power users who want maximum control
+- <strong>Windows-specific with web interface</strong>: <strong>MPC-HC/BE</strong> - traditional Windows media player experience</p>
 
 
 
@@ -1454,7 +1513,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="May 17, 2025 16:02:04 UTC">May 17, 2025</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="August 15, 2025 10:57:18 UTC">August 15, 2025</span>
   </span>
 
     
