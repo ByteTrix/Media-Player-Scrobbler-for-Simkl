@@ -4,6 +4,7 @@ Handles interactions with the Simkl API.
 Provides functions for searching movies, marking them as watched,
 retrieving details, and handling the OAuth device authentication flow.
 """
+from typing import Dict, Optional, Any, Union
 import requests
 import time
 import logging
@@ -25,7 +26,7 @@ logger = logging.getLogger(__name__)
 SIMKL_API_BASE_URL = 'https://api.simkl.com'
 
 
-def is_internet_connected():
+def is_internet_connected() -> bool:
     """
     Checks for a working internet connection.
 
@@ -51,12 +52,12 @@ def is_internet_connected():
     logger.warning("Internet connectivity check failed for all services.")
     return False
 
-def _add_user_agent(headers):
+def _add_user_agent(headers: Optional[Dict[str, str]]) -> Dict[str, str]:
     headers = dict(headers) if headers else {}
     headers["User-Agent"] = USER_AGENT
     return headers
 
-def _normalize_simkl_ids(item_dict, item_type="item", title=""):
+def _normalize_simkl_ids(item_dict: Dict[str, Any], item_type: str = "item", title: str = "") -> bool:
     """
     Normalize Simkl IDs by ensuring 'simkl' key exists if 'simkl_id' is present.
     
@@ -85,7 +86,15 @@ def _normalize_simkl_ids(item_dict, item_type="item", title=""):
     return True  # Already has 'simkl' key or normalization not needed
 
 
-def _make_api_request(method, url, headers=None, params=None, json=None, max_retries=3, initial_timeout=10):
+def _make_api_request(
+    method: str,
+    url: str,
+    headers: Optional[Dict[str, str]] = None,
+    params: Optional[Dict[str, Any]] = None,
+    json: Optional[Dict[str, Any]] = None,
+    max_retries: int = 3,
+    initial_timeout: int = 10
+) -> Optional[requests.Response]:
     """
     Make an API request with retry logic and exponential backoff.
     
@@ -178,7 +187,12 @@ def _make_api_request(method, url, headers=None, params=None, json=None, max_ret
     
     return None
 
-def search_movie(title, client_id, access_token, file_path=None):
+def search_movie(
+    title: str,
+    client_id: str,
+    access_token: str,
+    file_path: Optional[str] = None
+) -> Optional[Dict[str, Any]]:
     """
     Searches for a movie using multiple endpoints in order:
     1. /search/movie (title search)
@@ -279,7 +293,7 @@ def search_movie(title, client_id, access_token, file_path=None):
     logger.info(f"Simkl API: No movie results found for '{title}' after all search methods.")
     return None
 
-def search_file(file_path, client_id, part=None):
+def search_file(file_path: str, client_id: str, part: Optional[int] = None) -> Optional[Dict[str, Any]]:
     """
     Searches for movies, shows, anime, or episodes based on a file path using the Simkl /search/file endpoint.
 
@@ -328,7 +342,7 @@ def search_file(file_path, client_id, part=None):
     
     return None
 
-def add_to_history(payload, client_id, access_token):
+def add_to_history(payload: Dict[str, Any], client_id: str, access_token: str) -> Optional[Dict[str, Any]]:
     """
     Adds items (movies, shows, episodes) to the user's Simkl watch history.
 
@@ -390,7 +404,7 @@ def add_to_history(payload, client_id, access_token):
     
     return None
 
-def get_movie_details(simkl_id, client_id, access_token):
+def get_movie_details(simkl_id: Union[int, str], client_id: str, access_token: str) -> Optional[Dict[str, Any]]:
     """
     Retrieves detailed movie information from Simkl.
 
@@ -456,7 +470,7 @@ def get_movie_details(simkl_id, client_id, access_token):
     
     return None
 
-def get_show_details(simkl_id, client_id, access_token):
+def get_show_details(simkl_id: Union[int, str], client_id: str, access_token: str) -> Optional[Dict[str, Any]]:
     """
     Retrieves detailed show information from Simkl.
 
@@ -533,7 +547,7 @@ def get_show_details(simkl_id, client_id, access_token):
     
     return None
 
-def get_user_settings(client_id, access_token):
+def get_user_settings(client_id: str, access_token: str) -> Optional[Dict[str, Any]]:
     """
     Retrieves user settings from Simkl, which includes the user ID.
 
@@ -642,7 +656,7 @@ def get_user_settings(client_id, access_token):
     
     return None
 
-def pin_auth_flow(client_id, redirect_uri="urn:ietf:wg:oauth:2.0:oob"):
+def pin_auth_flow(client_id: str, redirect_uri: str = "urn:ietf:wg:oauth:2.0:oob") -> Optional[str]:
     """
     Implements the OAuth 2.0 device authorization flow for Simkl authentication.
     
@@ -826,7 +840,7 @@ def pin_auth_flow(client_id, redirect_uri="urn:ietf:wg:oauth:2.0:oob"):
     print("[ERROR] Authentication timed out. Please try again.")
     return None
 
-def _save_access_token(env_path, access_token, user_id=None):
+def _save_access_token(env_path: Union[str, Any], access_token: str, user_id: Optional[Union[str, int]] = None) -> bool:
     """
     Helper function to save access token and user ID to .env file
     
@@ -883,7 +897,7 @@ def _save_access_token(env_path, access_token, user_id=None):
         logger.error(f"Failed to save credentials: {e}", exc_info=True)
         return False
 
-def _validate_access_token(client_id, access_token):
+def _validate_access_token(client_id: str, access_token: str) -> bool:
     """Verify the access token works by making a simple API call"""
     try:
         headers = {
