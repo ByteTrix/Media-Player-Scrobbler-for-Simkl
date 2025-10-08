@@ -84,6 +84,100 @@ def _normalize_simkl_ids(item_dict, item_type="item", title=""):
     
     return True  # Already has 'simkl' key or normalization not needed
 
+
+def _make_api_request(method, url, headers=None, params=None, json=None, max_retries=3, initial_timeout=10):
+    """
+    Make an API request with retry logic and exponential backoff.
+    
+    Handles transient errors and rate limiting automatically.
+    
+    Args:
+        method (str): HTTP method ('get' or 'post')
+        url (str): API endpoint URL
+        headers (dict, optional): Request headers
+        params (dict, optional): URL parameters
+        json (dict, optional): JSON request body
+        max_retries (int): Maximum number of retry attempts
+        initial_timeout (int): Initial timeout in seconds
+        
+    Returns:
+        requests.Response | None: Response object if successful, None on failure
+    """
+    retry_count = 0
+    backoff_delay = 1  # Start with 1 second delay
+    
+    while retry_count <= max_retries:
+        try:
+            # Make the request with timeout
+            if method.lower() == 'get':
+                response = requests.get(url, headers=headers, params=params, timeout=initial_timeout)
+            elif method.lower() == 'post':
+                response = requests.post(url, headers=headers, json=json, timeout=initial_timeout)
+            else:
+                logger.error(f"Unsupported HTTP method: {method}")
+                return None
+            
+            # Handle rate limiting (HTTP 429)
+            if response.status_code == 429:
+                retry_after = response.headers.get('Retry-After', backoff_delay * 2)
+                try:
+                    retry_after = int(retry_after)
+                except ValueError:
+                    retry_after = backoff_delay * 2
+                    
+                if retry_count < max_retries:
+                    logger.warning(f"Rate limited by API (HTTP 429). Waiting {retry_after}s before retry {retry_count + 1}/{max_retries}")
+                    time.sleep(retry_after)
+                    retry_count += 1
+                    backoff_delay *= 2
+                    continue
+                else:
+                    logger.error(f"Rate limited by API and max retries exceeded")
+                    return None
+            
+            # Handle server errors (5xx) with retry
+            if 500 <= response.status_code < 600:
+                if retry_count < max_retries:
+                    logger.warning(f"Server error {response.status_code}. Retrying in {backoff_delay}s ({retry_count + 1}/{max_retries})")
+                    time.sleep(backoff_delay)
+                    retry_count += 1
+                    backoff_delay *= 2
+                    continue
+                else:
+                    logger.error(f"Server error {response.status_code} and max retries exceeded")
+                    return response  # Return response so caller can handle the error
+            
+            # Success or client error (4xx) - return response
+            return response
+            
+        except requests.exceptions.Timeout:
+            if retry_count < max_retries:
+                logger.warning(f"Request timeout. Retrying in {backoff_delay}s ({retry_count + 1}/{max_retries})")
+                time.sleep(backoff_delay)
+                retry_count += 1
+                backoff_delay *= 2
+                continue
+            else:
+                logger.error(f"Request timeout and max retries exceeded for {url}")
+                return None
+                
+        except requests.exceptions.ConnectionError as e:
+            if retry_count < max_retries:
+                logger.warning(f"Connection error: {e}. Retrying in {backoff_delay}s ({retry_count + 1}/{max_retries})")
+                time.sleep(backoff_delay)
+                retry_count += 1
+                backoff_delay *= 2
+                continue
+            else:
+                logger.error(f"Connection error and max retries exceeded for {url}: {e}")
+                return None
+                
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Request error for {url}: {e}")
+            return None
+    
+    return None
+
 def search_movie(title, client_id, access_token, file_path=None):
     """
     Searches for a movie using multiple endpoints in order:
@@ -117,32 +211,29 @@ def search_movie(title, client_id, access_token, file_path=None):
 
     # 1. Try movie title search first
     logger.info(f"Simkl API: Searching for movie by title: '{title}'...")
-    try:
-        params = {'q': title, 'extended': 'full'}
-        response = requests.get(f'{SIMKL_API_BASE_URL}/search/movie', headers=headers, params=params)
+    params = {'q': title, 'extended': 'full'}
+    response = _make_api_request('get', f'{SIMKL_API_BASE_URL}/search/movie', headers=headers, params=params)
+    
+    if response and response.status_code == 200:
+        results_json = response.json()
+        logger.info(f"Simkl API: Found {len(results_json) if isinstance(results_json, list) else 'N/A'} movie results for '{title}'.")
 
-        if response.status_code == 200:
-            results_json = response.json()
-            logger.info(f"Simkl API: Found {len(results_json) if isinstance(results_json, list) else 'N/A'} movie results for '{title}'.")
-
-            if isinstance(results_json, list) and results_json:
-                movie_item = results_json[0]
-                
-                # Ensure it's wrapped in {'movie': ...} structure
-                if 'movie' not in movie_item:
-                    logger.info(f"Simkl API: Reshaping movie search result for '{title}' into {{'movie': ...}} structure.")
-                    movie_item = {'movie': movie_item}
-                
-                # ID consistency check using helper function
-                if 'movie' in movie_item and isinstance(movie_item.get('movie'), dict):
-                    _normalize_simkl_ids(movie_item['movie'], "movie object", title)
-                
-                logger.info(f"Simkl API: Found movie via title search: '{movie_item['movie'].get('title', title)}'")
-                return movie_item
-        else:
-            logger.warning(f"Simkl API: Movie search failed for '{title}'. Status: {response.status_code}")
-    except requests.exceptions.RequestException as e:
-        logger.warning(f"Simkl API: Network error during movie title search for '{title}': {e}")
+        if isinstance(results_json, list) and results_json:
+            movie_item = results_json[0]
+            
+            # Ensure it's wrapped in {'movie': ...} structure
+            if 'movie' not in movie_item:
+                logger.info(f"Simkl API: Reshaping movie search result for '{title}' into {{'movie': ...}} structure.")
+                movie_item = {'movie': movie_item}
+            
+            # ID consistency check using helper function
+            if 'movie' in movie_item and isinstance(movie_item.get('movie'), dict):
+                _normalize_simkl_ids(movie_item['movie'], "movie object", title)
+            
+            logger.info(f"Simkl API: Found movie via title search: '{movie_item['movie'].get('title', title)}'")
+            return movie_item
+    elif response:
+        logger.warning(f"Simkl API: Movie search failed for '{title}'. Status: {response.status_code}")
 
     # 2. Try file search if file_path is provided
     if file_path:
@@ -161,32 +252,29 @@ def search_movie(title, client_id, access_token, file_path=None):
 
     # 3. Try anime search for anime movies
     logger.info(f"Simkl API: Trying anime search for: '{title}'...")
-    try:
-        params = {'q': title, 'extended': 'full'}
-        response = requests.get(f'{SIMKL_API_BASE_URL}/search/anime', headers=headers, params=params)
+    params = {'q': title, 'extended': 'full'}
+    response = _make_api_request('get', f'{SIMKL_API_BASE_URL}/search/anime', headers=headers, params=params)
+    
+    if response and response.status_code == 200:
+        results_json = response.json()
+        logger.info(f"Simkl API: Found {len(results_json) if isinstance(results_json, list) else 'N/A'} anime results for '{title}'.")
 
-        if response.status_code == 200:
-            results_json = response.json()
-            logger.info(f"Simkl API: Found {len(results_json) if isinstance(results_json, list) else 'N/A'} anime results for '{title}'.")
-
-            if isinstance(results_json, list) and results_json:
-                # Look for anime movies (type='movie')
-                for anime_item in results_json:
-                    if anime_item.get('type') == 'movie':
-                        # Ensure proper ID handling for anime movies using helper function
-                        _normalize_simkl_ids(anime_item, "anime movie", title)
-                        
-                        # Wrap anime movie in the expected format
-                        result = {'movie': anime_item}
-                        simkl_id = anime_item.get('ids', {}).get('simkl') or anime_item.get('ids', {}).get('simkl_id')
-                        logger.info(f"Simkl API: Found anime movie: '{anime_item.get('title', title)}' (ID: {simkl_id})")
-                        return result
-                
-                logger.info(f"Simkl API: No anime movies found in anime search results for '{title}'.")
-        else:
-            logger.warning(f"Simkl API: Anime search failed for '{title}'. Status: {response.status_code}")
-    except requests.exceptions.RequestException as e:
-        logger.warning(f"Simkl API: Network error during anime search for '{title}': {e}")
+        if isinstance(results_json, list) and results_json:
+            # Look for anime movies (type='movie')
+            for anime_item in results_json:
+                if anime_item.get('type') == 'movie':
+                    # Ensure proper ID handling for anime movies using helper function
+                    _normalize_simkl_ids(anime_item, "anime movie", title)
+                    
+                    # Wrap anime movie in the expected format
+                    result = {'movie': anime_item}
+                    simkl_id = anime_item.get('ids', {}).get('simkl') or anime_item.get('ids', {}).get('simkl_id')
+                    logger.info(f"Simkl API: Found anime movie: '{anime_item.get('title', title)}' (ID: {simkl_id})")
+                    return result
+            
+            logger.info(f"Simkl API: No anime movies found in anime search results for '{title}'.")
+    elif response:
+        logger.warning(f"Simkl API: Anime search failed for '{title}'. Status: {response.status_code}")
 
     logger.info(f"Simkl API: No movie results found for '{title}' after all search methods.")
     return None
@@ -224,25 +312,21 @@ def search_file(file_path, client_id, part=None):
         data['part'] = part
 
     logger.info(f"Simkl API: Searching by file: '{file_path}' (Part: {part if part else 'N/A'})...")
-    try:
-        response = requests.post(f'{SIMKL_API_BASE_URL}/search/file', headers=headers, json=data)
-
-        if response.status_code != 200:
-            error_details = ""
-            try:
-                error_details = response.json()
-            except requests.exceptions.JSONDecodeError:
-                error_details = response.text
-            logger.error(f"Simkl API: File search failed for '{file_path}'. Status: {response.status_code}. Response: {error_details}")
-            return None
-
+    response = _make_api_request('post', f'{SIMKL_API_BASE_URL}/search/file', headers=headers, json=data)
+    
+    if response and response.status_code == 200:
         results = response.json()
         logger.info(f"Simkl API: File search successful for '{file_path}'.")
         return results
-
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Simkl API: Network error during file search for '{file_path}': {e}", exc_info=True)
-        return None
+    elif response:
+        error_details = ""
+        try:
+            error_details = response.json()
+        except requests.exceptions.JSONDecodeError:
+            error_details = response.text
+        logger.error(f"Simkl API: File search failed for '{file_path}'. Status: {response.status_code}. Response: {error_details}")
+    
+    return None
 
 def add_to_history(payload, client_id, access_token):
     """
@@ -285,32 +369,26 @@ def add_to_history(payload, client_id, access_token):
 
 
     logger.info(f"Simkl API: Adding {item_description} to history...")
-    try:
-        response = requests.post(f'{SIMKL_API_BASE_URL}/sync/history', headers=headers, json=payload)
-
-        if 200 <= response.status_code < 300:
-            logger.info(f"Simkl API: Successfully added {item_description} to history.")
-            try:
-                return response.json()
-            except requests.exceptions.JSONDecodeError:
-                 logger.warning("Simkl API: History update successful but response was not valid JSON.")
-                 return {"status": "success", "message": "Non-JSON response received but status code indicated success."} # Return a success indicator
-        else:
-            error_details = ""
-            try:
-                error_details = response.json()
-            except requests.exceptions.JSONDecodeError:
-                error_details = response.text
-            logger.error(f"Simkl API: Failed to add {item_description} to history. Status: {response.status_code}. Response: {error_details}")
-            # Don't raise_for_status here, allow caller to handle based on None return
-            return None
-    except requests.exceptions.ConnectionError as e:
-        logger.error(f"Simkl API: Connection error adding {item_description} to history: {e}")
+    response = _make_api_request('post', f'{SIMKL_API_BASE_URL}/sync/history', headers=headers, json=payload)
+    
+    if response and 200 <= response.status_code < 300:
+        logger.info(f"Simkl API: Successfully added {item_description} to history.")
+        try:
+            return response.json()
+        except requests.exceptions.JSONDecodeError:
+            logger.warning("Simkl API: History update successful but response was not valid JSON.")
+            return {"status": "success", "message": "Non-JSON response received but status code indicated success."}
+    elif response:
+        error_details = ""
+        try:
+            error_details = response.json()
+        except requests.exceptions.JSONDecodeError:
+            error_details = response.text
+        logger.error(f"Simkl API: Failed to add {item_description} to history. Status: {response.status_code}. Response: {error_details}")
+    else:
         logger.info(f"Simkl API: Item(s) {item_description} will be added to backlog for future syncing.")
-        return None # Indicate failure but allow backlog processing
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Simkl API: Error adding {item_description} to history: {e}", exc_info=True)
-        return None
+    
+    return None
 
 def get_movie_details(simkl_id, client_id, access_token):
     """
@@ -336,10 +414,11 @@ def get_movie_details(simkl_id, client_id, access_token):
     }
     headers = _add_user_agent(headers)
     params = {'extended': 'full'}
-    try:
-        logger.info(f"Simkl API: Fetching details for movie ID {simkl_id}...")
-        response = requests.get(f'{SIMKL_API_BASE_URL}/movies/{simkl_id}', headers=headers, params=params)
-        response.raise_for_status()
+    
+    logger.info(f"Simkl API: Fetching details for movie ID {simkl_id}...")
+    response = _make_api_request('get', f'{SIMKL_API_BASE_URL}/movies/{simkl_id}', headers=headers, params=params)
+    
+    if response and response.status_code == 200:
         movie_details = response.json()
         if movie_details:
             title = movie_details.get('title', 'N/A')
@@ -372,9 +451,10 @@ def get_movie_details(simkl_id, client_id, access_token):
             if not movie_details.get('runtime'):
                 logger.warning(f"Simkl API: Runtime information missing for '{title}' (ID: {simkl_id}).")
         return movie_details
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Simkl API: Error getting movie details for ID {simkl_id}: {e}", exc_info=True)
-        return None
+    elif response:
+        logger.error(f"Simkl API: Error getting movie details for ID {simkl_id}: Status {response.status_code}")
+    
+    return None
 
 def get_show_details(simkl_id, client_id, access_token):
     """
@@ -400,10 +480,11 @@ def get_show_details(simkl_id, client_id, access_token):
     }
     headers = _add_user_agent(headers)
     params = {'extended': 'full'}
-    try:
-        logger.info(f"Simkl API: Fetching details for show/anime ID {simkl_id}...")
-        response = requests.get(f'{SIMKL_API_BASE_URL}/tv/{simkl_id}', headers=headers, params=params)
-        response.raise_for_status()
+    
+    logger.info(f"Simkl API: Fetching details for show/anime ID {simkl_id}...")
+    response = _make_api_request('get', f'{SIMKL_API_BASE_URL}/tv/{simkl_id}', headers=headers, params=params)
+    
+    if response and response.status_code == 200:
         show_details = response.json()
         if show_details:
             title = show_details.get('title', 'N/A')
@@ -447,9 +528,10 @@ def get_show_details(simkl_id, client_id, access_token):
             # Additional debug logging
             logger.debug(f"Show details for {title} (ID: {simkl_id}): {show_details}")
         return show_details
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Simkl API: Error getting show details for ID {simkl_id}: {e}", exc_info=True)
-        return None
+    elif response:
+        logger.error(f"Simkl API: Error getting show details for ID {simkl_id}: Status {response.status_code}")
+    
+    return None
 
 def get_user_settings(client_id, access_token):
     """
@@ -480,48 +562,40 @@ def get_user_settings(client_id, access_token):
     
     # Try account endpoint first (most direct way to get user ID)
     account_url = f'{SIMKL_API_BASE_URL}/users/account'
-    try:
-        logger.info("Simkl API: Requesting user account information...")
-        account_response = requests.get(account_url, headers=headers, timeout=15)
-        
-        if account_response.status_code == 200:
-            account_info = account_response.json()
-            # Check if account_info is not None before accessing it
-            if account_info is not None:
-                user_id = account_info.get('id')
-                
-                if user_id:
-                    logger.info(f"Simkl API: Found User ID from account endpoint: {user_id}")
-                    settings = {
-                        'account': account_info,
-                        'user': {'ids': {'simkl': user_id}},
-                        'user_id': user_id
-                    }
-                    
-                    # Save user ID to env file for future use
-                    from simkl_mps.credentials import get_env_file_path
-                    env_path = get_env_file_path()
-                    _save_access_token(env_path, access_token, user_id)
-                    
-                    return settings
-            else:
-                logger.warning("Simkl API: Account info is None despite 200 status code")
-        else:
-            logger.warning(f"Simkl API: Account endpoint returned status code {account_response.status_code}")
+    logger.info("Simkl API: Requesting user account information...")
+    account_response = _make_api_request('get', account_url, headers=headers)
+    
+    if account_response and account_response.status_code == 200:
+        account_info = account_response.json()
+        # Check if account_info is not None before accessing it
+        if account_info is not None:
+            user_id = account_info.get('id')
             
-    except requests.exceptions.RequestException as e:
-        logger.warning(f"Simkl API: Error accessing account endpoint: {e}")
+            if user_id:
+                logger.info(f"Simkl API: Found User ID from account endpoint: {user_id}")
+                settings = {
+                    'account': account_info,
+                    'user': {'ids': {'simkl': user_id}},
+                    'user_id': user_id
+                }
+                
+                # Save user ID to env file for future use
+                from simkl_mps.credentials import get_env_file_path
+                env_path = get_env_file_path()
+                _save_access_token(env_path, access_token, user_id)
+                
+                return settings
+        else:
+            logger.warning("Simkl API: Account info is None despite 200 status code")
+    elif account_response:
+        logger.warning(f"Simkl API: Account endpoint returned status code {account_response.status_code}")
     
     # If account endpoint failed, try settings endpoint with simplified headers
     settings_url = f'{SIMKL_API_BASE_URL}/users/settings'
-    try:
-        logger.info("Simkl API: Requesting user settings information...")
-        settings_response = requests.get(settings_url, headers=headers, timeout=15)
-        
-        if settings_response.status_code != 200:
-            logger.error(f"Simkl API: Error getting user settings: {settings_response.status_code} {settings_response.text}")
-            return None
-            
+    logger.info("Simkl API: Requesting user settings information...")
+    settings_response = _make_api_request('get', settings_url, headers=headers)
+    
+    if settings_response and settings_response.status_code == 200:
         settings = settings_response.json()
         logger.info("Simkl API: User settings retrieved successfully.")
         
@@ -563,10 +637,10 @@ def get_user_settings(client_id, access_token):
             logger.warning("Simkl API: User ID not found in settings response")
             
         return settings
-        
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Simkl API: Error getting user settings: {e}")
-        return None
+    elif settings_response:
+        logger.error(f"Simkl API: Error getting user settings: {settings_response.status_code} {settings_response.text}")
+    
+    return None
 
 def pin_auth_flow(client_id, redirect_uri="urn:ietf:wg:oauth:2.0:oob"):
     """
@@ -819,11 +893,7 @@ def _validate_access_token(client_id, access_token):
         }
         headers = _add_user_agent(headers)
         
-        response = requests.get(
-            f'{SIMKL_API_BASE_URL}/users/settings', 
-            headers=headers,
-            timeout=10
-        )
-        return response.status_code == 200
+        response = _make_api_request('get', f'{SIMKL_API_BASE_URL}/users/settings', headers=headers)
+        return response is not None and response.status_code == 200
     except:
         return False
