@@ -52,29 +52,31 @@ def is_internet_connected() -> bool:
     logger.warning("Internet connectivity check failed for all services.")
     return False
 
+
 def _add_user_agent(headers: Optional[Dict[str, str]]) -> Dict[str, str]:
     headers = dict(headers) if headers else {}
     headers["User-Agent"] = USER_AGENT
     return headers
 
+
 def _normalize_simkl_ids(item_dict: Dict[str, Any], item_type: str = "item", title: str = "") -> bool:
     """
     Normalize Simkl IDs by ensuring 'simkl' key exists if 'simkl_id' is present.
-    
+
     Args:
         item_dict (dict): The item dictionary that may contain an 'ids' field
         item_type (str): Type of item for logging (e.g., "movie", "anime movie")
         title (str): Title for logging purposes
-    
+
     Returns:
         bool: True if normalization was successful or not needed, False if no valid ID found
     """
     if not isinstance(item_dict, dict) or 'ids' not in item_dict:
         return False
-    
+
     ids = item_dict['ids']
     simkl_id_alt = ids.get('simkl_id')
-    
+
     if simkl_id_alt and not ids.get('simkl'):
         logger.info(f"Simkl API: Found ID under 'simkl_id' in {item_type}, adding 'simkl' key for consistency.")
         ids['simkl'] = simkl_id_alt
@@ -82,7 +84,7 @@ def _normalize_simkl_ids(item_dict: Dict[str, Any], item_type: str = "item", tit
     elif not ids.get('simkl') and not simkl_id_alt:
         logger.warning(f"Simkl API: No 'simkl' or 'simkl_id' found in {item_type} IDs for '{title}'.")
         return False
-    
+
     return True  # Already has 'simkl' key or normalization not needed
 
 
@@ -97,9 +99,9 @@ def _make_api_request(
 ) -> Optional[requests.Response]:
     """
     Make an API request with retry logic and exponential backoff.
-    
+
     Handles transient errors and rate limiting automatically.
-    
+
     Args:
         method (str): HTTP method ('get' or 'post')
         url (str): API endpoint URL
@@ -108,13 +110,13 @@ def _make_api_request(
         json (dict, optional): JSON request body
         max_retries (int): Maximum number of retry attempts
         initial_timeout (int): Initial timeout in seconds
-        
+
     Returns:
         requests.Response | None: Response object if successful, None on failure
     """
     retry_count = 0
     backoff_delay = 1  # Start with 1 second delay
-    
+
     while retry_count <= max_retries:
         try:
             # Make the request with timeout
@@ -125,7 +127,7 @@ def _make_api_request(
             else:
                 logger.error(f"Unsupported HTTP method: {method}")
                 return None
-            
+
             # Handle rate limiting (HTTP 429)
             if response.status_code == 429:
                 retry_after = response.headers.get('Retry-After', backoff_delay * 2)
@@ -133,7 +135,7 @@ def _make_api_request(
                     retry_after = int(retry_after)
                 except ValueError:
                     retry_after = backoff_delay * 2
-                    
+
                 if retry_count < max_retries:
                     logger.warning(f"Rate limited by API (HTTP 429). Waiting {retry_after}s before retry {retry_count + 1}/{max_retries}")
                     time.sleep(retry_after)
@@ -141,9 +143,9 @@ def _make_api_request(
                     backoff_delay *= 2
                     continue
                 else:
-                    logger.error(f"Rate limited by API and max retries exceeded")
+                    logger.error("Rate limited by API and max retries exceeded")
                     return None
-            
+
             # Handle server errors (5xx) with retry
             if 500 <= response.status_code < 600:
                 if retry_count < max_retries:
@@ -155,10 +157,10 @@ def _make_api_request(
                 else:
                     logger.error(f"Server error {response.status_code} and max retries exceeded")
                     return response  # Return response so caller can handle the error
-            
+
             # Success or client error (4xx) - return response
             return response
-            
+
         except requests.exceptions.Timeout:
             if retry_count < max_retries:
                 logger.warning(f"Request timeout. Retrying in {backoff_delay}s ({retry_count + 1}/{max_retries})")
@@ -169,7 +171,7 @@ def _make_api_request(
             else:
                 logger.error(f"Request timeout and max retries exceeded for {url}")
                 return None
-                
+
         except requests.exceptions.ConnectionError as e:
             if retry_count < max_retries:
                 logger.warning(f"Connection error: {e}. Retrying in {backoff_delay}s ({retry_count + 1}/{max_retries})")
@@ -180,12 +182,13 @@ def _make_api_request(
             else:
                 logger.error(f"Connection error and max retries exceeded for {url}: {e}")
                 return None
-                
+
         except requests.exceptions.RequestException as e:
             logger.error(f"Request error for {url}: {e}")
             return None
-    
+
     return None
+
 
 def search_movie(
     title: str,
@@ -227,23 +230,23 @@ def search_movie(
     logger.info(f"Simkl API: Searching for movie by title: '{title}'...")
     params = {'q': title, 'extended': 'full'}
     response = _make_api_request('get', f'{SIMKL_API_BASE_URL}/search/movie', headers=headers, params=params)
-    
+
     if response and response.status_code == 200:
         results_json = response.json()
         logger.info(f"Simkl API: Found {len(results_json) if isinstance(results_json, list) else 'N/A'} movie results for '{title}'.")
 
         if isinstance(results_json, list) and results_json:
             movie_item = results_json[0]
-            
+
             # Ensure it's wrapped in {'movie': ...} structure
             if 'movie' not in movie_item:
                 logger.info(f"Simkl API: Reshaping movie search result for '{title}' into {{'movie': ...}} structure.")
                 movie_item = {'movie': movie_item}
-            
+
             # ID consistency check using helper function
             if 'movie' in movie_item and isinstance(movie_item.get('movie'), dict):
                 _normalize_simkl_ids(movie_item['movie'], "movie object", title)
-            
+
             logger.info(f"Simkl API: Found movie via title search: '{movie_item['movie'].get('title', title)}'")
             return movie_item
     elif response:
@@ -253,7 +256,7 @@ def search_movie(
     if file_path:
         logger.info(f"Simkl API: Trying file search for: '{file_path}'")
         file_result = search_file(file_path, client_id)
-        
+
         if file_result and file_result.get('type') == 'movie':
             movie_info = file_result.get('movie', {})
             if movie_info and movie_info.get('ids', {}).get('simkl'):
@@ -268,7 +271,7 @@ def search_movie(
     logger.info(f"Simkl API: Trying anime search for: '{title}'...")
     params = {'q': title, 'extended': 'full'}
     response = _make_api_request('get', f'{SIMKL_API_BASE_URL}/search/anime', headers=headers, params=params)
-    
+
     if response and response.status_code == 200:
         results_json = response.json()
         logger.info(f"Simkl API: Found {len(results_json) if isinstance(results_json, list) else 'N/A'} anime results for '{title}'.")
@@ -279,19 +282,20 @@ def search_movie(
                 if anime_item.get('type') == 'movie':
                     # Ensure proper ID handling for anime movies using helper function
                     _normalize_simkl_ids(anime_item, "anime movie", title)
-                    
+
                     # Wrap anime movie in the expected format
                     result = {'movie': anime_item}
                     simkl_id = anime_item.get('ids', {}).get('simkl') or anime_item.get('ids', {}).get('simkl_id')
                     logger.info(f"Simkl API: Found anime movie: '{anime_item.get('title', title)}' (ID: {simkl_id})")
                     return result
-            
+
             logger.info(f"Simkl API: No anime movies found in anime search results for '{title}'.")
     elif response:
         logger.warning(f"Simkl API: Anime search failed for '{title}'. Status: {response.status_code}")
 
     logger.info(f"Simkl API: No movie results found for '{title}' after all search methods.")
     return None
+
 
 def search_file(file_path: str, client_id: str, part: Optional[int] = None) -> Optional[Dict[str, Any]]:
     """
@@ -320,14 +324,14 @@ def search_file(file_path: str, client_id: str, part: Optional[int] = None) -> O
         'simkl-api-key': client_id,
         'User-Agent': USER_AGENT
     }
-    
+
     data = {'file': file_path}
     if part is not None:
         data['part'] = part
 
     logger.info(f"Simkl API: Searching by file: '{file_path}' (Part: {part if part else 'N/A'})...")
     response = _make_api_request('post', f'{SIMKL_API_BASE_URL}/search/file', headers=headers, json=data)
-    
+
     if response and response.status_code == 200:
         results = response.json()
         logger.info(f"Simkl API: File search successful for '{file_path}'.")
@@ -339,8 +343,9 @@ def search_file(file_path: str, client_id: str, part: Optional[int] = None) -> O
         except requests.exceptions.JSONDecodeError:
             error_details = response.text
         logger.error(f"Simkl API: File search failed for '{file_path}'. Status: {response.status_code}. Response: {error_details}")
-    
+
     return None
+
 
 def add_to_history(payload: Dict[str, Any], client_id: str, access_token: str) -> Optional[Dict[str, Any]]:
     """
@@ -379,12 +384,11 @@ def add_to_history(payload: Dict[str, Any], client_id: str, access_token: str) -
     elif 'shows' in payload and payload['shows']:
         item_description = f"show(s)/episode(s): {[s.get('ids', {}).get('simkl', 'N/A') for s in payload['shows']]}"
     elif 'episodes' in payload and payload['episodes']:
-         item_description = f"episode(s): {[e.get('ids', {}).get('simkl', 'N/A') for e in payload['episodes']]}"
-
+        item_description = f"episode(s): {[e.get('ids', {}).get('simkl', 'N/A') for e in payload['episodes']]}"
 
     logger.info(f"Simkl API: Adding {item_description} to history...")
     response = _make_api_request('post', f'{SIMKL_API_BASE_URL}/sync/history', headers=headers, json=payload)
-    
+
     if response and 200 <= response.status_code < 300:
         logger.info(f"Simkl API: Successfully added {item_description} to history.")
         try:
@@ -401,8 +405,9 @@ def add_to_history(payload: Dict[str, Any], client_id: str, access_token: str) -
         logger.error(f"Simkl API: Failed to add {item_description} to history. Status: {response.status_code}. Response: {error_details}")
     else:
         logger.info(f"Simkl API: Item(s) {item_description} will be added to backlog for future syncing.")
-    
+
     return None
+
 
 def get_movie_details(simkl_id: Union[int, str], client_id: str, access_token: str) -> Optional[Dict[str, Any]]:
     """
@@ -428,20 +433,20 @@ def get_movie_details(simkl_id: Union[int, str], client_id: str, access_token: s
     }
     headers = _add_user_agent(headers)
     params = {'extended': 'full'}
-    
+
     logger.info(f"Simkl API: Fetching details for movie ID {simkl_id}...")
     response = _make_api_request('get', f'{SIMKL_API_BASE_URL}/movies/{simkl_id}', headers=headers, params=params)
-    
+
     if response and response.status_code == 200:
         movie_details = response.json()
         if movie_details:
             title = movie_details.get('title', 'N/A')
             year = movie_details.get('year', 'N/A')
             runtime = movie_details.get('runtime', 'N/A')
-            
+
             # Ensure essential fields exist for watch history
             movie_details['simkl_id'] = simkl_id  # Add simkl_id explicitly for the history
-            
+
             # Get IMDb ID if available
             if 'ids' in movie_details:
                 imdb_id = movie_details['ids'].get('imdb')
@@ -449,14 +454,14 @@ def get_movie_details(simkl_id: Union[int, str], client_id: str, access_token: s
                     # Store IMDb ID directly in the movie_details for easy access
                     movie_details['imdb_id'] = imdb_id
                     logger.info(f"Simkl API: Retrieved IMDb ID: {imdb_id} for '{title}'")
-            
+
             # Get poster URL if available
             if 'poster' not in movie_details and 'images' in movie_details:
                 if movie_details['images'].get('poster'):
                     # Store only the poster ID, not the full URL
                     movie_details['poster'] = movie_details['images']['poster']
                     logger.info(f"Added poster ID for {title}")
-            
+
             # Ensure type is set for history filtering
             if 'type' not in movie_details:
                 movie_details['type'] = 'movie'
@@ -467,8 +472,9 @@ def get_movie_details(simkl_id: Union[int, str], client_id: str, access_token: s
         return movie_details
     elif response:
         logger.error(f"Simkl API: Error getting movie details for ID {simkl_id}: Status {response.status_code}")
-    
+
     return None
+
 
 def get_show_details(simkl_id: Union[int, str], client_id: str, access_token: str) -> Optional[Dict[str, Any]]:
     """
@@ -494,20 +500,20 @@ def get_show_details(simkl_id: Union[int, str], client_id: str, access_token: st
     }
     headers = _add_user_agent(headers)
     params = {'extended': 'full'}
-    
+
     logger.info(f"Simkl API: Fetching details for show/anime ID {simkl_id}...")
     response = _make_api_request('get', f'{SIMKL_API_BASE_URL}/tv/{simkl_id}', headers=headers, params=params)
-    
+
     if response and response.status_code == 200:
         show_details = response.json()
         if show_details:
             title = show_details.get('title', 'N/A')
             year = show_details.get('year', 'N/A')
             show_type = show_details.get('type', 'show')  # 'show' or 'anime'
-            
+
             # Ensure essential fields exist for watch history
             show_details['simkl_id'] = simkl_id  # Add simkl_id explicitly for the history
-            
+
             # Get IMDb ID if available
             if 'ids' in show_details:
                 imdb_id = show_details['ids'].get('imdb')
@@ -520,32 +526,33 @@ def get_show_details(simkl_id: Union[int, str], client_id: str, access_token: st
 
                 anilist_id = show_details['ids'].get('anilist')
                 if anilist_id:
-                    show_details['ids']['anilist'] = anilist_id # Ensure it's in the ids sub-dictionary
+                    show_details['ids']['anilist'] = anilist_id  # Ensure it's in the ids sub-dictionary
                     logger.info(f"Simkl API: Retrieved Anilist ID: {anilist_id} for '{title}'")
-            
+
             # Get poster URL if available
             if 'poster' not in show_details and 'images' in show_details:
                 if show_details['images'].get('poster'):
                     # Store only the poster ID, not the full URL
                     show_details['poster'] = show_details['images']['poster']
                     logger.info(f"Added poster ID for {title}")
-            
-            if 'poster' in show_details and not 'poster_url' in show_details:
+
+            if 'poster' in show_details and 'poster_url' not in show_details:
                 show_details['poster_url'] = show_details['poster']
-                
+
             # Ensure type is set for history filtering
             if 'type' not in show_details:
                 show_details['type'] = show_type
 
             logger.info(f"Simkl API: Retrieved details for {show_type} '{title}' ({year}).")
-            
+
             # Additional debug logging
             logger.debug(f"Show details for {title} (ID: {simkl_id}): {show_details}")
         return show_details
     elif response:
         logger.error(f"Simkl API: Error getting show details for ID {simkl_id}: Status {response.status_code}")
-    
+
     return None
+
 
 def get_user_settings(client_id: str, access_token: str) -> Optional[Dict[str, Any]]:
     """
@@ -573,18 +580,18 @@ def get_user_settings(client_id: str, access_token: str) -> Optional[Dict[str, A
         'Accept': 'application/json'
     }
     headers = _add_user_agent(headers)
-    
+
     # Try account endpoint first (most direct way to get user ID)
     account_url = f'{SIMKL_API_BASE_URL}/users/account'
     logger.info("Simkl API: Requesting user account information...")
     account_response = _make_api_request('get', account_url, headers=headers)
-    
+
     if account_response and account_response.status_code == 200:
         account_info = account_response.json()
         # Check if account_info is not None before accessing it
         if account_info is not None:
             user_id = account_info.get('id')
-            
+
             if user_id:
                 logger.info(f"Simkl API: Found User ID from account endpoint: {user_id}")
                 settings = {
@@ -592,36 +599,36 @@ def get_user_settings(client_id: str, access_token: str) -> Optional[Dict[str, A
                     'user': {'ids': {'simkl': user_id}},
                     'user_id': user_id
                 }
-                
+
                 # Save user ID to env file for future use
                 from simkl_mps.credentials import get_env_file_path
                 env_path = get_env_file_path()
                 _save_access_token(env_path, access_token, user_id)
-                
+
                 return settings
         else:
             logger.warning("Simkl API: Account info is None despite 200 status code")
     elif account_response:
         logger.warning(f"Simkl API: Account endpoint returned status code {account_response.status_code}")
-    
+
     # If account endpoint failed, try settings endpoint with simplified headers
     settings_url = f'{SIMKL_API_BASE_URL}/users/settings'
     logger.info("Simkl API: Requesting user settings information...")
     settings_response = _make_api_request('get', settings_url, headers=headers)
-    
+
     if settings_response and settings_response.status_code == 200:
         settings = settings_response.json()
         logger.info("Simkl API: User settings retrieved successfully.")
-        
+
         # Ensure required structures exist
         if 'user' not in settings:
             settings['user'] = {}
         if 'ids' not in settings['user']:
             settings['user']['ids'] = {}
-        
+
         # Extract user ID from various possible locations
         user_id = None
-        
+
         # Check common paths for user ID
         if 'user' in settings and 'ids' in settings['user'] and 'simkl' in settings['user']['ids']:
             user_id = settings['user']['ids']['simkl']
@@ -629,57 +636,57 @@ def get_user_settings(client_id: str, access_token: str) -> Optional[Dict[str, A
             user_id = settings['account']['id']
         elif 'id' in settings:
             user_id = settings['id']
-        
+
         # If no user ID found, search deeper
         if not user_id:
             for key, value in settings.items():
                 if isinstance(value, dict) and 'id' in value:
                     user_id = value['id']
                     break
-        
+
         # Store the user ID in consistent locations
         if user_id:
             settings['user_id'] = user_id
             settings['user']['ids']['simkl'] = user_id
             logger.info(f"Simkl API: Found User ID: {user_id}")
-            
+
             # Save user ID to env file for future use
             from simkl_mps.credentials import get_env_file_path
             env_path = get_env_file_path()
             _save_access_token(env_path, access_token, user_id)
         else:
             logger.warning("Simkl API: User ID not found in settings response")
-            
+
         return settings
     elif settings_response:
         logger.error(f"Simkl API: Error getting user settings: {settings_response.status_code} {settings_response.text}")
-    
+
     return None
+
 
 def pin_auth_flow(client_id: str, redirect_uri: str = "urn:ietf:wg:oauth:2.0:oob") -> Optional[str]:
     """
     Implements the OAuth 2.0 device authorization flow for Simkl authentication.
-    
+
     Args:
         client_id (str): Simkl API client ID
         redirect_uri (str, optional): OAuth redirect URI. Defaults to device flow URI.
-        
+
     Returns:
         str | None: The access token if authentication succeeds, None otherwise.
     """
     import time
     import requests
     import webbrowser
-    from pathlib import Path
     from simkl_mps.credentials import get_env_file_path
-    
+
     logger.info("Starting Simkl PIN authentication flow")
-    
+
     if not is_internet_connected():
         logger.error("Cannot start authentication flow: no internet connection")
         print("[ERROR] No internet connection detected. Please check your connection and try again.")
         return None
-    
+
     # Step 1: Request device code
     try:
         headers = _add_user_agent({"Content-Type": "application/json"})
@@ -695,22 +702,22 @@ def pin_auth_flow(client_id: str, redirect_uri: str = "urn:ietf:wg:oauth:2.0:oob
         logger.error(f"Failed to initiate PIN auth: {e}", exc_info=True)
         print("[ERROR] Could not contact Simkl for authentication. Please check your internet connection and try again.")
         return None
-    
+
     # Extract authentication parameters
     user_code = data["user_code"]
     verification_url = data["verification_url"]
     expires_in = data.get("expires_in", 900)  # Default to 15 minutes if not provided
     pin_url = f"https://simkl.com/pin/{user_code}"
     interval = data.get("interval", 5)  # Default poll interval of 5 seconds
-    
+
     # Display authentication instructions
     print("\n=== Simkl Authentication ===")
     print(f"1. We've opened your browser to: {pin_url}")
-    print(f"   (If it didn't open, copy and paste this URL into your browser.)")
+    print("   (If it didn't open, copy and paste this URL into your browser.)")
     print(f"2. Or go to: {verification_url} and enter the code: {user_code}")
     print(f"   (Code: {user_code})")
     print(f"   (You have {expires_in//60} minutes to complete authentication.)\n")
-    
+
     # Open browser for user convenience
     try:
         # Use https:// protocol explicitly to avoid unknown protocol errors
@@ -718,15 +725,15 @@ def pin_auth_flow(client_id: str, redirect_uri: str = "urn:ietf:wg:oauth:2.0:oob
     except Exception as e:
         logger.warning(f"Failed to open browser: {e}")
         # Continue anyway, as user can manually navigate
-    
+
     print("Waiting for you to authorize this application...")
-    
+
     # Step 2: Poll for access token with adaptive backoff
     start_time = time.time()
     poll_headers = _add_user_agent({"Content-Type": "application/json"})
     current_interval = interval
     timeout_warning_shown = False
-    
+
     while time.time() - start_time < expires_in:
         # Show a reminder halfway through the expiration time
         elapsed = time.time() - start_time
@@ -734,7 +741,7 @@ def pin_auth_flow(client_id: str, redirect_uri: str = "urn:ietf:wg:oauth:2.0:oob
             remaining_mins = int((expires_in - elapsed) / 60)
             print(f"\n[!] Reminder: You have about {remaining_mins} minutes left to complete authentication.")
             timeout_warning_shown = True
-        
+
         try:
             poll = requests.get(
                 f"{SIMKL_API_BASE_URL}/oauth/pin/{user_code}",
@@ -742,20 +749,20 @@ def pin_auth_flow(client_id: str, redirect_uri: str = "urn:ietf:wg:oauth:2.0:oob
                 headers=poll_headers,
                 timeout=10
             )
-            
+
             if poll.status_code != 200:
                 logger.warning(f"Pin verification returned status {poll.status_code}, retrying...")
                 time.sleep(current_interval)
                 continue
-                
+
             result = poll.json()
-            
+
             if result.get("result") == "OK":
                 access_token = result.get("access_token")
                 if access_token:
                     # Success! Save the token
                     print("\n[✓] Authentication successful!")
-                    
+
                     # Get the user ID before saving
                     user_id = None
                     try:
@@ -768,19 +775,19 @@ def pin_auth_flow(client_id: str, redirect_uri: str = "urn:ietf:wg:oauth:2.0:oob
                             'Accept': 'application/json'
                         }
                         auth_headers = _add_user_agent(auth_headers)
-                        
+
                         account_resp = requests.get(
-                            f"{SIMKL_API_BASE_URL}/users/account", 
+                            f"{SIMKL_API_BASE_URL}/users/account",
                             headers=auth_headers,
                             timeout=10
                         )
-                        
+
                         if account_resp.status_code == 200:
                             account_data = account_resp.json()
                             user_id = account_data.get('id')
                             logger.info(f"Retrieved user ID during authentication: {user_id}")
                             print(f"[✓] Found your Simkl user ID: {user_id}")
-                        
+
                         # If account endpoint failed, try settings
                         if not user_id:
                             settings = get_user_settings(client_id, access_token)
@@ -791,20 +798,20 @@ def pin_auth_flow(client_id: str, redirect_uri: str = "urn:ietf:wg:oauth:2.0:oob
                     except Exception as e:
                         logger.warning(f"Failed to retrieve user ID during authentication: {e}")
                         print("[!] Warning: Could not retrieve your Simkl user ID - some features may be limited.")
-                    
+
                     # Save token (and user ID if available) to .env file
                     env_path = get_env_file_path()
                     if not _save_access_token(env_path, access_token, user_id):
                         print("[!] Warning: Couldn't save credentials to file, but you can still use them for this session.")
                     else:
                         print(f"[✓] Credentials saved to: {env_path}\n")
-                    
+
                     # Important: After success, navigate the user back to Simkl main page to complete the experience
                     try:
                         webbrowser.open("https://simkl.com/")
                     except Exception as e:
                         logger.warning(f"Failed to open browser after authentication: {e}")
-                    
+
                     # Validate the token works
                     if _validate_access_token(client_id, access_token):
                         logger.info("Access token validated successfully")
@@ -813,7 +820,7 @@ def pin_auth_flow(client_id: str, redirect_uri: str = "urn:ietf:wg:oauth:2.0:oob
                         logger.error("Access token validation failed")
                         print("[ERROR] Authentication completed but token validation failed. Please try again.")
                         return None
-                        
+
             elif result.get("result") == "KO":
                 msg = result.get("message", "")
                 if msg == "Authorization pending":
@@ -830,47 +837,48 @@ def pin_auth_flow(client_id: str, redirect_uri: str = "urn:ietf:wg:oauth:2.0:oob
                     return None
             else:
                 time.sleep(current_interval)
-                
+
         except requests.exceptions.RequestException as e:
             logger.warning(f"Network error during polling: {e}")
             # Implement exponential backoff for connection issues
             current_interval = min(current_interval * 1.5, 20)
             time.sleep(current_interval)
-    
+
     print("[ERROR] Authentication timed out. Please try again.")
     return None
+
 
 def _save_access_token(env_path: Union[str, Any], access_token: str, user_id: Optional[Union[str, int]] = None) -> bool:
     """
     Helper function to save access token and user ID to .env file
-    
+
     Args:
         env_path (str|Path): Path to the .env file
         access_token (str): The Simkl access token to save
         user_id (str|int, optional): The Simkl user ID to save
-        
+
     Returns:
         bool: True if successful, False if an error occurred
     """
     try:
         from pathlib import Path
-        
+
         env_path = Path(env_path)
         env_dir = env_path.parent
-        
+
         # Create directory if it doesn't exist
         if not env_dir.exists():
             env_dir.mkdir(parents=True, exist_ok=True)
-        
+
         lines = []
         if env_path.exists():
             with open(env_path, "r", encoding="utf-8") as f:
                 lines = f.readlines()
-        
+
         # Update or add the access token
         token_found = False
         user_id_found = False
-        
+
         for i, line in enumerate(lines):
             if line.strip().startswith("SIMKL_ACCESS_TOKEN="):
                 lines[i] = f"SIMKL_ACCESS_TOKEN={access_token}\n"
@@ -878,24 +886,25 @@ def _save_access_token(env_path: Union[str, Any], access_token: str, user_id: Op
             elif line.strip().startswith("SIMKL_USER_ID=") and user_id is not None:
                 lines[i] = f"SIMKL_USER_ID={user_id}\n"
                 user_id_found = True
-        
+
         if not token_found:
             lines.append(f"SIMKL_ACCESS_TOKEN={access_token}\n")
-        
+
         if user_id is not None and not user_id_found:
             lines.append(f"SIMKL_USER_ID={user_id}\n")
-        
+
         with open(env_path, "w", encoding="utf-8") as f:
             f.writelines(lines)
-        
+
         logger.info(f"Saved credentials to {env_path}")
         if user_id is not None:
             logger.info(f"Saved user ID {user_id} to {env_path}")
-            
+
         return True
     except Exception as e:
         logger.error(f"Failed to save credentials: {e}", exc_info=True)
         return False
+
 
 def _validate_access_token(client_id: str, access_token: str) -> bool:
     """Verify the access token works by making a simple API call"""
@@ -906,8 +915,8 @@ def _validate_access_token(client_id: str, access_token: str) -> bool:
             'Authorization': f'Bearer {access_token}'
         }
         headers = _add_user_agent(headers)
-        
+
         response = _make_api_request('get', f'{SIMKL_API_BASE_URL}/users/settings', headers=headers)
         return response is not None and response.status_code == 200
-    except:
+    except Exception:
         return False
