@@ -77,7 +77,7 @@ jobs:
           fi
 
       - name: Install cosign
-        uses: sigstore/cosign-installer@v3.10.0
+        uses: sigstore/cosign-installer@v4.0.0
 
       - name: Sign Windows Installer with Cosign
         id: sign_installer
