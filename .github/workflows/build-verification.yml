@@ -40,7 +40,7 @@ jobs:
           cat build_info.json
 
       - name: Upload build info as artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: build-info
           path: build_info.json
