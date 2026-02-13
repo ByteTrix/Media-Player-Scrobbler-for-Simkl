@@ -525,6 +525,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#silent-automated-deployment" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Silent &amp; Automated Deployment
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#post-installation" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -804,6 +815,13 @@
 <li><strong>Auto-update system</strong>: Checks for updates weekly</li>
 <li><strong>Clean uninstallation</strong>: Properly removes all components</li>
 </ul>
+<h3 id="silent-automated-deployment">Silent &amp; Automated Deployment<a class="headerlink" href="#silent-automated-deployment" title="Permanent link">&para;</a></h3>
+<ul>
+<li>The installer now honors common enterprise parameters: use <code>/quiet</code>, <code>/silent</code>, <code>/s</code>, <code>/qn</code>, or <code>/passive</code> when automating deployments</li>
+<li>Each alias maps internally to Inno Setup's <code>/VERYSILENT /SUPPRESSMSGBOXES /NORESTART</code> flags, ensuring the Microsoft Store silent install check succeeds</li>
+<li>Combine additional switches such as <code>/LOG="C:\\temp\\mpss-install.log"</code> as needed; they will be preserved when silent aliases are used</li>
+<li>When running interactively, the traditional <code>/SILENT</code> or <code>/VERYSILENT</code> options continue to function unchanged</li>
+</ul>
 <h3 id="post-installation">Post-Installation<a class="headerlink" href="#post-installation" title="Permanent link">&para;</a></h3>
 <p>After installation completes:
 1. The application launches automatically
@@ -820,22 +838,58 @@
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>    A[System Tray Icon] --&gt;|Right-click| B[Context Menu]
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>    B --&gt; C[Status Information]
 <a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>    B --&gt; D[Start/Pause Tracking]
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>    B --&gt; E[Tools Submenu]
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>    E --&gt; E1[Open Logs]
-<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>    E --&gt; E2[Config Directory]
-<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>    E --&gt; E3[Process Backlog]
-<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>    B --&gt; F[Check for Updates]
-<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>    B --&gt; G[Help/About]
-<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>    B --&gt; H[Exit]
-<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>    style A fill:#4285f4,stroke:#333,stroke-width:2px,color:#fff
-<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>    style D fill:#34a853,stroke:#333,stroke-width:2px,color:#fff
-<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a>    style F fill:#fbbc05,stroke:#333,stroke-width:2px
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>    B --&gt; E[Scrobbling]
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>    E --&gt; E1[Retry Last Scrobble]
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>    E --&gt; E2[Sync Backlog Now]
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>    E --&gt; E3[Completion Threshold]
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>    E --&gt; E4[Open Local Watch History]
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>    B --&gt; E5[SIMKL]
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>    E5 --&gt; E5A[Authenticate/Re-auth]
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>    E5 --&gt; E5B[Open Website]
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>    E5 --&gt; E5C[Open Watch History]
+<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a>    B --&gt; F[Maintenance]
+<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a>    F --&gt; F1[Open Logs]
+<a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a>    F --&gt; F2[Open Data Folder]
+<a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a>    F --&gt; F3[Clear Backlog]
+<a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a>    F --&gt; F4[Clear Cache]
+<a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a>    F --&gt; F5[Clear Watch History]
+<a id="__codelineno-1-20" name="__codelineno-1-20" href="#__codelineno-1-20"></a>    F --&gt; F6[Clear Logs]
+<a id="__codelineno-1-21" name="__codelineno-1-21" href="#__codelineno-1-21"></a>    F --&gt; F7[Reset App Data]
+<a id="__codelineno-1-22" name="__codelineno-1-22" href="#__codelineno-1-22"></a>    B --&gt; G[More]
+<a id="__codelineno-1-23" name="__codelineno-1-23" href="#__codelineno-1-23"></a>    G --&gt; G1[Donate ❤️]
+<a id="__codelineno-1-24" name="__codelineno-1-24" href="#__codelineno-1-24"></a>    G --&gt; G2[Check for Updates]
+<a id="__codelineno-1-25" name="__codelineno-1-25" href="#__codelineno-1-25"></a>    G --&gt; G3[Help]
+<a id="__codelineno-1-26" name="__codelineno-1-26" href="#__codelineno-1-26"></a>    G --&gt; G4[About]
+<a id="__codelineno-1-27" name="__codelineno-1-27" href="#__codelineno-1-27"></a>    B --&gt; H[Exit]
+<a id="__codelineno-1-28" name="__codelineno-1-28" href="#__codelineno-1-28"></a>    style A fill:#4285f4,stroke:#333,stroke-width:2px,color:#fff
+<a id="__codelineno-1-29" name="__codelineno-1-29" href="#__codelineno-1-29"></a>    style D fill:#34a853,stroke:#333,stroke-width:2px,color:#fff
+<a id="__codelineno-1-30" name="__codelineno-1-30" href="#__codelineno-1-30"></a>    style F fill:#fbbc05,stroke:#333,stroke-width:2px
 </code></pre></div>
 <ul>
 <li><strong>Status information</strong>: Current monitoring state and connection status</li>
-<li><strong>Start/Pause Tracking</strong>: Toggle monitoring</li>
-<li><strong>Tools</strong>: Access to logs, configuration, and backlog management</li>
-<li><strong>Check for Updates</strong>: Manually check for and install updates</li>
+<li><strong>Start/Pause Tracking</strong>: Pause or resume tracking on demand</li>
+<li><strong>Scrobbling</strong>: Recovery and threshold controls</li>
+<li><strong>Retry Last Scrobble</strong>: Clears cache for the active file and attempts to re-identify and scrobble it. Use when the wrong title/episode appears.</li>
+<li><strong>Sync Backlog Now</strong>: Immediately processes any offline scrobbles waiting in backlog.</li>
+<li><strong>Completion Threshold</strong>: Quickly switch between preset watch thresholds (65%, 80%, 90%) or define a custom percentage.</li>
+<li><strong>Open Local Watch History</strong>: Open the local watch history viewer in your web browser.</li>
+<li><strong>SIMKL</strong>: Account and service management</li>
+<li><strong>Authenticate / Re-authenticate</strong>: Launch the Simkl login flow if you are signing in for the first time or need to refresh an expired token.</li>
+<li><strong>Open Website</strong>: Visit the SIMKL website.</li>
+<li><strong>Open Watch History</strong>: View your watch history on SIMKL.</li>
+<li><strong>Maintenance</strong>: Logs, data, and cache management</li>
+<li><strong>Open Logs</strong>: Jump straight to app diagnostics from the tray.</li>
+<li><strong>Open Data Folder</strong>: Open the application data directory.</li>
+<li><strong>Clear Backlog</strong>: Deletes pending offline scrobbles to stop repeated sync prompts.</li>
+<li><strong>Clear Cache</strong>: Removes local media cache data while keeping logs and settings intact.</li>
+<li><strong>Clear Watch History</strong>: Removes the local <code>watch_history.json</code> file and viewer data without touching your SIMKL account.</li>
+<li><strong>Clear Logs</strong>: Truncates application and playback logs so you can capture a fresh session before debugging.</li>
+<li><strong>Reset App Data (Danger)</strong>: Performs a full reset—use only when you want a clean re-authentication; the app exits afterward.</li>
+<li><strong>More</strong>: Additional utilities</li>
+<li><strong>Donate ❤️</strong>: Support the project.</li>
+<li><strong>Check for Updates</strong>: Check if a newer version is available.</li>
+<li><strong>Help</strong>: Open help documentation.</li>
+<li><strong>About</strong>: View application information.</li>
 <li><strong>Exit</strong>: Close the application</li>
 </ul>
 <h3 id="windows-auto-start">Windows Auto-Start<a class="headerlink" href="#windows-auto-start" title="Permanent link">&para;</a></h3>
@@ -919,14 +973,14 @@
 <h3 id="checking-logs-on-windows">Checking Logs on Windows<a class="headerlink" href="#checking-logs-on-windows" title="Permanent link">&para;</a></h3>
 <ol>
 <li>Right-click the system tray icon</li>
-<li>Select <strong>Tools → Open Logs</strong></li>
+<li>Select <strong>Maintenance → Open Logs</strong></li>
 <li>The log file opens in your default text editor</li>
 </ol>
 <h3 id="running-with-debug-logging">Running with Debug Logging<a class="headerlink" href="#running-with-debug-logging" title="Permanent link">&para;</a></h3>
 <p>For advanced troubleshooting:
 1. Open Command Prompt or PowerShell
 2. Navigate to the installation directory
-3. Run: <code>simkl-mps.exe --debug</code></p>
+3. Run: <code>simkl-mps tray --debug</code></p>
 <h2 id="uninstallation">📲 Uninstallation<a class="headerlink" href="#uninstallation" title="Permanent link">&para;</a></h2>
 <p>To remove the application from your Windows system:</p>
 <ol>
@@ -967,7 +1021,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="August 15, 2025 17:02:19 UTC">August 15, 2025</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="February 13, 2026 12:23:16 UTC">February 13, 2026</span>
   </span>
 
     

@@ -513,17 +513,6 @@
   
 </li>
         
-          <li class="md-nav__item">
-  <a href="#installation-process" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Installation Process
-      
-    </span>
-  </a>
-  
-</li>
-        
       </ul>
     </nav>
   
@@ -926,46 +915,90 @@
 <p>Before installing, ensure you have the necessary system dependencies based on your distribution:</p>
 <p><strong>For Ubuntu/Debian:</strong>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>sudo<span class="w"> </span>apt<span class="w"> </span>install<span class="w"> </span>pipx<span class="w"> </span>python3-tk<span class="w"> </span>python3-pip<span class="w"> </span>python3-dev<span class="w"> </span>python3-setuptools<span class="w"> </span>wmctrl<span class="w"> </span>xdotool<span class="w"> </span>python3-gi<span class="w"> </span>python3-gi-cairo<span class="w"> </span>gir1.2-gtk-3.0<span class="w"> </span>libgirepository1.0-dev<span class="w"> </span>libcairo2-dev<span class="w"> </span>pkg-config<span class="w"> </span>libnotify-bin<span class="w"> </span>python3-venv<span class="w"> </span>gir1.2-appindicator3-0.1<span class="w"> </span>gnome-shell-extension-appindicator
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="sb">```</span>mermaid
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>flowchart<span class="w"> </span>TD
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">   </span>A<span class="o">[</span>System<span class="w"> </span>Tray<span class="w"> </span>Icon<span class="o">]</span><span class="w"> </span>--&gt;<span class="p">|</span>Right-click<span class="p">|</span><span class="w"> </span>B<span class="o">[</span>Context<span class="w"> </span>Menu<span class="o">]</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="w">   </span>B<span class="w"> </span>--&gt;<span class="w"> </span>C<span class="o">[</span>Status<span class="w"> </span>Information<span class="o">]</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="w">   </span>B<span class="w"> </span>--&gt;<span class="w"> </span>D<span class="o">[</span>Start/Pause<span class="w"> </span>Tracking<span class="o">]</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="w">   </span>B<span class="w"> </span>--&gt;<span class="w"> </span>E<span class="o">[</span>Scrobbling<span class="o">]</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="w">   </span>E<span class="w"> </span>--&gt;<span class="w"> </span>E1<span class="o">[</span>Retry<span class="w"> </span>Last<span class="w"> </span>Scrobble<span class="o">]</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="w">   </span>E<span class="w"> </span>--&gt;<span class="w"> </span>E2<span class="o">[</span>Sync<span class="w"> </span>Backlog<span class="w"> </span>Now<span class="o">]</span>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="w">   </span>E<span class="w"> </span>--&gt;<span class="w"> </span>E3<span class="o">[</span>Completion<span class="w"> </span>Threshold<span class="o">]</span>
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="w">   </span>E<span class="w"> </span>--&gt;<span class="w"> </span>E4<span class="o">[</span>Open<span class="w"> </span>Local<span class="w"> </span>Watch<span class="w"> </span>History<span class="o">]</span>
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="w">   </span>B<span class="w"> </span>--&gt;<span class="w"> </span>E5<span class="o">[</span>SIMKL<span class="o">]</span>
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="w">   </span>E5<span class="w"> </span>--&gt;<span class="w"> </span>E5A<span class="o">[</span>Authenticate/Re-auth<span class="o">]</span>
+<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="w">   </span>E5<span class="w"> </span>--&gt;<span class="w"> </span>E5B<span class="o">[</span>Open<span class="w"> </span>Website<span class="o">]</span>
+<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="w">   </span>E5<span class="w"> </span>--&gt;<span class="w"> </span>E5C<span class="o">[</span>Open<span class="w"> </span>Watch<span class="w"> </span>History<span class="o">]</span>
+<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a><span class="w">   </span>B<span class="w"> </span>--&gt;<span class="w"> </span>F<span class="o">[</span>Maintenance<span class="o">]</span>
+<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a><span class="w">   </span>F<span class="w"> </span>--&gt;<span class="w"> </span>F1<span class="o">[</span>Open<span class="w"> </span>Logs<span class="o">]</span>
+<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a><span class="w">   </span>F<span class="w"> </span>--&gt;<span class="w"> </span>F2<span class="o">[</span>Open<span class="w"> </span>Data<span class="w"> </span>Folder<span class="o">]</span>
+<a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a><span class="w">   </span>F<span class="w"> </span>--&gt;<span class="w"> </span>F3<span class="o">[</span>Clear<span class="w"> </span>Backlog<span class="o">]</span>
+<a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a><span class="w">   </span>F<span class="w"> </span>--&gt;<span class="w"> </span>F4<span class="o">[</span>Clear<span class="w"> </span>Cache<span class="o">]</span>
+<a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a><span class="w">   </span>F<span class="w"> </span>--&gt;<span class="w"> </span>F5<span class="o">[</span>Clear<span class="w"> </span>Watch<span class="w"> </span>History<span class="o">]</span>
+<a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a><span class="w">   </span>F<span class="w"> </span>--&gt;<span class="w"> </span>F6<span class="o">[</span>Clear<span class="w"> </span>Logs<span class="o">]</span>
+<a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a><span class="w">   </span>F<span class="w"> </span>--&gt;<span class="w"> </span>F7<span class="o">[</span>Reset<span class="w"> </span>App<span class="w"> </span>Data<span class="o">]</span>
+<a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a><span class="w">   </span>B<span class="w"> </span>--&gt;<span class="w"> </span>G<span class="o">[</span>More<span class="o">]</span>
+<a id="__codelineno-0-26" name="__codelineno-0-26" href="#__codelineno-0-26"></a><span class="w">   </span>G<span class="w"> </span>--&gt;<span class="w"> </span>G1<span class="o">[</span>Donate<span class="w"> </span>❤️<span class="o">]</span>
+<a id="__codelineno-0-27" name="__codelineno-0-27" href="#__codelineno-0-27"></a><span class="w">   </span>G<span class="w"> </span>--&gt;<span class="w"> </span>G2<span class="o">[</span>Check<span class="w"> </span><span class="k">for</span><span class="w"> </span>Updates<span class="o">]</span>
+<a id="__codelineno-0-28" name="__codelineno-0-28" href="#__codelineno-0-28"></a><span class="w">   </span>G<span class="w"> </span>--&gt;<span class="w"> </span>G3<span class="o">[</span>Help<span class="o">]</span>
+<a id="__codelineno-0-29" name="__codelineno-0-29" href="#__codelineno-0-29"></a><span class="w">   </span>G<span class="w"> </span>--&gt;<span class="w"> </span>G4<span class="o">[</span>About<span class="o">]</span>
+<a id="__codelineno-0-30" name="__codelineno-0-30" href="#__codelineno-0-30"></a><span class="w">   </span>B<span class="w"> </span>--&gt;<span class="w"> </span>H<span class="o">[</span>Exit<span class="o">]</span>
+<a id="__codelineno-0-31" name="__codelineno-0-31" href="#__codelineno-0-31"></a><span class="w">   </span>style<span class="w"> </span>A<span class="w"> </span>fill:#4285f4,stroke:#333,stroke-width:2px,color:#fff
+<a id="__codelineno-0-32" name="__codelineno-0-32" href="#__codelineno-0-32"></a><span class="w">   </span>style<span class="w"> </span>D<span class="w"> </span>fill:#34a853,stroke:#333,stroke-width:2px,color:#fff
+<a id="__codelineno-0-33" name="__codelineno-0-33" href="#__codelineno-0-33"></a><span class="w">   </span>style<span class="w"> </span>F<span class="w"> </span>fill:#fbbc05,stroke:#333,stroke-width:2px,color:#fff
 </code></pre></div></p>
-<p><strong>For Fedora/RHEL/CentOS:</strong>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>sudo<span class="w"> </span>dnf<span class="w"> </span>install<span class="w"> </span>pipx<span class="w"> </span>python3-tk<span class="w"> </span>python3-pip<span class="w"> </span>python3-devel<span class="w"> </span>gobject-introspection-devel<span class="w"> </span>cairo-devel<span class="w"> </span>pkg-config<span class="w"> </span>python3-gobject<span class="w"> </span>gtk3<span class="w"> </span>wmctrl<span class="w"> </span>xdotool<span class="w"> </span>libnotify
+<ul>
+<li><strong>Status information</strong>: Current monitoring state and connection status</li>
+<li><strong>Start/Pause Tracking</strong>: Pause or resume tracking on demand</li>
+<li><strong>Scrobbling</strong>: Recovery and threshold controls</li>
+<li><strong>Retry Last Scrobble</strong>: Clears cache for the active file and attempts to re-identify and scrobble it. Use when the wrong title/episode appears.</li>
+<li><strong>Sync Backlog Now</strong>: Immediately processes any offline scrobbles waiting in backlog.</li>
+<li><strong>Completion Threshold</strong>: Quickly switch between preset watch thresholds (65%, 80%, 90%) or define a custom percentage.</li>
+<li><strong>Open Local Watch History</strong>: Open the local watch history viewer in your web browser.</li>
+<li><strong>SIMKL</strong>: Account and service management</li>
+<li><strong>Authenticate / Re-authenticate</strong>: Launch the Simkl login flow if you are signing in for the first time or need to refresh an expired token.</li>
+<li><strong>Open Website</strong>: Visit the SIMKL website.</li>
+<li><strong>Open Watch History</strong>: View your watch history on SIMKL.</li>
+<li><strong>Maintenance</strong>: Logs, data, and cache management</li>
+<li><strong>Open Logs</strong>: Jump straight to app diagnostics from the tray.</li>
+<li><strong>Open Data Folder</strong>: Open the application data directory.</li>
+<li><strong>Clear Backlog</strong>: Deletes pending offline scrobbles to stop repeated sync prompts.</li>
+<li><strong>Clear Cache</strong>: Removes local media cache data while keeping logs and settings intact.</li>
+<li><strong>Clear Watch History</strong>: Removes the local <code>watch_history.json</code> file and viewer data without touching your SIMKL account.</li>
+<li><strong>Clear Logs</strong>: Truncates application and playback logs so you can capture a fresh session before debugging.</li>
+<li><strong>Reset App Data (Danger)</strong>: Performs a full reset—use only when you want a clean re-authentication; the app exits afterward.</li>
+<li><strong>More</strong>: Additional utilities</li>
+<li><strong>Donate ❤️</strong>: Support the project.</li>
+<li><strong>Check for Updates</strong>: Check if a newer version is available.</li>
+<li><strong>Help</strong>: Open help documentation.</li>
+<li><strong>About</strong>: View application information.</li>
+<li>
+<p><strong>Exit</strong>: Close the application</p>
+</li>
+<li>
+<p>Install the application using pipx (recommended for better isolation):
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># Install pipx if not already installed</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>python3<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>--user<span class="w"> </span>pipx
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>python3<span class="w"> </span>-m<span class="w"> </span>pipx<span class="w"> </span>ensurepath
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="c1"># Install simkl-mps with Linux extras</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>pipx<span class="w"> </span>install<span class="w"> </span>--system-site-packages<span class="w"> </span><span class="s2">&quot;simkl-mps[linux]&quot;</span>
 </code></pre></div></p>
-<p><strong>For Arch Linux:</strong>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>sudo<span class="w"> </span>pacman<span class="w"> </span>-S<span class="w"> </span>pipx<span class="w"> </span>python3-tk<span class="w"> </span>python-pip<span class="w"> </span>python-setuptools<span class="w"> </span>python-gobject<span class="w"> </span>gtk3<span class="w"> </span>gobject-introspection<span class="w"> </span>cairo<span class="w"> </span>pkg-config<span class="w"> </span>wmctrl<span class="w"> </span>xdotool<span class="w"> </span>libnotify
-</code></pre></div></p>
-<h3 id="installation-process">Installation Process<a class="headerlink" href="#installation-process" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>flowchart TD
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>    A[Install Dependencies] --&gt; B[Install via pipx]
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>    B --&gt; C[Initialize Application]
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>    C --&gt; D[Authenticate with Simkl]
-<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>    D --&gt; E[Configure Media Players]
-<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>    E --&gt; F[Setup Autostart]
-<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>    style A fill:#4285f4,stroke:#333,stroke-width:2px,color:#fff
-<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>    style D fill:#34a853,stroke:#333,stroke-width:2px,color:#fff
-<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>    style F fill:#fbbc05,stroke:#333,stroke-width:2px,color:#fff
-</code></pre></div>
-<ol>
-<li>Install the application using pipx (recommended for better isolation):
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># Install pipx if not already installed</span>
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>python3<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>--user<span class="w"> </span>pipx
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>python3<span class="w"> </span>-m<span class="w"> </span>pipx<span class="w"> </span>ensurepath
-<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>
-<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="c1"># Install simkl-mps with Linux extras</span>
-<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>pipx<span class="w"> </span>install<span class="w"> </span>--system-site-packages<span class="w"> </span><span class="s2">&quot;simkl-mps[linux]&quot;</span>
-</code></pre></div></li>
-</ol>
+</li>
+</ul>
 <p>Alternatively, use pip directly:
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>pip<span class="w"> </span>install<span class="w"> </span>--user<span class="w"> </span><span class="s2">&quot;simkl-mps[linux]&quot;</span>
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>pip<span class="w"> </span>install<span class="w"> </span>--user<span class="w"> </span><span class="s2">&quot;simkl-mps[linux]&quot;</span>
 </code></pre></div></p>
 <ol>
 <li>
 <p>Initialize the application:
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>simkl-mps<span class="w"> </span>init
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>simkl-mps<span class="w"> </span>init
 </code></pre></div></p>
 </li>
 <li>
 <p>Start the application:
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>simkl-mps<span class="w"> </span>start
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>simkl-mps<span class="w"> </span>start
 </code></pre></div></p>
 </li>
 </ol>
@@ -976,11 +1009,11 @@
 <ol>
 <li>
 <p>Ensure you have the AppIndicator extension installed:
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="c1"># For Ubuntu/Debian</span>
-<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>sudo<span class="w"> </span>apt<span class="w"> </span>install<span class="w"> </span>gnome-shell-extension-appindicator
-<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>
-<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="c1"># For Fedora</span>
-<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>sudo<span class="w"> </span>dnf<span class="w"> </span>install<span class="w"> </span>gnome-shell-extension-appindicator
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># For Ubuntu/Debian</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>sudo<span class="w"> </span>apt<span class="w"> </span>install<span class="w"> </span>gnome-shell-extension-appindicator
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="c1"># For Fedora</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>sudo<span class="w"> </span>dnf<span class="w"> </span>install<span class="w"> </span>gnome-shell-extension-appindicator
 </code></pre></div></p>
 </li>
 <li>
@@ -1000,7 +1033,7 @@
 </li>
 <li>
 <p>Run the diagnostic script to check tray compatibility:
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>python3<span class="w"> </span>-m<span class="w"> </span>simkl_mps.utils.linux_tray_diagnostics
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>python3<span class="w"> </span>-m<span class="w"> </span>simkl_mps.utils.linux_tray_diagnostics
 </code></pre></div></p>
 </li>
 </ol>
@@ -1020,7 +1053,7 @@
 </ol>
 <h3 id="running-in-foreground-mode">Running in Foreground Mode<a class="headerlink" href="#running-in-foreground-mode" title="Permanent link">&para;</a></h3>
 <p>If you're troubleshooting or want to see logs in real-time:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>simkl-mps<span class="w"> </span>tray
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>simkl-mps<span class="w"> </span>tray
 </code></pre></div>
 <p>This will run the application attached to the terminal, displaying all logs. Press Ctrl+C to exit.</p>
 <h2 id="setting-up-autostart">🚀 Setting Up Autostart<a class="headerlink" href="#setting-up-autostart" title="Permanent link">&para;</a></h2>
@@ -1029,23 +1062,23 @@
 <ol>
 <li>
 <p>Create a desktop entry file:
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>mkdir<span class="w"> </span>-p<span class="w"> </span>~/.config/autostart
-<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>cat<span class="w"> </span>&gt;<span class="w"> </span>~/.config/autostart/simkl-mps.desktop<span class="w"> </span><span class="s">&lt;&lt; EOF</span>
-<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="s">[Desktop Entry]</span>
-<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="s">Type=Application</span>
-<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="s">Name=Media Player Scrobbler for SIMKL</span>
-<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a><span class="s">Exec=simkl-mps start</span>
-<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a><span class="s">Icon=media-player</span>
-<a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a><span class="s">Comment=Automatically track media playback and scrobble to SIMKL</span>
-<a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a><span class="s">Categories=Utility;</span>
-<a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a><span class="s">Terminal=false</span>
-<a id="__codelineno-11-11" name="__codelineno-11-11" href="#__codelineno-11-11"></a><span class="s">StartupNotify=false</span>
-<a id="__codelineno-11-12" name="__codelineno-11-12" href="#__codelineno-11-12"></a><span class="s">EOF</span>
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>mkdir<span class="w"> </span>-p<span class="w"> </span>~/.config/autostart
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>cat<span class="w"> </span>&gt;<span class="w"> </span>~/.config/autostart/simkl-mps.desktop<span class="w"> </span><span class="s">&lt;&lt; EOF</span>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="s">[Desktop Entry]</span>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="s">Type=Application</span>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="s">Name=Media Player Scrobbler for SIMKL</span>
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="s">Exec=simkl-mps start</span>
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="s">Icon=media-player</span>
+<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="s">Comment=Automatically track media playback and scrobble to SIMKL</span>
+<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a><span class="s">Categories=Utility;</span>
+<a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a><span class="s">Terminal=false</span>
+<a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a><span class="s">StartupNotify=false</span>
+<a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a><span class="s">EOF</span>
 </code></pre></div></p>
 </li>
 <li>
 <p>Make it executable:
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>chmod<span class="w"> </span>+x<span class="w"> </span>~/.config/autostart/simkl-mps.desktop
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>chmod<span class="w"> </span>+x<span class="w"> </span>~/.config/autostart/simkl-mps.desktop
 </code></pre></div></p>
 </li>
 </ol>
@@ -1090,8 +1123,8 @@
 <h3 id="mpv-media-player-recommended-for-linux">MPV Media Player (Recommended for Linux)<a class="headerlink" href="#mpv-media-player-recommended-for-linux" title="Permanent link">&para;</a></h3>
 <p><strong>Configuration Steps:</strong>
 1. Create or edit the MPV configuration file:
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>mkdir<span class="w"> </span>-p<span class="w"> </span>~/.config/mpv
-<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="nb">echo</span><span class="w"> </span><span class="s1">&#39;input-ipc-server=/tmp/mpvsocket&#39;</span><span class="w"> </span>&gt;&gt;<span class="w"> </span>~/.config/mpv/mpv.conf
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>mkdir<span class="w"> </span>-p<span class="w"> </span>~/.config/mpv
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="nb">echo</span><span class="w"> </span><span class="s1">&#39;input-ipc-server=/tmp/mpvsocket&#39;</span><span class="w"> </span>&gt;&gt;<span class="w"> </span>~/.config/mpv/mpv.conf
 </code></pre></div>
 2. Save and restart MPV</p>
 <h3 id="celluloid-gnome-mpv">Celluloid (GNOME MPV)<a class="headerlink" href="#celluloid-gnome-mpv" title="Permanent link">&para;</a></h3>
@@ -1105,28 +1138,62 @@
 <h2 id="linux-system-integration">🖥️ Linux System Integration<a class="headerlink" href="#linux-system-integration" title="Permanent link">&para;</a></h2>
 <h3 id="system-tray-features">System Tray Features<a class="headerlink" href="#system-tray-features" title="Permanent link">&para;</a></h3>
 <p>Right-click the system tray icon to access:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>flowchart TD
-<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>    A[System Tray Icon] --&gt;|Right-click| B[Context Menu]
-<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>    B --&gt; C[Status Information]
-<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a>    B --&gt; D[Start/Pause Tracking]
-<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a>    B --&gt; E[Tools Submenu]
-<a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a>    B --&gt; F[Online Services]
-<a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a>    E --&gt; E1[Open Logs]
-<a id="__codelineno-14-8" name="__codelineno-14-8" href="#__codelineno-14-8"></a>    E --&gt; E2[Config Directory]
-<a id="__codelineno-14-9" name="__codelineno-14-9" href="#__codelineno-14-9"></a>    E --&gt; E3[Process Backlog]
-<a id="__codelineno-14-10" name="__codelineno-14-10" href="#__codelineno-14-10"></a>    F --&gt; F1[Simkl Website]
-<a id="__codelineno-14-11" name="__codelineno-14-11" href="#__codelineno-14-11"></a>    F --&gt; F2[Watch History]
-<a id="__codelineno-14-12" name="__codelineno-14-12" href="#__codelineno-14-12"></a>    B --&gt; G[Check for Updates]
-<a id="__codelineno-14-13" name="__codelineno-14-13" href="#__codelineno-14-13"></a>    B --&gt; H[Help/About]
-<a id="__codelineno-14-14" name="__codelineno-14-14" href="#__codelineno-14-14"></a>    B --&gt; I[Exit]
-<a id="__codelineno-14-15" name="__codelineno-14-15" href="#__codelineno-14-15"></a>    style A fill:#4285f4,stroke:#333,stroke-width:2px,color:#fff
-<a id="__codelineno-14-16" name="__codelineno-14-16" href="#__codelineno-14-16"></a>    style D fill:#34a853,stroke:#333,stroke-width:2px,color:#fff
-<a id="__codelineno-14-17" name="__codelineno-14-17" href="#__codelineno-14-17"></a>    style F fill:#fbbc05,stroke:#333,stroke-width:2px
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>flowchart TD
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>   A[System Tray Icon] --&gt;|Right-click| B[Context Menu]
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>   B --&gt; C[Status Information]
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>   B --&gt; D[Start/Pause Tracking]
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>   B --&gt; E[Scrobbling]
+<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>   E --&gt; E1[Retry Last Scrobble]
+<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a>   E --&gt; E2[Sync Backlog Now]
+<a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a>   E --&gt; E3[Completion Threshold]
+<a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a>   E --&gt; E4[Open Local Watch History]
+<a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a>   B --&gt; E5[SIMKL]
+<a id="__codelineno-11-11" name="__codelineno-11-11" href="#__codelineno-11-11"></a>   E5 --&gt; E5A[Authenticate/Re-auth]
+<a id="__codelineno-11-12" name="__codelineno-11-12" href="#__codelineno-11-12"></a>   E5 --&gt; E5B[Open Website]
+<a id="__codelineno-11-13" name="__codelineno-11-13" href="#__codelineno-11-13"></a>   E5 --&gt; E5C[Open Watch History]
+<a id="__codelineno-11-14" name="__codelineno-11-14" href="#__codelineno-11-14"></a>   B --&gt; F[Maintenance]
+<a id="__codelineno-11-15" name="__codelineno-11-15" href="#__codelineno-11-15"></a>   F --&gt; F1[Open Logs]
+<a id="__codelineno-11-16" name="__codelineno-11-16" href="#__codelineno-11-16"></a>   F --&gt; F2[Open Data Folder]
+<a id="__codelineno-11-17" name="__codelineno-11-17" href="#__codelineno-11-17"></a>   F --&gt; F3[Clear Backlog]
+<a id="__codelineno-11-18" name="__codelineno-11-18" href="#__codelineno-11-18"></a>   F --&gt; F4[Clear Cache]
+<a id="__codelineno-11-19" name="__codelineno-11-19" href="#__codelineno-11-19"></a>   F --&gt; F5[Clear Watch History]
+<a id="__codelineno-11-20" name="__codelineno-11-20" href="#__codelineno-11-20"></a>   F --&gt; F6[Clear Logs]
+<a id="__codelineno-11-21" name="__codelineno-11-21" href="#__codelineno-11-21"></a>   F --&gt; F7[Reset App Data]
+<a id="__codelineno-11-22" name="__codelineno-11-22" href="#__codelineno-11-22"></a>   B --&gt; G[More]
+<a id="__codelineno-11-23" name="__codelineno-11-23" href="#__codelineno-11-23"></a>   G --&gt; G1[Donate ❤️]
+<a id="__codelineno-11-24" name="__codelineno-11-24" href="#__codelineno-11-24"></a>   G --&gt; G2[Check for Updates]
+<a id="__codelineno-11-25" name="__codelineno-11-25" href="#__codelineno-11-25"></a>   G --&gt; G3[Help]
+<a id="__codelineno-11-26" name="__codelineno-11-26" href="#__codelineno-11-26"></a>   G --&gt; G4[About]
+<a id="__codelineno-11-27" name="__codelineno-11-27" href="#__codelineno-11-27"></a>   B --&gt; H[Exit]
+<a id="__codelineno-11-28" name="__codelineno-11-28" href="#__codelineno-11-28"></a>   style A fill:#4285f4,stroke:#333,stroke-width:2px,color:#fff
+<a id="__codelineno-11-29" name="__codelineno-11-29" href="#__codelineno-11-29"></a>   style D fill:#34a853,stroke:#333,stroke-width:2px,color:#fff
+<a id="__codelineno-11-30" name="__codelineno-11-30" href="#__codelineno-11-30"></a>   style F fill:#fbbc05,stroke:#333,stroke-width:2px,color:#fff
 </code></pre></div>
 <ul>
 <li><strong>Status information</strong>: Current monitoring state and connection status</li>
-<li><strong>Start/Pause Tracking</strong>: Toggle monitoring</li>
-<li><strong>Tools</strong>: Access to logs, configuration, and backlog management</li>
+<li><strong>Start/Pause Tracking</strong>: Pause or resume tracking on demand</li>
+<li><strong>Scrobbling</strong>: Recovery and threshold controls</li>
+<li><strong>Retry Last Scrobble</strong>: Clears cache for the active file and attempts to re-identify and scrobble it. Use when the wrong title/episode appears.</li>
+<li><strong>Sync Backlog Now</strong>: Immediately processes any offline scrobbles waiting in backlog.</li>
+<li><strong>Completion Threshold</strong>: Quickly switch between preset watch thresholds (65%, 80%, 90%) or define a custom percentage.</li>
+<li><strong>Open Local Watch History</strong>: Open the local watch history viewer in your web browser.</li>
+<li><strong>SIMKL</strong>: Account and service management</li>
+<li><strong>Authenticate / Re-authenticate</strong>: Launch the Simkl login flow if you are signing in for the first time or need to refresh an expired token.</li>
+<li><strong>Open Website</strong>: Visit the SIMKL website.</li>
+<li><strong>Open Watch History</strong>: View your watch history on SIMKL.</li>
+<li><strong>Maintenance</strong>: Logs, data, and cache management</li>
+<li><strong>Open Logs</strong>: Jump straight to app diagnostics from the tray.</li>
+<li><strong>Open Data Folder</strong>: Open the application data directory.</li>
+<li><strong>Clear Backlog</strong>: Delete pending offline scrobbles to stop repeated sync prompts.</li>
+<li><strong>Clear Cache</strong>: Remove media cache data while keeping logs and settings intact.</li>
+<li><strong>Clear Watch History</strong>: Remove the local <code>watch_history.json</code> file and viewer data without touching your SIMKL account.</li>
+<li><strong>Clear Logs</strong>: Truncate application and playback logs to capture a fresh session for debugging.</li>
+<li><strong>Reset App Data (Danger)</strong>: Perform a full reset—use only when you want a clean re-authentication; the app will exit afterward.</li>
+<li><strong>More</strong>: Additional utilities</li>
+<li><strong>Donate ❤️</strong>: Support the project.</li>
+<li><strong>Check for Updates</strong>: Check if a newer version is available.</li>
+<li><strong>Help</strong>: Open help documentation.</li>
+<li><strong>About</strong>: View application information.</li>
 <li><strong>Exit</strong>: Close the application</li>
 </ul>
 <h3 id="linux-specific-file-locations">Linux-Specific File Locations<a class="headerlink" href="#linux-specific-file-locations" title="Permanent link">&para;</a></h3>
@@ -1137,11 +1204,11 @@
 </ul>
 <h2 id="updates">🔄 Updates<a class="headerlink" href="#updates" title="Permanent link">&para;</a></h2>
 <p>To update your installation:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="c1"># If installed with pipx</span>
-<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>pipx<span class="w"> </span>upgrade<span class="w"> </span>simkl-mps
-<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>
-<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a><span class="c1"># If installed with pip</span>
-<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a>pip<span class="w"> </span>install<span class="w"> </span>--upgrade<span class="w"> </span>--user<span class="w"> </span><span class="s2">&quot;simkl-mps[linux]&quot;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="c1"># If installed with pipx</span>
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>pipx<span class="w"> </span>upgrade<span class="w"> </span>simkl-mps
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="c1"># If installed with pip</span>
+<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>pip<span class="w"> </span>install<span class="w"> </span>--upgrade<span class="w"> </span>--user<span class="w"> </span><span class="s2">&quot;simkl-mps[linux]&quot;</span>
 </code></pre></div>
 <h2 id="optimizing-for-linux">🚀 Optimizing for Linux<a class="headerlink" href="#optimizing-for-linux" title="Permanent link">&para;</a></h2>
 <h3 id="performance-tips">Performance Tips<a class="headerlink" href="#performance-tips" title="Permanent link">&para;</a></h3>
@@ -1201,22 +1268,22 @@
 <ol>
 <li>
 <p>View logs in real-time with:
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>tail<span class="w"> </span>-f<span class="w"> </span>~/.local/share/kavin/simkl-mps/simkl_mps.log
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>tail<span class="w"> </span>-f<span class="w"> </span>~/.local/share/kavin/simkl-mps/simkl_mps.log
 </code></pre></div></p>
 </li>
 <li>
 <p>Or open in your text editor:
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>xdg-open<span class="w"> </span>~/.local/share/kavin/simkl-mps/simkl_mps.log
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>xdg-open<span class="w"> </span>~/.local/share/kavin/simkl-mps/simkl_mps.log
 </code></pre></div></p>
 </li>
 </ol>
 <h3 id="running-with-debug-logging">Running with Debug Logging<a class="headerlink" href="#running-with-debug-logging" title="Permanent link">&para;</a></h3>
 <p>For advanced troubleshooting:
-<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>simkl-mps<span class="w"> </span>tray<span class="w"> </span>--debug
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>simkl-mps<span class="w"> </span>tray<span class="w"> </span>--debug
 </code></pre></div></p>
 <h3 id="diagnostics-script">Diagnostics Script<a class="headerlink" href="#diagnostics-script" title="Permanent link">&para;</a></h3>
 <p>Run the built-in diagnostics script to check your environment:
-<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>python3<span class="w"> </span>-m<span class="w"> </span>simkl_mps.utils.linux_tray_diagnostics
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>python3<span class="w"> </span>-m<span class="w"> </span>simkl_mps.utils.linux_tray_diagnostics
 </code></pre></div></p>
 <h2 id="final-checklist-for-linux-users">🔔 Final Checklist for Linux Users<a class="headerlink" href="#final-checklist-for-linux-users" title="Permanent link">&para;</a></h2>
 <ol>
@@ -1251,7 +1318,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="August 15, 2025 16:21:09 UTC">August 15, 2025</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="February 13, 2026 12:23:16 UTC">February 13, 2026</span>
   </span>
 
     
