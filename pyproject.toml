@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "simkl-mps"
-version = "2.2.2"
+version = "2.3.0"
 description = "Automatic Media Scrobbler for Simkl"
 authors = [
     "kavin <kavinthangavel.dev@gmail.com>",
