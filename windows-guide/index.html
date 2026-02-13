@@ -663,17 +663,6 @@
   
 </li>
         
-          <li class="md-nav__item">
-  <a href="#resource-usage" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Resource Usage
-      
-    </span>
-  </a>
-  
-</li>
-        
       </ul>
     </nav>
   
@@ -772,10 +761,7 @@
 
 
 <h1 id="windows-installation-configuration-guide">🪟 Windows Installation &amp; Configuration Guide<a class="headerlink" href="#windows-installation-configuration-guide" title="Permanent link">&para;</a></h1>
-<p>This comprehensive guide provides detailed instructions specifically for Windows users of Media Player Scrobbler for Simkl, focusing on the Windows installer, system integration, and media player configuration.</p>
-<blockquote>
-<p><strong>Important Note</strong>: Currently, the application supports <strong>movie tracking only</strong>. TV show tracking is planned for future updates.</p>
-</blockquote>
+<p>This guide covers install, setup, and daily usage for Windows users.</p>
 <h2 id="windows-installer">📥 Windows Installer<a class="headerlink" href="#windows-installer" title="Permanent link">&para;</a></h2>
 <p>The Windows installer provides the most streamlined experience with automatic updates and system integration.</p>
 <h3 id="download-and-installation-process">Download and Installation Process<a class="headerlink" href="#download-and-installation-process" title="Permanent link">&para;</a></h3>
@@ -787,7 +773,7 @@
 <a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    E --&gt; F[Configure Settings]
 <a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    F --&gt; G[Complete Installation]
 <a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    G --&gt; H[Launch Application]
-<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    H --&gt; I[Authenticate with Simkl]
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    H --&gt; I[Authenticate with SIMKL]
 <a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    I --&gt; J[Configure Media Players]
 <a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    style A fill:#4285f4,stroke:#333,stroke-width:2px,color:#fff
 <a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>    style G fill:#34a853,stroke:#333,stroke-width:2px,color:#fff
@@ -825,11 +811,11 @@
 <h3 id="post-installation">Post-Installation<a class="headerlink" href="#post-installation" title="Permanent link">&para;</a></h3>
 <p>After installation completes:
 1. The application launches automatically
-2. Authenticate with your Simkl account when prompted
+2. Authenticate with your SIMKL account when prompted
 3. A system tray icon appears in the notification area
 4. <strong>CRITICAL STEP</strong>: Configure your media players for optimal tracking (see below)</p>
 <h2 id="media-player-configuration-on-windows-recommended">⚙️ Media Player Configuration on Windows (recommended)<a class="headerlink" href="#media-player-configuration-on-windows-recommended" title="Permanent link">&para;</a></h2>
-<p>For the best movie tracking experience, configure your preferred media players:
+<p>For the best tracking experience, configure your preferred media players:
 <a href="../media-players/">Media Players</a></p>
 <h2 id="windows-system-integration">🖥️ Windows System Integration<a class="headerlink" href="#windows-system-integration" title="Permanent link">&para;</a></h2>
 <h3 id="system-tray-features">System Tray Features<a class="headerlink" href="#system-tray-features" title="Permanent link">&para;</a></h3>
@@ -874,7 +860,7 @@
 <li><strong>Completion Threshold</strong>: Quickly switch between preset watch thresholds (65%, 80%, 90%) or define a custom percentage.</li>
 <li><strong>Open Local Watch History</strong>: Open the local watch history viewer in your web browser.</li>
 <li><strong>SIMKL</strong>: Account and service management</li>
-<li><strong>Authenticate / Re-authenticate</strong>: Launch the Simkl login flow if you are signing in for the first time or need to refresh an expired token.</li>
+<li><strong>Authenticate / Re-authenticate</strong>: Launch the SIMKL login flow if you are signing in for the first time or need to refresh an expired token.</li>
 <li><strong>Open Website</strong>: Visit the SIMKL website.</li>
 <li><strong>Open Watch History</strong>: View your watch history on SIMKL.</li>
 <li><strong>Maintenance</strong>: Logs, data, and cache management</li>
@@ -893,11 +879,11 @@
 <li><strong>Exit</strong>: Close the application</li>
 </ul>
 <h3 id="windows-auto-start">Windows Auto-Start<a class="headerlink" href="#windows-auto-start" title="Permanent link">&para;</a></h3>
-<p>If you selected auto-start during installation, the application will launch automatically when you log in to Windows. To change this setting:</p>
+<p>If you selected auto-start during installation, the app launches when you sign in.</p>
+<p>To change startup behavior later:</p>
 <ol>
-<li>Right-click the system tray icon</li>
-<li>Select <strong>Settings</strong></li>
-<li>Toggle the <strong>Launch on startup</strong> option</li>
+<li>Open <strong>Task Manager → Startup apps</strong> (or <strong>Settings → Apps → Startup</strong>)</li>
+<li>Enable or disable <strong>MPS for SIMKL</strong></li>
 </ol>
 <h3 id="windows-specific-file-locations">Windows-Specific File Locations<a class="headerlink" href="#windows-specific-file-locations" title="Permanent link">&para;</a></h3>
 <ul>
@@ -923,17 +909,10 @@
 <li>Enable <strong>auto-start</strong> for convenience</li>
 <li>Configure <strong>VLC</strong> or <strong>MCP-HC</strong> for the most accurate tracking</li>
 <li>Use the <strong>system tray menu</strong> for quick access to functions</li>
-<li><strong>Proper filenames</strong> significantly improve movie identification:</li>
+<li><strong>Proper filenames</strong> significantly improve media identification:</li>
 <li>Best format: <code>Movie Title (Year).extension</code></li>
 <li>Example: <code>Inception (2010).mkv</code></li>
 </ol>
-<h3 id="resource-usage">Resource Usage<a class="headerlink" href="#resource-usage" title="Permanent link">&para;</a></h3>
-<ul>
-<li><strong>Memory</strong>: 30-60 MB (typical)</li>
-<li><strong>CPU</strong>: Minimal (1-2% during active tracking)</li>
-<li><strong>Disk</strong>: ~20 MB for installation + small database (~1 MB)</li>
-<li><strong>Network</strong>: Only when syncing with Simkl</li>
-</ul>
 <h2 id="windows-troubleshooting">🔍 Windows Troubleshooting<a class="headerlink" href="#windows-troubleshooting" title="Permanent link">&para;</a></h2>
 <h3 id="common-issues">Common Issues<a class="headerlink" href="#common-issues" title="Permanent link">&para;</a></h3>
 <table>
@@ -995,9 +974,9 @@
 <li>✅ Install using the Windows installer</li>
 <li>✅ Enable auto-start for convenience</li>
 <li>✅ Configure your media players (critical step!)</li>
-<li>✅ Use proper filenames for your movies</li>
-<li>✅ Play a movie and verify it's detected and tracked</li>
-<li>✅ Check your Simkl profile to confirm movies are marked as watched</li>
+<li>✅ Use clear filenames for your media</li>
+<li>✅ Play media and verify it is detected and tracked</li>
+<li>✅ Check your SIMKL profile to confirm progress is synced</li>
 </ol>
 
 
@@ -1021,7 +1000,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="February 13, 2026 12:23:16 UTC">February 13, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="February 13, 2026 14:25:53 UTC">February 13, 2026</span>
   </span>
 
     
