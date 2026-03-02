@@ -37,7 +37,7 @@ jobs:
         run: poetry version ${{ inputs.version }}
 
       - name: Download build-info artifact
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: build-info
           path: build-info
@@ -124,14 +124,14 @@ jobs:
           echo "Created hash file at $tempFilePath"
 
       - name: Upload SHA256 Hash Artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: sha256-hash # Name of the artifact
           path: ${{ steps.create_hash_file.outputs.hash_file_path }} # Path from previous step
           retention-days: 1 # Keep artifact for 1 day
 
       - name: Upload Windows artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: windows-installer
           path: artifacts/
