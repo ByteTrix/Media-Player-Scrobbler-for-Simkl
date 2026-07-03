@@ -597,6 +597,37 @@ body.dark-mode .media-card:hover {
     font-size: 0.75rem;
 }
 
+.remove-history-btn.card-remove {
+    position: absolute;
+    right: 10px;
+    bottom: 10px;
+    z-index: 4;
+    width: 34px;
+    height: 34px;
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    border-radius: 999px;
+    background: rgba(17, 24, 39, 0.78);
+    color: white;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    transition: transform var(--transition-fast), background-color var(--transition-fast), opacity var(--transition-fast);
+}
+
+.remove-history-btn.card-remove:hover,
+.remove-history-btn.card-remove:focus {
+    background: var(--simkl-red);
+    transform: translateY(-1px);
+}
+
+.remove-history-btn.card-remove i {
+    font-size: 1rem;
+}
+
 /* Media Info Section */
 .media-info {
     padding: 1rem; /* Adjusted padding */
@@ -1420,6 +1451,15 @@ body.dark-mode .expanded-actions .action-btn.play-media:hover:not(:disabled) {
 body.dark-mode .expanded-actions .action-btn.secondary:hover:not(:disabled) {
     color: var(--text-primary-dark);
     background-color: var(--gray-600); /* Slightly darker hover */
+}
+
+.expanded-actions .action-btn.danger {
+    color: var(--simkl-red);
+}
+
+.expanded-actions .action-btn.danger:hover:not(:disabled) {
+    color: white;
+    background-color: var(--simkl-red);
 }
 
 .expanded-actions .action-btn:disabled {
