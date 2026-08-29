@@ -27,6 +27,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // State
     let historyData = [];
     let historyCountsMap = new Map(); // key -> { watchCount, rewatchCount }
+    let removedHistoryKeys = new Set();
     let activeMediaCard = null;
     let currentView = localStorage.getItem('simkl_history_view') || 'grid';
     let currentTheme = localStorage.getItem('simkl_history_theme') || 'dark'; // Default to dark
@@ -85,7 +86,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             if (typeof HISTORY_DATA !== 'undefined') {
-                historyData = HISTORY_DATA;
+                removedHistoryKeys = loadRemovedHistoryKeys();
+                historyData = HISTORY_DATA.filter(item => !isHistoryItemRemoved(item));
                
                 processHistoryData();
                 loadingIndicator.style.display = 'none';
@@ -125,6 +127,48 @@ document.addEventListener('DOMContentLoaded', () => {
         return item.simkl_id ? String(item.simkl_id) : `${item.title || ''}::${item.year || ''}`;
     }
 
+    function normalizeHistoryType(type) {
+        return type === 'show' ? 'tv' : (type || 'movie');
+    }
+
+    function getRemovalKey(item) {
+        const type = normalizeHistoryType(item.type);
+        return `${type}::${getHistoryKey(item)}`;
+    }
+
+    function isSeriesItem(item) {
+        const type = normalizeHistoryType(item.type);
+        return type === 'tv' || type === 'anime';
+    }
+
+    function escapeAttribute(value) {
+        return String(value ?? '').replace(/[&<>"']/g, char => ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#39;'
+        }[char]));
+    }
+
+    function loadRemovedHistoryKeys() {
+        try {
+            const stored = JSON.parse(localStorage.getItem('simkl_removed_history_items') || '[]');
+            return new Set(Array.isArray(stored) ? stored.filter(Boolean) : []);
+        } catch (e) {
+            console.warn('Could not load removed history items:', e);
+            return new Set();
+        }
+    }
+
+    function saveRemovedHistoryKeys() {
+        localStorage.setItem('simkl_removed_history_items', JSON.stringify(Array.from(removedHistoryKeys)));
+    }
+
+    function isHistoryItemRemoved(item) {
+        return removedHistoryKeys.has(getRemovalKey(item));
+    }
+
     function toPositiveInteger(value) {
         const parsed = Number(value);
         return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
@@ -152,29 +196,73 @@ document.addEventListener('DOMContentLoaded', () => {
         return 1;
     }
 
+    function getEpisodeWatchCount(episode) {
+        const storedCount = toPositiveInteger(episode.watch_count);
+        if (storedCount !== null) return storedCount;
+
+        if (Array.isArray(episode.watch_events) && episode.watch_events.length > 0) {
+            return episode.watch_events.length;
+        }
+
+        return 1;
+    }
+
+    function getEpisodeRewatchCount(episode) {
+        const storedCount = toNonNegativeInteger(episode.rewatch_count);
+        if (storedCount !== null) return storedCount;
+
+        return Math.max(0, getEpisodeWatchCount(episode) - 1);
+    }
+
+    function getEpisodeKey(season, episode) {
+        const episodeNumber = toPositiveInteger(episode);
+        if (episodeNumber === null) return null;
+
+        const seasonNumber = toNonNegativeInteger(season) ?? 0;
+        return `${seasonNumber}:${episodeNumber}`;
+    }
+
+    function addEpisodeWatchCount(counts, key, watchCount) {
+        if (!key) return;
+        counts.episodeWatchCounts.set(key, (counts.episodeWatchCounts.get(key) || 0) + watchCount);
+    }
+
+    function addSeriesEpisodeCounts(counts, item) {
+        if (Array.isArray(item.episodes) && item.episodes.length > 0) {
+            item.episodes.forEach(ep => {
+                const explicitEpisodeRewatch = toNonNegativeInteger(ep.rewatch_count);
+                if (explicitEpisodeRewatch !== null) {
+                    counts.rewatchCount += explicitEpisodeRewatch;
+                    counts.hasExplicitRewatchCount = true;
+                    return;
+                }
+
+                addEpisodeWatchCount(
+                    counts,
+                    getEpisodeKey(ep.season, ep.number ?? ep.episode),
+                    getEpisodeWatchCount(ep)
+                );
+            });
+            return;
+        }
+
+        addEpisodeWatchCount(
+            counts,
+            getEpisodeKey(item.season, item.episode ?? item.number),
+            getItemWatchCount(item)
+        );
+    }
+
     function getItemRewatchCount(item) {
         const storedCount = toNonNegativeInteger(item.rewatch_count);
         if (storedCount !== null) return storedCount;
 
         if (Array.isArray(item.episodes)) {
-            let episodeRewatches = 0;
-            let hasEpisodeCounts = false;
-            item.episodes.forEach(ep => {
-                const epRewatchCount = toNonNegativeInteger(ep.rewatch_count);
-                if (epRewatchCount !== null) {
-                    episodeRewatches += epRewatchCount;
-                    hasEpisodeCounts = true;
-                    return;
-                }
+            return item.episodes.reduce((sum, ep) => sum + getEpisodeRewatchCount(ep), 0);
+        }
 
-                const epWatchCount = toPositiveInteger(ep.watch_count);
-                if (epWatchCount !== null) {
-                    episodeRewatches += Math.max(0, epWatchCount - 1);
-                    hasEpisodeCounts = true;
-                }
-            });
-
-            if (hasEpisodeCounts) return episodeRewatches;
+        if (isSeriesItem(item)) {
+            return 0;
         }
 
         return Math.max(0, getItemWatchCount(item) - 1);
@@ -204,19 +292,40 @@ document.addEventListener('DOMContentLoaded', () => {
             const existing = historyCountsMap.get(key) || {
                 watchCount: 0,
                 rewatchCount: 0,
-                hasExplicitRewatchCount: false
+                hasExplicitRewatchCount: false,
+                isSeries: false,
+                episodeWatchCounts: new Map()
             };
 
             existing.watchCount += getItemWatchCount(h);
-            existing.rewatchCount += getItemRewatchCount(h);
-            existing.hasExplicitRewatchCount = existing.hasExplicitRewatchCount || hasExplicitRewatchCount(h);
+            existing.isSeries = existing.isSeries || isSeriesItem(h);
+
+            if (isSeriesItem(h)) {
+                const explicitShowRewatch = toNonNegativeInteger(h.rewatch_count);
+                if (explicitShowRewatch !== null) {
+                    existing.rewatchCount += explicitShowRewatch;
+                    existing.hasExplicitRewatchCount = true;
+                } else {
+                    addSeriesEpisodeCounts(existing, h);
+                }
+            } else {
+                existing.rewatchCount += getItemRewatchCount(h);
+                existing.hasExplicitRewatchCount = existing.hasExplicitRewatchCount || hasExplicitRewatchCount(h);
+            }
+
             historyCountsMap.set(key, existing);
         });
 
         historyCountsMap.forEach(counts => {
-            if (!counts.hasExplicitRewatchCount) {
+            if (counts.isSeries) {
+                counts.episodeWatchCounts.forEach(watchCount => {
+                    counts.rewatchCount += Math.max(0, watchCount - 1);
+                });
+            } else if (!counts.hasExplicitRewatchCount) {
                 counts.rewatchCount = Math.max(counts.rewatchCount, counts.watchCount - 1);
             }
+
+            delete counts.episodeWatchCounts;
         });
     }
 
@@ -823,7 +932,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         let filtered = historyData.filter(item => {
             // Type filter
-            if (typeFilter !== 'all' && item.type !== typeFilter) return false;
+            if (typeFilter !== 'all' && normalizeHistoryType(item.type) !== typeFilter) return false;
             // Year filter
             if (yearFilter !== 'all' && item.year !== parseInt(yearFilter)) return false;
             // Rewatch filter
@@ -904,6 +1013,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const card = document.createElement('div');
         card.className = 'media-card';
         card.dataset.itemId = item.simkl_id || `${item.title}-${item.year}`; // Unique ID for lookup
+        card.dataset.removeKey = getRemovalKey(item);
 
         // Determine the base image URL (Simkl or Placeholder)
         let baseImageUrl;
@@ -941,7 +1051,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         const counts = getHistoryCounts(item);
         const rewatchBadgeHtml = counts.rewatchCount > 0
-            ? `<span class="rewatch-badge" title="Watched ${counts.watchCount} times, ${counts.rewatchCount} rewatch${counts.rewatchCount === 1 ? '' : 'es'}">↻${counts.watchCount}</span>`
+            ? `<span class="rewatch-badge" title="${counts.rewatchCount} rewatch${counts.rewatchCount === 1 ? '' : 'es'} across ${counts.watchCount} watch${counts.watchCount === 1 ? '' : 'es'}">↻${counts.rewatchCount}</span>`
             : '';
 
         card.innerHTML = `
@@ -949,6 +1059,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 <img class="poster-img" src="${proxiedPosterUrl}" alt="${item.title || 'Poster'}" loading="lazy">
                 ${rewatchBadgeHtml}
                 <span class="media-type"><i class="${mediaIcon}"></i> ${mediaType}</span>
+                <button class="remove-history-btn card-remove" title="Remove from history" aria-label="Remove ${escapeAttribute(item.title || 'item')} from history">
+                    <i class="ph-duotone ph-trash"></i>
+                </button>
             </div>
             <div class="media-info">
                 <h3 class="media-title" title="${item.title || ''} ${year}">${item.title || 'No Title'} ${year}</h3>
@@ -1053,6 +1166,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Handle card clicks to show detailed view
     historyContainer.addEventListener('click', (e) => {
+        const removeButton = e.target.closest('.remove-history-btn');
+        if (removeButton) {
+            const card = removeButton.closest('.media-card');
+            if (!card) return;
+
+            const item = getHistoryItemByCard(card);
+            if (item) removeHistoryItem(item);
+            return;
+        }
+
         const card = e.target.closest('.media-card');
         if (!card || card.classList.contains('expanded')) return;
 
@@ -1061,6 +1184,45 @@ document.addEventListener('DOMContentLoaded', () => {
 
         expandMediaCard(card);
     });
+
+    function getHistoryItemByCard(card) {
+        const removeKey = card.dataset.removeKey;
+        if (removeKey) {
+            const itemByRemoveKey = historyData.find(i => getRemovalKey(i) === removeKey);
+            if (itemByRemoveKey) return itemByRemoveKey;
+        }
+
+        const itemId = card.dataset.itemId;
+        return historyData.find(i => (i.simkl_id && i.simkl_id == itemId) || (!i.simkl_id && `${i.title}-${i.year}` === itemId));
+    }
+
+    function removeHistoryItem(item) {
+        const title = item.title || 'this item';
+        const mediaType = isSeriesItem(item) ? 'series' : 'movie';
+        const confirmed = window.confirm(`Remove "${title}" from local watch history?`);
+        if (!confirmed) return;
+
+        const removeKey = getRemovalKey(item);
+        removedHistoryKeys.add(removeKey);
+        saveRemovedHistoryKeys();
+
+        historyData = historyData.filter(historyItem => getRemovalKey(historyItem) !== removeKey);
+
+        if (activeMediaCard) {
+            if (modalBackdrop) {
+                modalBackdrop.classList.remove('active');
+                modalBackdrop.style.display = 'none';
+            }
+            document.body.style.overflow = '';
+            activeMediaCard = null;
+            isCardTransitioning = false;
+        }
+
+        processHistoryData();
+        currentPage = 1;
+        renderHistory();
+        console.info(`Removed ${mediaType} from watch history view: ${title}`);
+    }
 
     // Close expanded card when clicking backdrop or pressing Escape
     modalBackdrop.addEventListener('click', (e) => { if (e.target === modalBackdrop) closeExpandedCard(); });
@@ -1075,7 +1237,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const itemId = card.dataset.itemId;
         // Find the item data using a more robust method if IDs aren't always present
-        const item = historyData.find(i => (i.simkl_id && i.simkl_id == itemId) || (!i.simkl_id && `${i.title}-${i.year}` === itemId));
+        const item = getHistoryItemByCard(card);
 
         if (!item) {
             console.error("Could not find item data for card:", itemId);
@@ -1258,6 +1420,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const playMediaBtn = expandedContentWrapper.querySelector('.play-media');
         const openFolderBtn = expandedContentWrapper.querySelector('.open-folder');
         const searchOnlineBtn = expandedContentWrapper.querySelector('#search-online');
+        const removeHistoryBtn = expandedContentWrapper.querySelector('.remove-history');
 
         if (itemData.file_path) {
             if (playMediaBtn) playMediaBtn.addEventListener('click', () => window.open(`file:///${itemData.file_path}`, '_blank'));
@@ -1284,6 +1447,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (searchOnlineBtn && itemData.title) {
             const searchQuery = `${itemData.title} ${itemData.year || ''} watch online`;
             searchOnlineBtn.href = `https://www.google.com/search?q=${encodeURIComponent(searchQuery)}`;
+        }
+
+        if (removeHistoryBtn) {
+            removeHistoryBtn.addEventListener('click', () => removeHistoryItem(itemData));
         }
 
         // Append the populated template's content INTO our new root

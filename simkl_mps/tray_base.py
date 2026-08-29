@@ -1549,6 +1549,9 @@ class TrayAppBase(abc.ABC): # Inherit from ABC for abstract methods
             
             logger.info(f"Re-identifying currently playing media: '{current_title}' (filepath: '{current_filepath}')")
             self.show_notification("simkl-mps", f"Attempting to re-identify '{current_title}'...")
+
+            if current_filepath and hasattr(actual_scrobbler, "clear_file_search_rate_limit"):
+                actual_scrobbler.clear_file_search_rate_limit(current_filepath)
                     
             # Determine cache keys to clear
             cache_keys_to_clear = []
