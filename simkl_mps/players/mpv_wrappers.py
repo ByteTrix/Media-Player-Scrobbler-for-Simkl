@@ -88,15 +88,26 @@ def with_custom_ipc_path(func):
     Temporarily sets the custom IPC path if needed, calls the original method,
     then restores the original path.
     """
+    import inspect
+    sig = inspect.signature(func)
+
     @wraps(func)
-    def wrapper(self, process_name=None, *args, **kwargs):
+    def wrapper(self, *args, **kwargs):
+        process_name = kwargs.get('process_name')
         if not process_name:
-            return func(self, process_name, *args, **kwargs)
+            try:
+                bound = sig.bind_partial(self, *args, **kwargs)
+                process_name = bound.arguments.get('process_name')
+            except Exception:
+                process_name = None
+
+        if not process_name or not isinstance(process_name, str):
+            return func(self, *args, **kwargs)
         
         # Check for custom IPC path for this process
         custom_ipc_path = self._get_custom_ipc_path(process_name)
         if not custom_ipc_path:
-            return func(self, process_name, *args, **kwargs)
+            return func(self, *args, **kwargs)
         
         # Get wrapper info for logging
         wrapper_exe, wrapper_name, _ = self.get_wrapper_info(process_name)
@@ -506,3 +517,32 @@ class MPVWrapperIntegration:
             bool or None: True if paused, False if playing, None if unknown
         """
         return self.mpv_integration.is_paused()
+
+    @with_custom_ipc_path
+    def seek_absolute(self, seconds, process_name=None):
+        """
+        Seek to an absolute timestamp in seconds in the MPV wrapper.
+        
+        Args:
+            seconds (float): Target position in seconds
+            process_name (str, optional): The process name to check for a custom IPC path
+            
+        Returns:
+            bool: True if command was sent successfully, False otherwise
+        """
+        return self.mpv_integration.seek_absolute(seconds)
+
+    @with_custom_ipc_path
+    def show_osd(self, text, duration_ms=3500, process_name=None):
+        """
+        Display an OSD message in the MPV wrapper.
+        
+        Args:
+            text (str): Message to display
+            duration_ms (int, optional): Duration in milliseconds (default: 3500)
+            process_name (str, optional): The process name to check for a custom IPC path
+            
+        Returns:
+            bool: True if command was sent successfully, False otherwise
+        """
+        return self.mpv_integration.show_osd(text, duration_ms=duration_ms)

@@ -35,12 +35,17 @@ APP_DATA_DIR = initialize_paths()
 
 # Default settings
 DEFAULT_THRESHOLD = 80
+DEFAULT_MIN_REWATCH_WATCH_SECONDS = 180
 DEFAULT_SETTINGS = {
     "watch_completion_threshold": DEFAULT_THRESHOLD,
     "user_subdir": DEFAULT_USER_SUBDIR,
     "auto_sync_interval": 120,  # Auto sync backlog every 2 minutes by default
     "disable_notifications": False,  # Show all notifications by default
     "allow_rewatch": False,
+    "min_rewatch_watch_seconds": DEFAULT_MIN_REWATCH_WATCH_SECONDS,
+    "enable_realtime_scrobble": True,
+    "enable_playback_resume": True,
+    "resume_start_tolerance_seconds": 30,
     "allow_dirs": [],
     "deny_dirs": []
 }
@@ -182,6 +187,16 @@ def load_settings():
         settings['watch_completion_threshold'] = DEFAULT_THRESHOLD
         settings_updated = True
 
+    # Validate min_rewatch_watch_seconds
+    try:
+        current_rewatch_secs = int(settings.get('min_rewatch_watch_seconds', DEFAULT_MIN_REWATCH_WATCH_SECONDS))
+        if current_rewatch_secs < 0:
+            settings['min_rewatch_watch_seconds'] = DEFAULT_MIN_REWATCH_WATCH_SECONDS
+            settings_updated = True
+    except (ValueError, TypeError):
+        settings['min_rewatch_watch_seconds'] = DEFAULT_MIN_REWATCH_WATCH_SECONDS
+        settings_updated = True
+
     # Sanitize allow/deny directory lists
     for key in ("allow_dirs", "deny_dirs"):
         sanitized = _sanitize_dir_list(settings.get(key))
@@ -244,6 +259,17 @@ def set_setting(key, value):
         except (ValueError, TypeError):
              log.error(f"Attempted to set non-integer watch_completion_threshold: {value}.")
              return # Do not save invalid value
+
+    if key == 'min_rewatch_watch_seconds':
+        try:
+            int_value = int(value)
+            if int_value < 0:
+                log.error(f"Attempted to set invalid min_rewatch_watch_seconds: {value}. Must be >= 0.")
+                return
+            value = int_value
+        except (ValueError, TypeError):
+            log.error(f"Attempted to set non-integer min_rewatch_watch_seconds: {value}.")
+            return
 
     if key in ('allow_dirs', 'deny_dirs'):
         value = _sanitize_dir_list(value)

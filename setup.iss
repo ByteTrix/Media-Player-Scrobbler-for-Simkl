@@ -85,7 +85,7 @@ Source: "dist\MPSS.exe"; DestDir: "{app}"; Flags: ignoreversion signonce
 ; Tray executable
 Source: "dist\MPS for Simkl.exe"; DestDir: "{app}"; Flags: ignoreversion signonce
 ; All other files (DLLs, data, etc.)
-Source: "dist\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "dist\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "installer,installer\*"
 ; Include updater script directly
 Source: "simkl_mps\utils\updater.ps1"; DestDir: "{app}"; Flags: ignoreversion
 ; Create version file to help with About dialog

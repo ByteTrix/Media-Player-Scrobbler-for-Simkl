@@ -35,10 +35,14 @@ if PLATFORM == 'windows':
         psutil = None
         logger.warning("PotPlayer integration requires pywin32 and psutil on Windows")
 
-# PotPlayer Windows Message constants
-PPM_GET_PLAYBACK_STATUS = 0x5001  # 0=stopped, 1=paused, 2=playing
+# PotPlayer Windows Message constants (WM_USER = 0x0400)
+PPM_GET_VOLUME = 0x5000
+PPM_SET_VOLUME = 0x5001
 PPM_GET_TOTAL_TIME_MS = 0x5002
 PPM_GET_PLAYBACK_TIME_MS = 0x5004
+PPM_SET_PLAYBACK_TIME_MS = 0x5005
+PPM_GET_PLAYBACK_STATUS = 0x5006  # -1=stopped, 1=paused, 2=running (playing)
+PPM_SET_PLAYBACK_STATUS = 0x5007  # 0=toggle, 1=pause, 2=play
 
 def find_potplayer_hwnd():
     """Find PotPlayer window handle."""
@@ -163,10 +167,36 @@ class PotPlayerIntegration:
             
         try:
             state = win32gui.SendMessage(hwnd, win32con.WM_USER, PPM_GET_PLAYBACK_STATUS, 0)
-            return state != 2  # Not playing means paused or stopped
+            return state != 2  # 2 = Running / Playing. 1 = Paused. -1 or 0 = Stopped.
         except Exception as e:
             logger.debug(f"Error checking pause state: {e}")
             return None
+
+    def seek_absolute(self, seconds: float) -> bool:
+        """
+        Seek to absolute position in seconds in PotPlayer.
+        
+        Args:
+            seconds: Target playback position in seconds.
+            
+        Returns:
+            bool: True if seek command sent successfully, False otherwise.
+        """
+        if self.platform != 'windows' or not win32gui or not win32con:
+            return False
+            
+        hwnd = find_potplayer_hwnd()
+        if not hwnd:
+            return False
+            
+        try:
+            target_ms = max(0, int(round(seconds * 1000.0)))
+            win32gui.SendMessage(hwnd, win32con.WM_USER, PPM_SET_PLAYBACK_TIME_MS, target_ms)
+            logger.info(f"PotPlayer seek to {seconds:.1f}s ({target_ms}ms) succeeded")
+            return True
+        except Exception as e:
+            logger.debug(f"Error seeking PotPlayer: {e}")
+            return False
 
     def get_current_filepath(self, process_name=None):
         """
