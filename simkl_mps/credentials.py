@@ -7,6 +7,7 @@ Access Token is loaded from a .env file in the user's application data directory
 import pathlib
 import logging
 import os
+import sys
 from dotenv import dotenv_values
 from .migration import get_app_data_dir, perform_full_migration
 
@@ -56,6 +57,14 @@ else:
 
 
 
+def _is_placeholder(val: str | None) -> bool:
+    """Check if a credential value is an un-injected placeholder string."""
+    if not val:
+        return True
+    val_str = str(val).strip()
+    return "PLACEHOLDER" in val_str or val_str.startswith("SIMKL_CLIENT_")
+
+
 def get_credentials():
     """
     Retrieves the Simkl API credentials.
@@ -73,9 +82,9 @@ def get_credentials():
     client_id = None
     client_secret = None
 
-    if SIMKL_CLIENT_ID:
+    if SIMKL_CLIENT_ID and not _is_placeholder(SIMKL_CLIENT_ID):
         client_id = SIMKL_CLIENT_ID
-    if SIMKL_CLIENT_SECRET:
+    if SIMKL_CLIENT_SECRET and not _is_placeholder(SIMKL_CLIENT_SECRET):
         client_secret = SIMKL_CLIENT_SECRET
 
     if client_id and client_secret:
@@ -106,18 +115,24 @@ def get_credentials():
             if runtime_client_secret:
                 client_secret = client_secret or runtime_client_secret
 
-        # Final fallback for local development
-        if (not client_id or not client_secret) and DEV_CREDS_PATH.exists():
-            logger.debug(f"Loading development credentials from {DEV_CREDS_PATH}")
-            dev_config = dotenv_values(DEV_CREDS_PATH)
-            
-            dev_client_id = dev_config.get("SIMKL_CLIENT_ID")
-            dev_client_secret = dev_config.get("SIMKL_CLIENT_SECRET")
-            
-            if dev_client_id:
-                client_id = client_id or dev_client_id
-            if dev_client_secret:
-                client_secret = client_secret or dev_client_secret
+        # Final fallback for local development or portable folder
+        candidate_paths = [
+            DEV_CREDS_PATH,
+            pathlib.Path(sys.executable).parent / ".env",
+            APP_DATA_DIR_FOR_PATH / ".env",
+        ]
+        for cpath in candidate_paths:
+            if (not client_id or not client_secret) and cpath.exists():
+                logger.debug(f"Loading development credentials from {cpath}")
+                dev_config = dotenv_values(cpath)
+                
+                dev_client_id = dev_config.get("SIMKL_CLIENT_ID")
+                dev_client_secret = dev_config.get("SIMKL_CLIENT_SECRET")
+                
+                if dev_client_id:
+                    client_id = client_id or dev_client_id
+                if dev_client_secret:
+                    client_secret = client_secret or dev_client_secret
 
     access_token = None
     user_id = None

@@ -548,6 +548,24 @@ Tips:
 
         return self._run_on_tk_thread(_dialog, default=None)
 
+    def _ask_custom_min_watch_time_dialog(self, current_seconds: int) -> int | None:
+        """Windows implementation to ask for minimum watch time using Tkinter dialog."""
+        def _dialog():
+            parent = self._tk_root
+            if parent:
+                parent.lift()
+                parent.focus_force()
+            return simpledialog.askinteger(
+                "Set Minimum Watch Time",
+                f"Enter minimum watch time (seconds):\n(Current: {current_seconds}s, Default: 180s)",
+                parent=parent,
+                minvalue=0,
+                maxvalue=86400,
+                initialvalue=current_seconds
+            )
+
+        return self._run_on_tk_thread(_dialog, default=None)
+
     def _ask_directory_filter_dialog(self, title: str, current_value: str, help_text: str) -> str | None:
         """Windows implementation to ask for allow/deny directory filters."""
         def _dialog():

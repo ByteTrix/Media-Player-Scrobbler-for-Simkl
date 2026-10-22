@@ -32,7 +32,7 @@ from simkl_mps.credentials import get_credentials
 # Import constants only, not the whole module
 from simkl_mps.main import APP_DATA_DIR, APP_NAME
 # Import settings functions
-from simkl_mps.config_manager import get_setting, set_setting, DEFAULT_THRESHOLD
+from simkl_mps.config_manager import get_setting, set_setting, DEFAULT_THRESHOLD, DEFAULT_MIN_REWATCH_WATCH_SECONDS
 
 logger = logging.getLogger(__name__)
 
@@ -89,6 +89,19 @@ class TrayAppBase(abc.ABC): # Inherit from ABC for abstract methods
         Returns:
             The new threshold value (int) entered by the user, or None if cancelled.
          """       
+        pass
+
+    @abc.abstractmethod
+    def _ask_custom_min_watch_time_dialog(self, current_seconds: int) -> int | None:
+        """
+        Platform-specific method to display a dialog asking the user for a custom minimum watch time in seconds.
+
+        Args:
+            current_seconds: The currently configured minimum watch time in seconds.
+
+        Returns:
+            The new minimum watch time in seconds (int) entered by the user, or None if cancelled.
+        """
         pass
 
     @abc.abstractmethod
@@ -266,6 +279,14 @@ class TrayAppBase(abc.ABC): # Inherit from ABC for abstract methods
             return int(value)
         except (TypeError, ValueError):
             return DEFAULT_THRESHOLD
+
+    def _ensure_min_watch_seconds_value(self, value: Any) -> int:
+        """Convert stored minimum watch time value to an int with a safe fallback."""
+        try:
+            val = int(value)
+            return val if val >= 0 else DEFAULT_MIN_REWATCH_WATCH_SECONDS
+        except (TypeError, ValueError):
+            return DEFAULT_MIN_REWATCH_WATCH_SECONDS
 
     def _format_dir_list_for_dialog(self, values: Any) -> str:
         """Format directory lists for dialog input."""
@@ -1155,6 +1176,93 @@ class TrayAppBase(abc.ABC): # Inherit from ABC for abstract methods
         return 0 # Return value expected by some tray libraries
 
     # --- End Watch Threshold Logic --- 
+
+    # --- Minimum Watch Time Implementation ---
+
+    def _apply_min_watch_time_change(self, new_seconds: int | None):
+        """Applies the minimum watch time change: saves, notifies, updates UI."""
+        logger.debug(f"TrayBase: _apply_min_watch_time_change called with new_seconds='{new_seconds}' (type: {type(new_seconds)})")
+        current_seconds = self._ensure_min_watch_seconds_value(
+            get_setting('min_rewatch_watch_seconds', DEFAULT_MIN_REWATCH_WATCH_SECONDS)
+        )
+        logger.debug(f"TrayBase: Current min watch time from settings: {current_seconds}s")
+
+        if new_seconds is not None and new_seconds != current_seconds:
+            logger.info(f"TrayBase: Applying new minimum watch time: {new_seconds}s")
+            try:
+                set_setting('min_rewatch_watch_seconds', new_seconds)
+                logger.info(f"Minimum watch time set to {new_seconds}s")
+                display_text = f"{new_seconds}s" if new_seconds < 60 else f"{new_seconds // 60}m {new_seconds % 60}s" if new_seconds % 60 != 0 else f"{new_seconds // 60}m"
+                self.show_notification("Settings Updated", f"Minimum watch time set to {display_text}")
+                self.update_icon()
+            except Exception as e:
+                logger.error(f"Error applying min watch time change: {e}", exc_info=True)
+                self.show_notification("Error", f"Failed to set minimum watch time: {e}")
+                self.update_icon()
+        elif new_seconds is None:
+            logger.warning("TrayBase: _apply_min_watch_time_change received new_seconds=None. Change cancelled or dialog failed.")
+            self.update_icon()
+        else:
+            logger.info(f"TrayBase: Minimum watch time ({new_seconds}s) not changed from current ({current_seconds}s).")
+            self.update_icon()
+
+    def _set_preset_min_watch_time(self, seconds_value: int):
+        """Set minimum watch time from a preset value and update."""
+        current_seconds = self._ensure_min_watch_seconds_value(
+            get_setting('min_rewatch_watch_seconds', DEFAULT_MIN_REWATCH_WATCH_SECONDS)
+        )
+        if seconds_value != current_seconds:
+            logger.info(f"Preset minimum watch time {seconds_value}s selected.")
+            self._apply_min_watch_time_change(seconds_value)
+        else:
+            logger.debug(f"Preset minimum watch time {seconds_value}s is already selected.")
+        return 0
+
+    def set_custom_min_watch_time(self, _=None):
+        """Handles prompting the user for a custom minimum watch time via platform-specific dialog."""
+        logger.debug("TrayBase: set_custom_min_watch_time called.")
+        current_seconds = self._ensure_min_watch_seconds_value(
+            get_setting('min_rewatch_watch_seconds', DEFAULT_MIN_REWATCH_WATCH_SECONDS)
+        )
+        logger.debug(f"TrayBase: Current min watch seconds for custom dialog: {current_seconds}s")
+        result_queue: "queue.Queue[int | None]" = queue.Queue()
+
+        def _ask_in_thread():
+            logger.debug("TrayBase: min watch dialog _ask_in_thread started.")
+            value_from_dialog = None
+            try:
+                dialog_result = self._ask_custom_min_watch_time_dialog(current_seconds)
+                value_from_dialog = dialog_result
+                logger.debug(f"TrayBase: _ask_custom_min_watch_time_dialog returned: {dialog_result} (type: {type(dialog_result)})")
+            except Exception as e:
+                logger.error(f"TrayBase: Error in custom min watch time dialog thread (_ask_in_thread): {e}", exc_info=True)
+            finally:
+                result_queue.put(value_from_dialog)
+                logger.debug(f"TrayBase: _ask_in_thread finished, put '{value_from_dialog}' on queue.")
+
+        def _process_result():
+            logger.debug("TrayBase: min watch dialog _process_result started, waiting for queue.")
+            try:
+                new_seconds_from_queue = result_queue.get(timeout=60)
+                logger.debug(f"TrayBase: Value from result_queue: {new_seconds_from_queue}")
+                self._apply_min_watch_time_change(new_seconds_from_queue)
+            except queue.Empty:
+                logger.warning("TrayBase: Timeout waiting for custom min watch dialog result in _process_result.")
+                self.show_notification("Timeout", "Custom minimum watch time dialog timed out.")
+                self._apply_min_watch_time_change(None)
+            except Exception as e:
+                logger.error(f"TrayBase: Error processing min watch time result in _process_result: {e}", exc_info=True)
+                self._apply_min_watch_time_change(None)
+            logger.debug("TrayBase: min watch _process_result finished.")
+
+        dialog_thread = threading.Thread(target=_ask_in_thread, daemon=True)
+        dialog_thread.start()
+
+        processing_thread = threading.Thread(target=_process_result, daemon=True)
+        processing_thread.start()
+        return 0
+
+    # --- End Minimum Watch Time Implementation --- 
     
     def toggle_notifications_disabled(self, _=None):
         """Toggle notifications on/off from the tray menu."""
@@ -1204,6 +1312,41 @@ class TrayAppBase(abc.ABC): # Inherit from ABC for abstract methods
             self.show_notification("Error", f"Failed to toggle rewatch scrobbling: {e}")
 
         return 0
+
+    def toggle_realtime_scrobble(self, _=None):
+        """Toggle real-time scrobble (watching now / pause) on/off from the tray menu."""
+        try:
+            current_value = get_setting('enable_realtime_scrobble', True)
+            new_value = not current_value
+            set_setting('enable_realtime_scrobble', new_value)
+
+            status = "enabled" if new_value else "disabled"
+            logger.info(f"Real-time scrobbling {status} via tray menu")
+            self.update_icon()
+            self.show_notification("Settings Updated", f"Real-time scrobbling {status}.")
+        except Exception as e:
+            logger.error(f"Error toggling real-time scrobbling: {e}", exc_info=True)
+            self.show_notification("Error", f"Failed to toggle real-time scrobbling: {e}")
+
+        return 0
+
+    def toggle_playback_resume(self, _=None):
+        """Toggle reverse playback resume on/off from the tray menu."""
+        try:
+            current_value = get_setting('enable_playback_resume', True)
+            new_value = not current_value
+            set_setting('enable_playback_resume', new_value)
+
+            status = "enabled" if new_value else "disabled"
+            logger.info(f"Playback resume {status} via tray menu")
+            self.update_icon()
+            self.show_notification("Settings Updated", f"Playback auto-resume {status}.")
+        except Exception as e:
+            logger.error(f"Error toggling playback resume: {e}", exc_info=True)
+            self.show_notification("Error", f"Failed to toggle playback resume: {e}")
+
+        return 0
+
     
     def check_first_run(self):
         """Check if this is the first time the app is being run"""
@@ -1218,6 +1361,12 @@ class TrayAppBase(abc.ABC): # Inherit from ABC for abstract methods
             get_setting('watch_completion_threshold', DEFAULT_THRESHOLD)
         )
         is_preset = lambda val: current_threshold == val
+
+        current_min_watch_seconds = self._ensure_min_watch_seconds_value(
+            get_setting('min_rewatch_watch_seconds', DEFAULT_MIN_REWATCH_WATCH_SECONDS)
+        )
+        is_min_watch_preset = lambda val: current_min_watch_seconds == val
+
         # Determine cached account type (do not force network refresh here)
         media_scrobbler = self._get_media_scrobbler()
         cached_account_type = None
@@ -1247,15 +1396,35 @@ class TrayAppBase(abc.ABC): # Inherit from ABC for abstract methods
             pystray.Menu.SEPARATOR,
             pystray.MenuItem('Custom...', self.set_custom_watch_threshold)
         )
+        min_watch_submenu = pystray.Menu(
+            pystray.MenuItem('None (0s)', lambda: self._set_preset_min_watch_time(0), checked=lambda item: is_min_watch_preset(0), radio=True),
+            pystray.MenuItem('1 Minute (60s)', lambda: self._set_preset_min_watch_time(60), checked=lambda item: is_min_watch_preset(60), radio=True),
+            pystray.MenuItem('3 Minutes (Default)', lambda: self._set_preset_min_watch_time(180), checked=lambda item: is_min_watch_preset(180), radio=True),
+            pystray.MenuItem('5 Minutes (300s)', lambda: self._set_preset_min_watch_time(300), checked=lambda item: is_min_watch_preset(300), radio=True),
+            pystray.MenuItem('10 Minutes (600s)', lambda: self._set_preset_min_watch_time(600), checked=lambda item: is_min_watch_preset(600), radio=True),
+            pystray.Menu.SEPARATOR,
+            pystray.MenuItem('Custom...', self.set_custom_min_watch_time)
+        )
         menu_items.append(pystray.MenuItem("Scrobbling", pystray.Menu(
             pystray.MenuItem("Retry Last Scrobble", self.try_scrobble_again),
             pystray.MenuItem("Sync Backlog Now", self.process_backlog),
             pystray.MenuItem("Completion Threshold", threshold_submenu),
+            pystray.MenuItem("Minimum Watch Time", min_watch_submenu),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem(
                 "Record Rewatches",
                 self.toggle_rewatch_enabled,
                 checked=lambda item, _allowed=can_record_rewatches: get_setting('allow_rewatch', True) if _allowed else False
+            ),
+            pystray.MenuItem(
+                "Realtime Scrobbling (Watching Now)",
+                self.toggle_realtime_scrobble,
+                checked=lambda item: get_setting('enable_realtime_scrobble', True)
+            ),
+            pystray.MenuItem(
+                "Auto-Resume from Simkl",
+                self.toggle_playback_resume,
+                checked=lambda item: get_setting('enable_playback_resume', True)
             ),
             pystray.MenuItem(
                 "Turn Notifications Off",
