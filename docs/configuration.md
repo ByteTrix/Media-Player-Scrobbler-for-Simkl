@@ -53,6 +53,7 @@ Example `settings.json`:
   "enable_playback_resume": true,
   "resume_start_tolerance_seconds": 30,
   "min_rewatch_watch_seconds": 180,
+  "enable_discord_rpc": true,
   "auto_sync_interval": 120,
   "disable_notifications": false,
   "allow_dirs": [
@@ -77,6 +78,37 @@ MPS for SIMKL supports real-time watch state reporting and reverse resume synchr
 
 - **`min_rewatch_watch_seconds`** (default: `180`): Minimum watch time (in seconds) required before marking media as watched on Simkl. Applies to both first-time watches and rewatches, preventing accidental completions when opening already-finished media or jumping directly to the credits. For videos shorter than this duration, the required watch time scales dynamically based on video length (`duration * threshold%`).
   - Configurable via `settings.json` or through the system tray menu (`Scrobbling → Minimum Watch Time`: presets for `None (0s)`, `1 Minute (60s)`, `3 Minutes (Default)`, `5 Minutes (300s)`, `10 Minutes (600s)`, or `Custom...`).
+
+
+### Discord Rich Presence
+
+MPS for SIMKL includes native Discord Rich Presence integration via local Discord IPC (`pypresence`), displaying your active media playback on your Discord profile in real time without requiring Discord authorization tokens.
+
+- **`enable_discord_rpc`** (default: `true`): Enables or disables Discord Rich Presence synchronization.
+- **`discord_client_id`** (default: `"1556713709462880316"`): The Discord Application ID registered for Media Player Scrobbler for Simkl.
+
+#### Rich Presence Display Details
+- **Title & Release Year**: Displays the media title and release year in Details (e.g. `Inception (2010)`).
+- **Episode & Watching State**:
+  - For TV shows and anime, displays the season and episode code along with the episode title in State (e.g. `S01E05 · Gray Matter` or `EP 01 · Cruelty`).
+  - Generic placeholder episode titles (e.g. "Episode 1", "Ep 01", "E1") are automatically filtered out to keep your profile clean.
+- **Playback & Paused State**:
+  - **Playing**: Renders an active Discord progress bar showing live elapsed and remaining playback time.
+  - **Paused**: Indicates `Paused` (e.g. `Paused · S01E05` or `Paused`) and freezes the progress bar.
+- **Simkl Poster Image**:
+  - Displays high-resolution Simkl cover artwork (large image) resolved from Simkl's CDN or metadata cache.
+  - Falls back to the official Simkl icon if no poster artwork is available.
+- **Interactive Button**:
+  - Includes a "View on Simkl" button linking directly to the media item's web page on Simkl.
+
+#### System Tray Controls
+- Discord Rich Presence can be toggled on or off at any time from the system tray menu:
+  - **`Scrobbling → Discord Rich Presence`** (or **`Discord → Enable Discord RPC`**).
+- Toggling immediately updates your setting in `settings.json`. When toggled off, any active Discord presence is immediately cleared and the IPC connection is closed cleanly.
+
+#### Graceful Offline & Connection Handling
+- Connects directly to your local Discord desktop client via local IPC socket.
+- If Discord is not running or closed during playback, it fails silently with debug logging and automatically backs off with a 30-second reconnection cooldown, ensuring zero disruption to media tracking.
 
 
 ### Notifications

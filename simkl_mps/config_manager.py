@@ -47,7 +47,9 @@ DEFAULT_SETTINGS = {
     "enable_playback_resume": True,
     "resume_start_tolerance_seconds": 30,
     "allow_dirs": [],
-    "deny_dirs": []
+    "deny_dirs": [],
+    "enable_discord_rpc": True,
+    "discord_client_id": "1556713709462880316"
 }
 
 # Last settings read/written OK; fallback so a corrupt read doesn't blank allow_dirs.

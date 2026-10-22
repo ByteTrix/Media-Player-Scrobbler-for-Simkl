@@ -1347,6 +1347,32 @@ class TrayAppBase(abc.ABC): # Inherit from ABC for abstract methods
 
         return 0
 
+    def toggle_discord_rpc(self, _=None):
+        """Toggle Discord Rich Presence on/off from the tray menu."""
+        try:
+            current_value = get_setting('enable_discord_rpc', True)
+            new_value = not current_value
+            set_setting('enable_discord_rpc', new_value)
+
+            media_scrobbler = self._get_media_scrobbler()
+            if media_scrobbler is not None:
+                if not new_value:
+                    if hasattr(media_scrobbler, "discord_rpc") and media_scrobbler.discord_rpc:
+                        media_scrobbler.discord_rpc.clear_presence()
+                else:
+                    if hasattr(media_scrobbler, "_sync_discord_presence"):
+                        media_scrobbler._sync_discord_presence()
+
+            status = "enabled" if new_value else "disabled"
+            logger.info(f"Discord Rich Presence {status} via tray menu")
+            self.update_icon()
+            self.show_notification("Settings Updated", f"Discord Rich Presence {status}.")
+        except Exception as e:
+            logger.error(f"Error toggling Discord Rich Presence: {e}", exc_info=True)
+            self.show_notification("Error", f"Failed to toggle Discord Rich Presence: {e}")
+
+        return 0
+
     
     def check_first_run(self):
         """Check if this is the first time the app is being run"""
@@ -1425,6 +1451,11 @@ class TrayAppBase(abc.ABC): # Inherit from ABC for abstract methods
                 "Auto-Resume from Simkl",
                 self.toggle_playback_resume,
                 checked=lambda item: get_setting('enable_playback_resume', True)
+            ),
+            pystray.MenuItem(
+                "Discord Rich Presence",
+                self.toggle_discord_rpc,
+                checked=lambda item: get_setting('enable_discord_rpc', True)
             ),
             pystray.MenuItem(
                 "Turn Notifications Off",
