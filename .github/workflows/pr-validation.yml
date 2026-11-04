@@ -1,0 +1,121 @@
+name: PR Validation
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-validation-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows-preview:
+    name: Windows tests and preview EXEs
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out the proposed merge
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Install locked dependencies
+        run: |
+          python -m pip install poetry==2.5.1
+          poetry install --with dev --no-interaction
+
+      - name: Compile Python sources
+        run: poetry run python -m compileall -q simkl_mps
+
+      # test_potplayer.py is an interactive, infinite monitoring loop.
+      # test_build.py is invoked explicitly for Windows after packaging below.
+      - name: Run automated tests
+        run: poetry run pytest -q --ignore=test_potplayer.py --ignore=test_build.py
+
+      - name: Enable runtime credentials for the preview
+        shell: pwsh
+        run: |
+          # PR code never receives repository secrets. Empty placeholders let
+          # credentials.py use the tester's environment or local credentials.
+          $path = 'simkl_mps/credentials.py'
+          $source = Get-Content -LiteralPath $path -Raw
+          $source = $source.Replace('"SIMKL_CLIENT_ID_PLACEHOLDER"', '""')
+          $source = $source.Replace('"SIMKL_CLIENT_SECRET_PLACEHOLDER"', '""')
+          Set-Content -LiteralPath $path -Value $source -Encoding utf8
+
+      - name: Build preview EXEs
+        run: poetry run pyinstaller --clean --noconfirm simkl-mps.spec
+
+      - name: Verify Windows build output
+        run: poetry run python test_build.py windows
+
+      - name: Smoke test packaged CLI
+        shell: pwsh
+        run: |
+          $process = Start-Process -FilePath (Resolve-Path 'dist/MPSS.exe') -ArgumentList '--help' -PassThru -WindowStyle Hidden
+          if (-not $process.WaitForExit(60000)) {
+            Stop-Process -Id $process.Id -Force
+            throw 'Packaged CLI did not exit within 60 seconds'
+          }
+          $process.Refresh()
+          if ($process.ExitCode -ne 0) { throw "Packaged CLI exited with $($process.ExitCode)" }
+
+      - name: Record tested commits and checksums
+        shell: pwsh
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          @{
+            pull_request = $env:PR_NUMBER
+            head_sha = $env:HEAD_SHA
+            base_sha = $env:BASE_SHA
+            tested_sha = (git rev-parse HEAD)
+            run_url = "https://github.com/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID"
+            credentials = 'Runtime credentials required; no embedded client secrets'
+          } | ConvertTo-Json | Set-Content dist/build-info.json
+          Get-ChildItem dist/*.exe | ForEach-Object {
+            $hash = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash
+            "$hash  $($_.Name)"
+          } | Set-Content dist/SHA256SUMS.txt
+          @'
+          PR preview build. Extract this archive before running an EXE.
+          MPSS.exe is the CLI; MPS for Simkl.exe is the tray application.
+          These unsigned previews contain no Simkl client credentials.
+          For authenticated testing, supply SIMKL_CLIENT_ID and
+          SIMKL_CLIENT_SECRET through your local environment or .env file.
+          Use a test Windows account/profile to avoid changing production data.
+          See build-info.json for the exact PR head, base and tested merge commit.
+          '@ | Set-Content dist/PREVIEW.txt
+
+      - name: Upload Windows preview
+        id: preview
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-preview-${{ github.event.pull_request.number || 'manual' }}-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            dist/*.exe
+            dist/build-info.json
+            dist/SHA256SUMS.txt
+            dist/PREVIEW.txt
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Link the preview in the run summary
+        shell: pwsh
+        env:
+          ARTIFACT_URL: ${{ steps.preview.outputs.artifact-url }}
+        run: |
+          "Download the [Windows preview EXEs]($env:ARTIFACT_URL). Extract the ZIP first. See PREVIEW.txt for runtime credential setup." >> $env:GITHUB_STEP_SUMMARY
