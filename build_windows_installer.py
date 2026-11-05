@@ -24,6 +24,7 @@ SETUP_ISS = PROJECT_ROOT / "setup.iss"
 ENV_FILE = PROJECT_ROOT / ".env"
 
 ISCC_SEARCH_PATHS = [
+    PROJECT_ROOT / "build-tools" / "inno-portable" / "tools" / "ISCC.exe",
     Path(os.environ.get("LOCALAPPDATA", "")) / "Programs" / "Inno Setup 6" / "ISCC.exe",
     Path(r"C:\Program Files (x86)\Inno Setup 6\ISCC.exe"),
     Path(r"C:\Program Files\Inno Setup 6\ISCC.exe"),
@@ -53,8 +54,8 @@ def load_credentials() -> tuple[str, str]:
     if not client_id or not client_secret:
         if ENV_FILE.exists():
             cfg = dotenv_values(ENV_FILE)
-            client_id = client_id or cfg.get("SIMKL_CLIENT_ID")
-            client_secret = client_secret or cfg.get("SIMKL_CLIENT_SECRET")
+            client_id = client_id or cfg.get("SIMKL_CLIENT_ID") or cfg.get("CLIENT_ID_PLACEHOLDER")
+            client_secret = client_secret or cfg.get("SIMKL_CLIENT_SECRET") or cfg.get("CLIENT_SECRET_PLACEHOLDER")
 
     if not client_id or not client_secret:
         print("[!] WARNING: SIMKL_CLIENT_ID or SIMKL_CLIENT_SECRET not found.")
