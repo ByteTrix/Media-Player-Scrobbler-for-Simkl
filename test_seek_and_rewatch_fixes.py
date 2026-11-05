@@ -19,6 +19,30 @@ PAUSED = constants.PAUSED
 STOPPED = constants.STOPPED
 
 
+config_manager = importlib.import_module("simkl_mps.config_manager")
+simkl_api_mod = importlib.import_module("simkl_mps.simkl_api")
+
+
+@pytest.fixture(autouse=True)
+def isolated_settings(monkeypatch):
+    """Use default settings in memory and block real network calls."""
+    settings = dict(config_manager.DEFAULT_SETTINGS)
+    monkeypatch.setattr(media_scrobbler_mod, "get_setting", lambda key, default=None: settings.get(key, default))
+    monkeypatch.setattr(media_scrobbler_mod, "is_internet_connected", lambda: True)
+    monkeypatch.setattr(media_scrobbler_mod, "scrobble",
+                        lambda *a, **kw: {"ok": False, "status": None, "error": "network disabled in tests"})
+    monkeypatch.setattr(media_scrobbler_mod, "get_playback_sessions", lambda *a, **kw: [])
+    monkeypatch.setattr(media_scrobbler_mod, "delete_playback", lambda *a, **kw: False)
+    monkeypatch.setattr(simkl_api_mod, "get_user_settings", lambda *a, **kw: None)
+
+    def _no_network(*args, **kwargs):
+        raise AssertionError("Unexpected real HTTP request in test")
+
+    for method in ("get", "post", "delete"):
+        monkeypatch.setattr(simkl_api_mod.requests, method, _no_network)
+    return settings
+
+
 class MutableClock:
     def __init__(self, initial=1000.0):
         self.current = initial
@@ -35,13 +59,14 @@ def clock_and_recorder(monkeypatch):
     clock = MutableClock(1000.0)
     calls = []
 
-    def fake_scrobble(action, item, progress, client_id, access_token):
+    def fake_scrobble(action, item, progress, client_id, access_token, min_progress=None):
         calls.append({
             "action": action,
             "item": item,
             "progress": progress,
             "client_id": client_id,
-            "access_token": access_token
+            "access_token": access_token,
+            "min_progress": min_progress
         })
         return {"ok": True, "status": 200, "error": None}
 
@@ -66,34 +91,36 @@ def _make_scrobbler(tmp_path):
     return scrobbler
 
 
-def test_seek_updates_scrobble_progress_playing(tmp_path, clock_and_recorder):
-    """Issue 1: Seeking while playing must report new progress to Simkl."""
+def test_seek_while_playing_makes_no_call_next_event_carries_progress(tmp_path, clock_and_recorder):
+    """Simkl wants no scrobble call for seeks; the next real event reports the new position."""
     clock, calls = clock_and_recorder
     scrobbler = _make_scrobbler(tmp_path)
 
-    # Initial start
     scrobbler._sync_scrobble_state()
     assert len(calls) == 1
     assert calls[-1]["action"] == "start"
     assert calls[-1]["progress"] == 10.0
 
-    # User seeks to 500s (50%)
-    clock.advance(3.0)
+    # User seeks to 500s (50%): nothing is sent, even after the debounce interval
+    clock.advance(30.0)
     scrobbler.current_position_seconds = 500
     scrobbler._notify_seek()
     scrobbler._sync_scrobble_state()
+    assert len(calls) == 1
 
+    # Next real event (pause) carries the new progress
+    clock.advance(30.0)
+    scrobbler.state = PAUSED
+    scrobbler._sync_scrobble_state()
     assert len(calls) == 2
-    assert calls[-1]["action"] == "start"
+    assert calls[-1]["action"] == "pause"
     assert calls[-1]["progress"] == 50.0
 
 
-def test_seek_updates_scrobble_progress_paused(tmp_path, clock_and_recorder):
-    """Issue 1: Seeking while paused must report new progress to Simkl."""
+def test_seek_while_paused_makes_no_call(tmp_path, clock_and_recorder):
     clock, calls = clock_and_recorder
     scrobbler = _make_scrobbler(tmp_path)
 
-    # Initial start then pause
     scrobbler._sync_scrobble_state()
     clock.advance(3.0)
     scrobbler.state = PAUSED
@@ -102,13 +129,18 @@ def test_seek_updates_scrobble_progress_paused(tmp_path, clock_and_recorder):
     assert calls[-1]["progress"] == 10.0
 
     # User seeks while paused to 750s (75%)
-    clock.advance(3.0)
+    clock.advance(30.0)
     scrobbler.current_position_seconds = 750
     scrobbler._notify_seek()
     scrobbler._sync_scrobble_state()
+    assert len(calls) == 2
 
+    # Resume carries the seeked progress
+    clock.advance(30.0)
+    scrobbler.state = PLAYING
+    scrobbler._sync_scrobble_state()
     assert len(calls) == 3
-    assert calls[-1]["action"] == "pause"
+    assert calls[-1]["action"] == "start"
     assert calls[-1]["progress"] == 75.0
 
 
@@ -174,8 +206,9 @@ def test_rewatch_deferred_if_watch_time_insufficient_on_stop(tmp_path, monkeypat
     assert len(history_calls) == 0
 
 
-def test_rewatch_succeeds_when_watch_time_sufficient(tmp_path, monkeypatch):
+def test_rewatch_succeeds_when_watch_time_sufficient(tmp_path, monkeypatch, isolated_settings):
     """Issue 3: When watch time meets the rewatch requirement, history sync succeeds."""
+    isolated_settings["allow_rewatch"] = True
     scrobbler = _make_scrobbler(tmp_path)
     scrobbler.completion_threshold = 90.0
     scrobbler.total_duration_seconds = 1000.0
@@ -222,47 +255,36 @@ def test_stop_completed_item_with_reported_scrobble_reports_stop_and_clears_play
     assert deleted_ids == [789]
 
 
-def test_sync_scrobble_updates_progress_even_if_completed(tmp_path, clock_and_recorder):
-    """
-    Issue 1: When an item reaches completion threshold (completed=True),
-    subsequent seeks must still update Simkl scrobble progress so 'Now Watching'
-    does not get stuck at the pre-completion percentage.
-    """
+def test_completed_item_seek_makes_no_call_until_next_event(tmp_path, clock_and_recorder):
+    """After completion, seeks still send nothing; the next real event reports progress."""
     clock, calls = clock_and_recorder
     scrobbler = _make_scrobbler(tmp_path)
 
-    # Initial start at 10%
     scrobbler._sync_scrobble_state()
     assert len(calls) == 1
     assert calls[-1]["progress"] == 10.0
 
-    # User seeks to 46.6%
-    clock.advance(3.0)
-    scrobbler.current_position_seconds = 466
-    scrobbler._notify_seek()
-    scrobbler._sync_scrobble_state()
-    assert len(calls) == 2
-    assert calls[-1]["progress"] == 46.6
-
-    # Item is marked completed (e.g. at 90% threshold)
     scrobbler.completed = True
-
-    # User seeks further to 96.35%
-    clock.advance(3.0)
+    clock.advance(30.0)
     scrobbler.current_position_seconds = 963.5
     scrobbler._notify_seek()
     scrobbler._sync_scrobble_state()
+    assert len(calls) == 1
 
-    # Must have reported 96.35% even though completed=True
-    assert len(calls) == 3
+    clock.advance(30.0)
+    scrobbler.state = PAUSED
+    scrobbler._sync_scrobble_state()
+    assert len(calls) == 2
+    assert calls[-1]["action"] == "pause"
     assert calls[-1]["progress"] == 96.35
 
 
-def test_add_to_history_passes_allow_rewatch_when_enabled_for_cloud_rewatch(tmp_path, monkeypatch):
+def test_add_to_history_passes_allow_rewatch_when_enabled_for_cloud_rewatch(tmp_path, monkeypatch, isolated_settings):
     """
     If an item is not in local watch history, but allow_rewatch is enabled and user is Pro/VIP,
     allow_rewatch=True must be passed to Simkl so cloud rewatches are properly recorded by Simkl.
     """
+    isolated_settings["allow_rewatch"] = True
     scrobbler = _make_scrobbler(tmp_path)
     scrobbler.season = 2
     scrobbler.episode = 7
@@ -437,3 +459,22 @@ def test_tray_min_watch_time_setting(monkeypatch):
     tray._set_preset_min_watch_time(180)
     assert get_setting("min_rewatch_watch_seconds") == 180
 
+
+
+def test_add_to_history_does_not_pass_allow_rewatch_for_pro_when_setting_default_off(tmp_path, monkeypatch):
+    """Rewatch tracking is opt-in: Pro/VIP with the default setting must not send allow_rewatch."""
+    scrobbler = _make_scrobbler(tmp_path)
+    scrobbler.completion_threshold = 90.0
+    scrobbler.total_duration_seconds = 1000.0
+    scrobbler.current_position_seconds = 950.0
+    scrobbler.watch_time = 200.0
+
+    history_calls = []
+    monkeypatch.setattr(scrobbler, "is_pro_or_vip", lambda: True)
+    monkeypatch.setattr(scrobbler, "_store_in_watch_history", lambda *a, **kw: None)
+    monkeypatch.setattr(media_scrobbler_mod, "add_to_history", lambda *a, **kw: history_calls.append(kw) or {"added": {"movies": 1}})
+
+    scrobbler._check_completion_threshold(use_position=True)
+
+    assert scrobbler.completed is True
+    assert history_calls[0].get("allow_rewatch") is False

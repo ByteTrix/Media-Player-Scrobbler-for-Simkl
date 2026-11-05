@@ -17,6 +17,30 @@ constants = importlib.import_module("simkl_mps.utils.constants")
 PLAYING = constants.PLAYING
 
 
+config_manager = importlib.import_module("simkl_mps.config_manager")
+simkl_api_mod = importlib.import_module("simkl_mps.simkl_api")
+
+
+@pytest.fixture(autouse=True)
+def isolated_settings(monkeypatch):
+    """Use default settings in memory and block real network calls."""
+    settings = dict(config_manager.DEFAULT_SETTINGS)
+    monkeypatch.setattr(media_scrobbler_mod, "get_setting", lambda key, default=None: settings.get(key, default))
+    monkeypatch.setattr(media_scrobbler_mod, "is_internet_connected", lambda: True)
+    monkeypatch.setattr(media_scrobbler_mod, "scrobble",
+                        lambda *a, **kw: {"ok": False, "status": None, "error": "network disabled in tests"})
+    monkeypatch.setattr(media_scrobbler_mod, "get_playback_sessions", lambda *a, **kw: [])
+    monkeypatch.setattr(media_scrobbler_mod, "delete_playback", lambda *a, **kw: False)
+    monkeypatch.setattr(simkl_api_mod, "get_user_settings", lambda *a, **kw: None)
+
+    def _no_network(*args, **kwargs):
+        raise AssertionError("Unexpected real HTTP request in test")
+
+    for method in ("get", "post", "delete"):
+        monkeypatch.setattr(simkl_api_mod.requests, method, _no_network)
+    return settings
+
+
 class FakeMPVIntegration:
     def __init__(self):
         self.seek_calls = []

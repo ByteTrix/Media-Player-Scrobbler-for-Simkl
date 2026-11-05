@@ -1,4 +1,446 @@
-document.addEventListener('DOMContentLoaded', () => {
+// Pure helpers (no DOM access) shared by the viewer and its Node tests.
+const HistoryViewerCore = (() => {
+    // Hidden items only live in this browser's storage for the viewer page.
+    // They never touch watch_history.json or the Simkl account.
+    const HIDDEN_STORAGE_KEY = 'simkl_history_hidden_items';
+    const LEGACY_HIDDEN_STORAGE_KEY = 'simkl_removed_history_items';
+
+    function normalizeHistoryType(type) {
+        return type === 'show' ? 'tv' : (type || 'movie');
+    }
+
+    function isSeriesItem(item) {
+        const type = normalizeHistoryType(item.type);
+        return type === 'tv' || type === 'anime';
+    }
+
+    function getHistoryKey(item) {
+        return item.simkl_id ? String(item.simkl_id) : `${item.title || ''}::${item.year || ''}`;
+    }
+
+    // Stable identity for hiding: one key per title (all episodes of a show share it).
+    function getHiddenKey(item) {
+        return `${normalizeHistoryType(item.type)}::${getHistoryKey(item)}`;
+    }
+
+    function escapeHtml(value) {
+        return String(value ?? '').replace(/[&<>"']/g, char => ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#39;'
+        }[char]));
+    }
+
+    function toPositiveInteger(value) {
+        const parsed = Number(value);
+        return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+    }
+
+    function toNonNegativeInteger(value) {
+        const parsed = Number(value);
+        return Number.isInteger(parsed) && parsed >= 0 ? parsed : null;
+    }
+
+    function hasExplicitRewatchCount(item) {
+        if (toNonNegativeInteger(item.rewatch_count) !== null) return true;
+        if (!Array.isArray(item.episodes)) return false;
+        return item.episodes.some(ep => toNonNegativeInteger(ep.rewatch_count) !== null);
+    }
+
+    function getItemWatchCount(item) {
+        const storedCount = toPositiveInteger(item.watch_count);
+        if (storedCount !== null) return storedCount;
+
+        if (Array.isArray(item.watch_events) && item.watch_events.length > 0) {
+            return item.watch_events.length;
+        }
+
+        return 1;
+    }
+
+    function getEpisodeWatchCount(episode) {
+        const storedCount = toPositiveInteger(episode.watch_count);
+        if (storedCount !== null) return storedCount;
+
+        if (Array.isArray(episode.watch_events) && episode.watch_events.length > 0) {
+            return episode.watch_events.length;
+        }
+
+        return 1;
+    }
+
+    function getEpisodeRewatchCount(episode) {
+        const storedCount = toNonNegativeInteger(episode.rewatch_count);
+        if (storedCount !== null) return storedCount;
+
+        return Math.max(0, getEpisodeWatchCount(episode) - 1);
+    }
+
+    function getEpisodeKey(season, episode) {
+        const episodeNumber = toPositiveInteger(episode);
+        if (episodeNumber === null) return null;
+
+        const seasonNumber = toNonNegativeInteger(season) ?? 0;
+        return `${seasonNumber}:${episodeNumber}`;
+    }
+
+    function addEpisodeWatchCount(counts, key, watchCount) {
+        if (!key) return;
+        counts.episodeWatchCounts.set(key, (counts.episodeWatchCounts.get(key) || 0) + watchCount);
+    }
+
+    function addSeriesEpisodeCounts(counts, item) {
+        if (Array.isArray(item.episodes) && item.episodes.length > 0) {
+            item.episodes.forEach(ep => {
+                const explicitEpisodeRewatch = toNonNegativeInteger(ep.rewatch_count);
+                if (explicitEpisodeRewatch !== null) {
+                    counts.rewatchCount += explicitEpisodeRewatch;
+                    counts.hasExplicitRewatchCount = true;
+                    return;
+                }
+
+                addEpisodeWatchCount(
+                    counts,
+                    getEpisodeKey(ep.season, ep.number ?? ep.episode),
+                    getEpisodeWatchCount(ep)
+                );
+            });
+            return;
+        }
+
+        addEpisodeWatchCount(
+            counts,
+            getEpisodeKey(item.season, item.episode ?? item.number),
+            getItemWatchCount(item)
+        );
+    }
+
+    function getItemRewatchCount(item) {
+        const storedCount = toNonNegativeInteger(item.rewatch_count);
+        if (storedCount !== null) return storedCount;
+
+        if (Array.isArray(item.episodes)) {
+            return item.episodes.reduce((sum, ep) => sum + getEpisodeRewatchCount(ep), 0);
+        }
+
+        if (isSeriesItem(item)) {
+            return 0;
+        }
+
+        return Math.max(0, getItemWatchCount(item) - 1);
+    }
+
+    // Build a map of history counts keyed by simkl_id or title-year
+    function buildHistoryCounts(items) {
+        const countsMap = new Map();
+        items.forEach(h => {
+            const key = getHistoryKey(h);
+            const existing = countsMap.get(key) || {
+                watchCount: 0,
+                rewatchCount: 0,
+                hasExplicitRewatchCount: false,
+                isSeries: false,
+                episodeWatchCounts: new Map()
+            };
+
+            existing.watchCount += getItemWatchCount(h);
+            existing.isSeries = existing.isSeries || isSeriesItem(h);
+
+            if (isSeriesItem(h)) {
+                const explicitShowRewatch = toNonNegativeInteger(h.rewatch_count);
+                if (explicitShowRewatch !== null) {
+                    existing.rewatchCount += explicitShowRewatch;
+                    existing.hasExplicitRewatchCount = true;
+                } else {
+                    addSeriesEpisodeCounts(existing, h);
+                }
+            } else {
+                existing.rewatchCount += getItemRewatchCount(h);
+                existing.hasExplicitRewatchCount = existing.hasExplicitRewatchCount || hasExplicitRewatchCount(h);
+            }
+
+            countsMap.set(key, existing);
+        });
+
+        countsMap.forEach(counts => {
+            if (counts.isSeries) {
+                counts.episodeWatchCounts.forEach(watchCount => {
+                    counts.rewatchCount += Math.max(0, watchCount - 1);
+                });
+            } else if (!counts.hasExplicitRewatchCount) {
+                counts.rewatchCount = Math.max(counts.rewatchCount, counts.watchCount - 1);
+            }
+
+            delete counts.episodeWatchCounts;
+        });
+
+        return countsMap;
+    }
+
+    // History timestamps are Python isoformat() strings (often with microseconds);
+    // trim the fraction to milliseconds so every browser parses them.
+    function parseTimestamp(value) {
+        if (typeof value !== 'string' || !value) return null;
+        const normalized = value.replace(/(\.\d{3})\d+/, '$1');
+        const parsed = Date.parse(normalized);
+        return Number.isFinite(parsed) ? parsed : null;
+    }
+
+    // Most recent watch activity recorded anywhere in an entry (item, events, episodes).
+    function getLatestWatchTime(item) {
+        let latest = null;
+        const consider = value => {
+            const parsed = parseTimestamp(value);
+            if (parsed !== null && (latest === null || parsed > latest)) latest = parsed;
+        };
+        const considerEvents = events => {
+            if (Array.isArray(events)) events.forEach(event => event && consider(event.watched_at));
+        };
+
+        consider(item.watched_at);
+        considerEvents(item.watch_events);
+        if (Array.isArray(item.episodes)) {
+            item.episodes.forEach(ep => {
+                if (!ep) return;
+                consider(ep.watched_at);
+                considerEvents(ep.watch_events);
+            });
+        }
+        return latest;
+    }
+
+    // localStorage can be missing, blocked (file:// or privacy settings) or full.
+    // Every access goes through here so the viewer keeps working without it.
+    function createSafeStorage(resolveStorage) {
+        let storage = null;
+        let writable = false;
+        try {
+            storage = resolveStorage() || null;
+        } catch (e) {
+            storage = null;
+        }
+        if (storage) {
+            try {
+                const probeKey = '__simkl_history_probe__';
+                storage.setItem(probeKey, '1');
+                storage.removeItem(probeKey);
+                writable = true;
+            } catch (e) {
+                writable = false;
+            }
+        }
+
+        return {
+            get writable() { return writable; },
+            get(key) {
+                if (!storage) return null;
+                try {
+                    return storage.getItem(key);
+                } catch (e) {
+                    return null;
+                }
+            },
+            set(key, value) {
+                if (!storage) return false;
+                try {
+                    storage.setItem(key, value);
+                    writable = true;
+                    return true;
+                } catch (e) {
+                    return false;
+                }
+            },
+            remove(key) {
+                if (!storage) return false;
+                try {
+                    storage.removeItem(key);
+                    return true;
+                } catch (e) {
+                    return false;
+                }
+            }
+        };
+    }
+
+    // Tracks titles the user hid from this view. A hidden title stays hidden only
+    // until new watch activity newer than the moment it was hidden shows up, so a
+    // later rewatch or new episode is never hidden permanently.
+    function createHiddenHistoryStore(storage) {
+        let records = new Map(); // hiddenKey -> { hiddenAt, latestWatchAt }
+
+        function latestForKey(key, items) {
+            let latest = null;
+            items.forEach(item => {
+                if (getHiddenKey(item) !== key) return;
+                const itemLatest = getLatestWatchTime(item);
+                if (itemLatest !== null && (latest === null || itemLatest > latest)) latest = itemLatest;
+            });
+            return latest;
+        }
+
+        function makeRecord(latest) {
+            return {
+                hiddenAt: new Date().toISOString(),
+                latestWatchAt: latest === null ? null : new Date(latest).toISOString()
+            };
+        }
+
+        function hasNewerActivity(item, record) {
+            const itemLatest = getLatestWatchTime(item);
+            if (itemLatest === null) return false;
+            const hiddenLatest = parseTimestamp(record.latestWatchAt);
+            return hiddenLatest === null || itemLatest > hiddenLatest;
+        }
+
+        function persist() {
+            const payload = { version: 1, items: Object.fromEntries(records) };
+            return storage.set(HIDDEN_STORAGE_KEY, JSON.stringify(payload));
+        }
+
+        function load(items) {
+            const warnings = [];
+            let changed = false;
+            records = new Map();
+
+            const raw = storage.get(HIDDEN_STORAGE_KEY);
+            if (raw) {
+                try {
+                    const parsed = JSON.parse(raw);
+                    const stored = parsed && typeof parsed === 'object' ? parsed.items : null;
+                    if (!stored || typeof stored !== 'object' || Array.isArray(stored)) {
+                        throw new Error('Unexpected hidden-items format');
+                    }
+                    Object.entries(stored).forEach(([key, record]) => {
+                        if (!key || !record || typeof record !== 'object') return;
+                        records.set(key, {
+                            hiddenAt: typeof record.hiddenAt === 'string' ? record.hiddenAt : null,
+                            latestWatchAt: typeof record.latestWatchAt === 'string' ? record.latestWatchAt : null
+                        });
+                    });
+                } catch (e) {
+                    warnings.push('The saved list of hidden items was unreadable, so all items are shown.');
+                    records = new Map();
+                }
+            }
+
+            // Early PR builds stored bare keys; snapshot them against the current data.
+            const legacyRaw = storage.get(LEGACY_HIDDEN_STORAGE_KEY);
+            if (legacyRaw !== null) {
+                try {
+                    const legacyKeys = JSON.parse(legacyRaw);
+                    if (Array.isArray(legacyKeys)) {
+                        legacyKeys.forEach(key => {
+                            if (typeof key === 'string' && key && !records.has(key)) {
+                                records.set(key, makeRecord(latestForKey(key, items)));
+                            }
+                        });
+                    }
+                } catch (e) {
+                    // Unreadable legacy data is dropped.
+                }
+                changed = true;
+            }
+
+            items.forEach(item => {
+                const key = getHiddenKey(item);
+                const record = records.get(key);
+                if (record && hasNewerActivity(item, record)) {
+                    records.delete(key);
+                    changed = true;
+                }
+            });
+
+            if (changed && persist() && legacyRaw !== null) {
+                storage.remove(LEGACY_HIDDEN_STORAGE_KEY);
+            }
+
+            return { warnings };
+        }
+
+        function isHidden(item) {
+            const record = records.get(getHiddenKey(item));
+            return Boolean(record) && !hasNewerActivity(item, record);
+        }
+
+        // Returns true when the change was saved, false when it only lasts for this page.
+        function hide(item, items) {
+            const key = getHiddenKey(item);
+            records.set(key, makeRecord(latestForKey(key, items)));
+            return persist();
+        }
+
+        function restore(key) {
+            records.delete(key);
+            return persist();
+        }
+
+        function restoreAll() {
+            records.clear();
+            const saved = persist();
+            storage.remove(LEGACY_HIDDEN_STORAGE_KEY);
+            return saved;
+        }
+
+        // Hidden titles present in the given data, grouped by key.
+        function listHidden(items) {
+            const groups = new Map();
+            items.forEach(item => {
+                if (!isHidden(item)) return;
+                const key = getHiddenKey(item);
+                const group = groups.get(key) || {
+                    key,
+                    title: item.title || 'Untitled',
+                    year: item.year || null,
+                    type: normalizeHistoryType(item.type),
+                    hiddenAt: records.get(key).hiddenAt,
+                    entries: 0
+                };
+                group.entries += 1;
+                groups.set(key, group);
+            });
+            return Array.from(groups.values()).sort((a, b) => a.title.localeCompare(b.title));
+        }
+
+        return { load, isHidden, hide, restore, restoreAll, listHidden };
+    }
+
+    return {
+        HIDDEN_STORAGE_KEY,
+        LEGACY_HIDDEN_STORAGE_KEY,
+        normalizeHistoryType,
+        isSeriesItem,
+        getHistoryKey,
+        getHiddenKey,
+        escapeHtml,
+        toPositiveInteger,
+        toNonNegativeInteger,
+        getItemWatchCount,
+        getItemRewatchCount,
+        buildHistoryCounts,
+        parseTimestamp,
+        getLatestWatchTime,
+        createSafeStorage,
+        createHiddenHistoryStore
+    };
+})();
+
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = HistoryViewerCore;
+}
+
+if (typeof document !== 'undefined') document.addEventListener('DOMContentLoaded', () => {
+    const {
+        normalizeHistoryType,
+        isSeriesItem,
+        getHistoryKey,
+        getHiddenKey,
+        escapeHtml,
+        getItemWatchCount,
+        getItemRewatchCount
+    } = HistoryViewerCore;
+
     // DOM elements
     const historyContainer = document.getElementById('history-container');
     const emptyHistory = document.getElementById('empty-history');
@@ -24,13 +466,26 @@ document.addEventListener('DOMContentLoaded', () => {
     const showsCountEl = document.getElementById('shows-count');
     const animeCountEl = document.getElementById('anime-count');
 
+    // Hidden-items elements
+    const filterRewatch = document.getElementById('filter-rewatch');
+    const viewerNotice = document.getElementById('viewer-notice');
+    const hiddenItemsToggle = document.getElementById('hidden-items-toggle');
+    const hiddenItemsCount = document.getElementById('hidden-items-count');
+    const hiddenItemsPanel = document.getElementById('hidden-items-panel');
+    const hiddenItemsList = document.getElementById('hidden-items-list');
+    const hiddenItemsClose = document.getElementById('hidden-items-close');
+    const restoreAllHiddenBtn = document.getElementById('restore-all-hidden');
+
     // State
-    let historyData = [];
+    const viewerStorage = HistoryViewerCore.createSafeStorage(() => window.localStorage);
+    const hiddenStore = HistoryViewerCore.createHiddenHistoryStore(viewerStorage);
+    let allHistoryData = []; // Everything in data.js, including hidden titles
+    let historyData = []; // What this view shows (hidden titles filtered out)
     let historyCountsMap = new Map(); // key -> { watchCount, rewatchCount }
     let activeMediaCard = null;
-    let currentView = localStorage.getItem('simkl_history_view') || 'grid';
-    let currentTheme = localStorage.getItem('simkl_history_theme') || 'dark'; // Default to dark
-    let showStats = localStorage.getItem('simkl_history_stats') === 'true';
+    let currentView = viewerStorage.get('simkl_history_view') || 'grid';
+    let currentTheme = viewerStorage.get('simkl_history_theme') || 'dark'; // Default to dark
+    let showStats = viewerStorage.get('simkl_history_stats') === 'true';
     let currentPage = 1;
     let itemsPerPage = 24; // Default for grid view
     let watchChart = null;
@@ -85,11 +540,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             if (typeof HISTORY_DATA !== 'undefined') {
-                historyData = HISTORY_DATA;
-               
+                allHistoryData = Array.isArray(HISTORY_DATA) ? HISTORY_DATA.filter(item => item && typeof item === 'object') : [];
+                const { warnings } = hiddenStore.load(allHistoryData);
+                applyHiddenFilter();
+
                 processHistoryData();
                 loadingIndicator.style.display = 'none';
                 renderHistory();
+                updateHiddenItemsUi();
+                if (warnings.length > 0) {
+                    showViewerNotice(warnings.join(' '));
+                } else if (!viewerStorage.writable) {
+                    showViewerNotice('Browser storage is unavailable, so view settings and hidden items will not be remembered after this page closes.');
+                }
             } else {
                 console.error('HISTORY_DATA is not defined. Cannot load history.');
                 loadingIndicator.style.display = 'none';
@@ -107,6 +570,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Populate years filter
         const years = new Set(historyData.map(item => item.year).filter(Boolean));
         const sortedYears = Array.from(years).sort((a, b) => b - a);
+        const selectedYear = filterYear.value;
 
         // Clear existing options except "All Years"
         while (filterYear.options.length > 1) filterYear.remove(1);
@@ -118,66 +582,31 @@ document.addEventListener('DOMContentLoaded', () => {
             filterYear.appendChild(option);
         });
 
+        // Keep the chosen year when it still exists (e.g. after hiding/restoring an item)
+        filterYear.value = sortedYears.some(year => String(year) === selectedYear) ? selectedYear : 'all';
+
         updateStatistics();
     }
 
-    function getHistoryKey(item) {
-        return item.simkl_id ? String(item.simkl_id) : `${item.title || ''}::${item.year || ''}`;
+    function applyHiddenFilter() {
+        historyData = allHistoryData.filter(item => !hiddenStore.isHidden(item));
     }
 
-    function toPositiveInteger(value) {
-        const parsed = Number(value);
-        return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+    function showViewerNotice(message) {
+        if (!viewerNotice) return;
+        viewerNotice.textContent = message;
+        viewerNotice.hidden = !message;
     }
 
-    function toNonNegativeInteger(value) {
-        const parsed = Number(value);
-        return Number.isInteger(parsed) && parsed >= 0 ? parsed : null;
+    function getHistoryCounts(item) {
+        return historyCountsMap.get(getHistoryKey(item)) || {
+            watchCount: getItemWatchCount(item),
+            rewatchCount: getItemRewatchCount(item)
+        };
     }
 
-    function hasExplicitRewatchCount(item) {
-        if (toNonNegativeInteger(item.rewatch_count) !== null) return true;
-        if (!Array.isArray(item.episodes)) return false;
-        return item.episodes.some(ep => toNonNegativeInteger(ep.rewatch_count) !== null);
-    }
-
-    function getItemWatchCount(item) {
-        const storedCount = toPositiveInteger(item.watch_count);
-        if (storedCount !== null) return storedCount;
-
-        if (Array.isArray(item.watch_events) && item.watch_events.length > 0) {
-            return item.watch_events.length;
-        }
-
-        return 1;
-    }
-
-    function getItemRewatchCount(item) {
-        const storedCount = toNonNegativeInteger(item.rewatch_count);
-        if (storedCount !== null) return storedCount;
-
-        if (Array.isArray(item.episodes)) {
-            let episodeRewatches = 0;
-            let hasEpisodeCounts = false;
-            item.episodes.forEach(ep => {
-                const epRewatchCount = toNonNegativeInteger(ep.rewatch_count);
-                if (epRewatchCount !== null) {
-                    episodeRewatches += epRewatchCount;
-                    hasEpisodeCounts = true;
-                    return;
-                }
-
-                const epWatchCount = toPositiveInteger(ep.watch_count);
-                if (epWatchCount !== null) {
-                    episodeRewatches += Math.max(0, epWatchCount - 1);
-                    hasEpisodeCounts = true;
-                }
-            });
-
-            if (hasEpisodeCounts) return episodeRewatches;
-        }
-
-        return Math.max(0, getItemWatchCount(item) - 1);
+    function buildHistoryCountsMap() {
+        historyCountsMap = HistoryViewerCore.buildHistoryCounts(historyData);
     }
 
     function getItemWatchEvents(item) {
@@ -186,38 +615,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         return item.watched_at ? [{ watched_at: item.watched_at }] : [];
-    }
-
-    function getHistoryCounts(item) {
-        const key = getHistoryKey(item);
-        return historyCountsMap.get(key) || {
-            watchCount: getItemWatchCount(item),
-            rewatchCount: getItemRewatchCount(item)
-        };
-    }
-
-    // Build a map of history counts keyed by simkl_id or title-year
-    function buildHistoryCountsMap() {
-        historyCountsMap = new Map();
-        historyData.forEach(h => {
-            const key = getHistoryKey(h);
-            const existing = historyCountsMap.get(key) || {
-                watchCount: 0,
-                rewatchCount: 0,
-                hasExplicitRewatchCount: false
-            };
-
-            existing.watchCount += getItemWatchCount(h);
-            existing.rewatchCount += getItemRewatchCount(h);
-            existing.hasExplicitRewatchCount = existing.hasExplicitRewatchCount || hasExplicitRewatchCount(h);
-            historyCountsMap.set(key, existing);
-        });
-
-        historyCountsMap.forEach(counts => {
-            if (!counts.hasExplicitRewatchCount) {
-                counts.rewatchCount = Math.max(counts.rewatchCount, counts.watchCount - 1);
-            }
-        });
     }
 
     // Update statistics panel and chart
@@ -817,13 +1214,13 @@ document.addEventListener('DOMContentLoaded', () => {
     function filterHistory() {
         const searchTerm = searchInput.value.toLowerCase().trim();
         const typeFilter = filterType.value;
-        const rewatchFilter = document.getElementById('filter-rewatch') ? document.getElementById('filter-rewatch').value : 'all';
+        const rewatchFilter = filterRewatch ? filterRewatch.value : 'all';
         const yearFilter = filterYear.value;
         const sortOption = sortBy.value;
 
         let filtered = historyData.filter(item => {
             // Type filter
-            if (typeFilter !== 'all' && item.type !== typeFilter) return false;
+            if (typeFilter !== 'all' && normalizeHistoryType(item.type) !== typeFilter) return false;
             // Year filter
             if (yearFilter !== 'all' && item.year !== parseInt(yearFilter)) return false;
             // Rewatch filter
@@ -869,7 +1266,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const filteredHistory = filterHistory();
 
         if (filteredHistory.length === 0) {
-            showEmptyState(searchInput.value ? "No results match your search." : "Your watch history is empty.");
+            let message = "Your watch history is empty.";
+            if (historyData.length > 0) {
+                message = "No results match your search or filters.";
+            } else if (allHistoryData.length > 0) {
+                message = "Every item is hidden from this view. Use the Hidden button to restore them.";
+            }
+            showEmptyState(message);
             pagination.style.display = 'none';
             return;
         }
@@ -904,6 +1307,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const card = document.createElement('div');
         card.className = 'media-card';
         card.dataset.itemId = item.simkl_id || `${item.title}-${item.year}`; // Unique ID for lookup
+        card.dataset.hiddenKey = getHiddenKey(item);
 
         // Determine the base image URL (Simkl or Placeholder)
         let baseImageUrl;
@@ -922,9 +1326,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const proxiedPosterUrl = getProxiedImageUrl(baseImageUrl);
 
         const mediaType = item.type || 'movie';
-        const year = item.year ? `(${item.year})` : '';
-        const runtime = item.runtime ? `${item.runtime} min` : '';
+        const year = item.year ? `(${escapeHtml(item.year)})` : '';
+        const runtime = item.runtime ? `${escapeHtml(item.runtime)} min` : '';
         const watchedDate = formatDate(item.watched_at);
+        const safeTitle = escapeHtml(item.title || '');
+        const filePath = typeof item.file_path === 'string' ? item.file_path : '';
+        const shortFilePath = filePath.length > 40 ? '...' + filePath.slice(-37) : filePath;
 
         let episodeInfoHtml = '';
         if ((mediaType === 'tv' || mediaType === 'anime' || mediaType === 'show') && item.season > 0 && item.episode > 0) {
@@ -941,30 +1348,33 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         const counts = getHistoryCounts(item);
         const rewatchBadgeHtml = counts.rewatchCount > 0
-            ? `<span class="rewatch-badge" title="Watched ${counts.watchCount} times, ${counts.rewatchCount} rewatch${counts.rewatchCount === 1 ? '' : 'es'}">↻${counts.watchCount}</span>`
+            ? `<span class="rewatch-badge" title="${counts.rewatchCount} rewatch${counts.rewatchCount === 1 ? '' : 'es'} across ${counts.watchCount} watch${counts.watchCount === 1 ? '' : 'es'}">↻${counts.rewatchCount}</span>`
             : '';
 
         card.innerHTML = `
             <div class="poster-container">
-                <img class="poster-img" src="${proxiedPosterUrl}" alt="${item.title || 'Poster'}" loading="lazy">
+                <img class="poster-img" src="${escapeHtml(proxiedPosterUrl)}" alt="${safeTitle || 'Poster'}" loading="lazy">
                 ${rewatchBadgeHtml}
-                <span class="media-type"><i class="${mediaIcon}"></i> ${mediaType}</span>
+                <span class="media-type"><i class="${mediaIcon}"></i> ${escapeHtml(mediaType)}</span>
+                <button type="button" class="hide-history-btn card-hide" title="Hide from this view (does not delete history)" aria-label="Hide ${safeTitle || 'item'} from this view">
+                    <i class="ph-duotone ph-eye-slash"></i>
+                </button>
             </div>
             <div class="media-info">
-                <h3 class="media-title" title="${item.title || ''} ${year}">${item.title || 'No Title'} ${year}</h3>
+                <h3 class="media-title" title="${safeTitle} ${year}">${safeTitle || 'No Title'} ${year}</h3>
                 <div class="media-meta">
                     ${runtime ? `<span><i class="ph-duotone ph-clock"></i> ${runtime}</span>` : ''}
                     ${episodeInfoHtml}
-                    ${item.rating ? `<span><i class="ph-duotone ph-star"></i> ${item.rating.toFixed(1)}</span>` : ''}
+                    ${typeof item.rating === 'number' && item.rating ? `<span><i class="ph-duotone ph-star"></i> ${item.rating.toFixed(1)}</span>` : ''}
                 </div>
                 <div class="watched-date">
-                    <i class="ph-duotone ph-calendar-check"></i> Watched ${watchedDate}
+                    <i class="ph-duotone ph-calendar-check"></i> Watched ${escapeHtml(watchedDate)}
                 </div>
                 <!-- File Details - Visible only in list view via CSS -->
                 <div class="file-details">
-                    ${item.resolution ? `<span><i class="ph-duotone ph-monitor"></i> ${item.resolution}</span>` : ''}
-                    ${item.formatted_file_size ? `<span><i class="ph-duotone ph-file"></i> ${item.formatted_file_size}</span>` : ''}
-                    ${item.file_path ? `<span class="file-path" title="${item.file_path}"><i class="ph-duotone ph-folder"></i> ${item.file_path.length > 40 ? '...' + item.file_path.slice(-37) : item.file_path}</span>` : ''}
+                    ${item.resolution ? `<span><i class="ph-duotone ph-monitor"></i> ${escapeHtml(item.resolution)}</span>` : ''}
+                    ${item.formatted_file_size ? `<span><i class="ph-duotone ph-file"></i> ${escapeHtml(item.formatted_file_size)}</span>` : ''}
+                    ${filePath ? `<span class="file-path" title="${escapeHtml(filePath)}"><i class="ph-duotone ph-folder"></i> ${escapeHtml(shortFilePath)}</span>` : ''}
                 </div>
             </div>
         `;
@@ -973,6 +1383,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Show empty state message
     function showEmptyState(message = "Your watch history is empty.") {
+        historyContainer.innerHTML = ''; // Drop stale cards (e.g. after the last item was hidden)
         historyContainer.style.display = 'none';
         emptyHistory.style.display = 'block';
         const emptyText = emptyHistory.querySelector('p');
@@ -985,7 +1396,7 @@ document.addEventListener('DOMContentLoaded', () => {
     viewToggle.addEventListener('click', () => {
         historyContainer.classList.toggle('list-view');
         currentView = historyContainer.classList.contains('list-view') ? 'list' : 'grid';
-        localStorage.setItem('simkl_history_view', currentView);
+        viewerStorage.set('simkl_history_view', currentView);
         itemsPerPage = currentView === 'list' ? 15 : 24;
         viewToggle.innerHTML = currentView === 'list' ? '<i class="ph-duotone ph-grid-four"></i>' : '<i class="ph-duotone ph-list"></i>';
         currentPage = 1;
@@ -996,8 +1407,8 @@ document.addEventListener('DOMContentLoaded', () => {
     themeToggle.addEventListener('click', () => {
         document.body.classList.toggle('dark-mode');
         currentTheme = document.body.classList.contains('dark-mode') ? 'dark' : 'light';
-        localStorage.setItem('simkl_history_theme', currentTheme);
-        themeToggle.innerHTML = currentTheme === 'dark' ? '<i class="ph-duotone ph-sun"></i>' : '<i class="ph-duotone ph-moon></i>';
+        viewerStorage.set('simkl_history_theme', currentTheme);
+        themeToggle.innerHTML = currentTheme === 'dark' ? '<i class="ph-duotone ph-sun"></i>' : '<i class="ph-duotone ph-moon"></i>';
         if (watchChart) createWatchTrendChart(); // Redraw chart with new theme colors
     });
 
@@ -1005,7 +1416,7 @@ document.addEventListener('DOMContentLoaded', () => {
     statsToggle.addEventListener('click', () => {
         showStats = !showStats;
         dashboard.style.display = showStats ? 'block' : 'none';
-        localStorage.setItem('simkl_history_stats', showStats);
+        viewerStorage.set('simkl_history_stats', String(showStats));
         if (showStats && !watchChart) createWatchTrendChart();
     });
 
@@ -1041,6 +1452,7 @@ document.addEventListener('DOMContentLoaded', () => {
     filterType.addEventListener('change', () => { currentPage = 1; renderHistory(); });
     filterYear.addEventListener('change', () => { currentPage = 1; renderHistory(); });
     sortBy.addEventListener('change', () => { currentPage = 1; renderHistory(); });
+    if (filterRewatch) filterRewatch.addEventListener('change', () => { currentPage = 1; renderHistory(); });
 
     // Keyboard shortcuts for pagination
     document.addEventListener('keydown', (e) => {
@@ -1053,6 +1465,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Handle card clicks to show detailed view
     historyContainer.addEventListener('click', (e) => {
+        const hideButton = e.target.closest('.hide-history-btn');
+        if (hideButton) {
+            const card = hideButton.closest('.media-card');
+            if (!card) return;
+
+            const item = getHistoryItemByCard(card);
+            if (item) hideHistoryItem(item);
+            return;
+        }
+
         const card = e.target.closest('.media-card');
         if (!card || card.classList.contains('expanded')) return;
 
@@ -1061,6 +1483,137 @@ document.addEventListener('DOMContentLoaded', () => {
 
         expandMediaCard(card);
     });
+
+    function getHistoryItemByCard(card) {
+        const hiddenKey = card.dataset.hiddenKey;
+        if (hiddenKey) {
+            const itemByHiddenKey = historyData.find(i => getHiddenKey(i) === hiddenKey);
+            if (itemByHiddenKey) return itemByHiddenKey;
+        }
+
+        const itemId = card.dataset.itemId;
+        return historyData.find(i => (i.simkl_id && i.simkl_id == itemId) || (!i.simkl_id && `${i.title}-${i.year}` === itemId));
+    }
+
+    // Close an expanded card immediately (no animation), e.g. before re-rendering.
+    function resetExpandedCardState() {
+        if (!activeMediaCard) return;
+        if (modalBackdrop) {
+            modalBackdrop.classList.remove('active');
+            modalBackdrop.style.display = 'none';
+        }
+        document.body.style.overflow = '';
+        activeMediaCard = null;
+        isCardTransitioning = false;
+    }
+
+    function refreshAfterHiddenChange() {
+        applyHiddenFilter();
+        resetExpandedCardState();
+        processHistoryData();
+        renderHistory();
+        updateHiddenItemsUi();
+    }
+
+    // Hides a title from this browser's view only. Nothing is deleted from the
+    // app's watch_history.json or from Simkl.
+    function hideHistoryItem(item) {
+        const title = item.title || 'this item';
+        const confirmed = window.confirm(
+            `Hide "${title}" from this history view?\n\n` +
+            'This only changes what this browser shows. It does NOT delete anything from the app\'s watch history ' +
+            'or from your Simkl account, and it does not reset rewatch tracking.\n\n' +
+            'Use the "Hidden" button to restore it. It also reappears automatically the next time you watch it.'
+        );
+        if (!confirmed) return;
+
+        const saved = hiddenStore.hide(item, allHistoryData);
+        refreshAfterHiddenChange();
+        showViewerNotice(saved
+            ? `"${title}" is hidden from this view. Use the Hidden button to restore it.`
+            : `"${title}" is hidden for now, but browser storage is unavailable so it will show again next time this page opens.`);
+    }
+
+    function restoreHiddenItem(key, title) {
+        const saved = hiddenStore.restore(key);
+        refreshAfterHiddenChange();
+        showViewerNotice(saved
+            ? `"${title}" is visible again.`
+            : `"${title}" is visible again for now, but browser storage is unavailable so the change was not saved.`);
+    }
+
+    function updateHiddenItemsUi() {
+        const hiddenItems = hiddenStore.listHidden(allHistoryData);
+        if (hiddenItemsToggle) {
+            hiddenItemsToggle.style.display = hiddenItems.length > 0 ? '' : 'none';
+        }
+        if (hiddenItemsCount) hiddenItemsCount.textContent = String(hiddenItems.length);
+        if (!hiddenItemsList) return;
+
+        hiddenItemsList.replaceChildren();
+        if (hiddenItems.length === 0) {
+            const empty = document.createElement('li');
+            empty.className = 'hidden-items-empty';
+            empty.textContent = 'Nothing is hidden from this view.';
+            hiddenItemsList.appendChild(empty);
+            if (restoreAllHiddenBtn) restoreAllHiddenBtn.disabled = true;
+            return;
+        }
+
+        if (restoreAllHiddenBtn) restoreAllHiddenBtn.disabled = false;
+        hiddenItems.forEach(hidden => {
+            const row = document.createElement('li');
+            row.className = 'hidden-item-row';
+
+            const label = document.createElement('span');
+            label.className = 'hidden-item-title';
+            label.textContent = `${hidden.title}${hidden.year ? ` (${hidden.year})` : ''}`;
+
+            const meta = document.createElement('span');
+            meta.className = 'hidden-item-meta';
+            meta.textContent = hidden.type === 'movie' ? 'Movie' : (hidden.type === 'anime' ? 'Anime' : 'TV');
+
+            const restoreBtn = document.createElement('button');
+            restoreBtn.type = 'button';
+            restoreBtn.className = 'action-btn secondary restore-hidden-btn';
+            restoreBtn.textContent = 'Restore';
+            restoreBtn.setAttribute('aria-label', `Restore ${hidden.title} to this view`);
+            restoreBtn.addEventListener('click', () => restoreHiddenItem(hidden.key, hidden.title));
+
+            row.append(label, meta, restoreBtn);
+            hiddenItemsList.appendChild(row);
+        });
+    }
+
+    function setHiddenPanelOpen(open) {
+        if (!hiddenItemsPanel) return;
+        hiddenItemsPanel.hidden = !open;
+        if (hiddenItemsToggle) hiddenItemsToggle.setAttribute('aria-expanded', String(open));
+        if (open) {
+            updateHiddenItemsUi();
+            if (hiddenItemsClose) hiddenItemsClose.focus();
+        }
+    }
+
+    if (hiddenItemsToggle) {
+        hiddenItemsToggle.addEventListener('click', () => setHiddenPanelOpen(hiddenItemsPanel ? hiddenItemsPanel.hidden : false));
+    }
+    if (hiddenItemsClose) {
+        hiddenItemsClose.addEventListener('click', () => {
+            setHiddenPanelOpen(false);
+            if (hiddenItemsToggle && hiddenItemsToggle.style.display !== 'none') hiddenItemsToggle.focus();
+        });
+    }
+    if (restoreAllHiddenBtn) {
+        restoreAllHiddenBtn.addEventListener('click', () => {
+            const saved = hiddenStore.restoreAll();
+            refreshAfterHiddenChange();
+            setHiddenPanelOpen(false);
+            showViewerNotice(saved
+                ? 'All hidden items are visible again.'
+                : 'All hidden items are visible again for now, but browser storage is unavailable so the change was not saved.');
+        });
+    }
 
     // Close expanded card when clicking backdrop or pressing Escape
     modalBackdrop.addEventListener('click', (e) => { if (e.target === modalBackdrop) closeExpandedCard(); });
@@ -1075,7 +1628,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const itemId = card.dataset.itemId;
         // Find the item data using a more robust method if IDs aren't always present
-        const item = historyData.find(i => (i.simkl_id && i.simkl_id == itemId) || (!i.simkl_id && `${i.title}-${i.year}` === itemId));
+        const item = getHistoryItemByCard(card);
 
         if (!item) {
             console.error("Could not find item data for card:", itemId);
@@ -1258,6 +1811,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const playMediaBtn = expandedContentWrapper.querySelector('.play-media');
         const openFolderBtn = expandedContentWrapper.querySelector('.open-folder');
         const searchOnlineBtn = expandedContentWrapper.querySelector('#search-online');
+        const hideHistoryBtn = expandedContentWrapper.querySelector('.hide-history');
 
         if (itemData.file_path) {
             if (playMediaBtn) playMediaBtn.addEventListener('click', () => window.open(`file:///${itemData.file_path}`, '_blank'));
@@ -1284,6 +1838,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (searchOnlineBtn && itemData.title) {
             const searchQuery = `${itemData.title} ${itemData.year || ''} watch online`;
             searchOnlineBtn.href = `https://www.google.com/search?q=${encodeURIComponent(searchQuery)}`;
+        }
+
+        if (hideHistoryBtn) {
+            hideHistoryBtn.addEventListener('click', () => hideHistoryItem(itemData));
         }
 
         // Append the populated template's content INTO our new root
@@ -1533,10 +2091,10 @@ document.addEventListener('DOMContentLoaded', () => {
         addExternalLink(linksContainer, item.ids?.simkl || item.simkl_id, 
             `https://simkl.com/${simklUrlType}/${item.ids?.simkl || item.simkl_id}`, 
             'Simkl', 'https://simkl.in/favicon.ico');       
-        addExternalLink(linksContainer, item.ids?.imdb, `https://www.imdb.com/title/${item.ids.imdb}`, 'IMDb', 'https://www.imdb.com/favicon.ico');
-        addExternalLink(linksContainer, item.ids?.tmdb, `https://www.themoviedb.org/${item.type === 'movie' ? 'movie' : 'tv'}/${item.ids.tmdb}`, 'TMDB', 'https://www.themoviedb.org/assets/2/favicon-16x16-61a2c7a6e45f3ae4f9f8a5eff9e2f6c16e9b2516b887e3d87067d1b5f7e55fb2.png');
-        addExternalLink(linksContainer, item.ids?.tvdb, `https://thetvdb.com/?tab=series&id=${item.ids.tvdb}`, 'TVDB', 'https://cdn.thetvdb.com/images/favicon.ico');
-        addExternalLink(linksContainer, item.ids?.anilist, `https://anilist.co/${item.type}/${item.ids.anilist}`, 'Anilist', 'https://anilist.co/img/icons/favicon-32x32.png');
+        addExternalLink(linksContainer, item.ids?.imdb, `https://www.imdb.com/title/${item.ids?.imdb}`, 'IMDb', 'https://www.imdb.com/favicon.ico');
+        addExternalLink(linksContainer, item.ids?.tmdb, `https://www.themoviedb.org/${item.type === 'movie' ? 'movie' : 'tv'}/${item.ids?.tmdb}`, 'TMDB', 'https://www.themoviedb.org/assets/2/favicon-16x16-61a2c7a6e45f3ae4f9f8a5eff9e2f6c16e9b2516b887e3d87067d1b5f7e55fb2.png');
+        addExternalLink(linksContainer, item.ids?.tvdb, `https://thetvdb.com/?tab=series&id=${item.ids?.tvdb}`, 'TVDB', 'https://cdn.thetvdb.com/images/favicon.ico');
+        addExternalLink(linksContainer, item.ids?.anilist, `https://anilist.co/${item.type}/${item.ids?.anilist}`, 'Anilist', 'https://anilist.co/img/icons/favicon-32x32.png');
         // Add more links as needed (MAL, etc.)
 
         // Show/hide TV details section
@@ -1700,21 +2258,23 @@ document.addEventListener('DOMContentLoaded', () => {
                     const epWatchedDate = ep.watched_at ? formatDate(ep.watched_at) : 
                                         ep.historyEntry ? formatDate(ep.historyEntry.watched_at) : 'N/A';
                     
-                    const epFilePath = ep.file_path || ep.historyEntry?.file_path || 'N/A';
+                    const epFilePathRaw = ep.file_path || ep.historyEntry?.file_path;
+                    const epFilePath = typeof epFilePathRaw === 'string' && epFilePathRaw ? epFilePathRaw : 'N/A';
                     const epFileSize = ep.formatted_file_size || formatFileSize(ep.file_size) || ep.historyEntry?.formatted_file_size || formatFileSize(ep.historyEntry?.file_size) || 'N/A';
                     const epRuntime = ep.runtime || ep.historyEntry?.runtime; // Get runtime if available
 
-                    const runtimeHtml = epRuntime ? `<span title="Runtime"><i class="ph-duotone ph-clock"></i> ${epRuntime} min</span>` : '';
+                    const runtimeHtml = epRuntime ? `<span title="Runtime"><i class="ph-duotone ph-clock"></i> ${escapeHtml(epRuntime)} min</span>` : '';
+                    const safeEpTitle = escapeHtml(epTitle);
                     epElement.innerHTML = `
                         <div class="episode-info-main">
                             <span class="episode-number">${seasonNumber > 0 ? `S${String(seasonNumber).padStart(2, '0')}` : ''}E${epNumber}</span>
-                            <span class="episode-title" title="${epTitle}">${epTitle}</span>
+                            <span class="episode-title" title="${safeEpTitle}">${safeEpTitle}</span>
                         </div>
                         <div class="episode-info-meta">
-                            <span title="Watched Date"><i class="ph-duotone ph-calendar-check"></i> ${epWatchedDate}</span>
-                            <span title="File Size"><i class="ph-duotone ph-file"></i> ${epFileSize}</span>
+                            <span title="Watched Date"><i class="ph-duotone ph-calendar-check"></i> ${escapeHtml(epWatchedDate)}</span>
+                            <span title="File Size"><i class="ph-duotone ph-file"></i> ${escapeHtml(epFileSize)}</span>
                             ${runtimeHtml}
-                            <span class="file-path-ep" title="${epFilePath}"><i class="ph-duotone ph-folder"></i> ${epFilePath.length > 25 ? '...' + epFilePath.slice(-22) : epFilePath}</span>
+                            <span class="file-path-ep" title="${escapeHtml(epFilePath)}"><i class="ph-duotone ph-folder"></i> ${escapeHtml(epFilePath.length > 25 ? '...' + epFilePath.slice(-22) : epFilePath)}</span>
                         </div>
                     `;
                     episodeListContainer.appendChild(epElement);

@@ -1718,6 +1718,15 @@ class TrayAppBase(abc.ABC): # Inherit from ABC for abstract methods
             
             logger.info(f"Re-identifying currently playing media: '{current_title}' (filepath: '{current_filepath}')")
             self.show_notification("simkl-mps", f"Attempting to re-identify '{current_title}'...")
+
+            if current_filepath and hasattr(actual_scrobbler, "clear_file_search_rate_limit"):
+                actual_scrobbler.clear_file_search_rate_limit(current_filepath)
+            if hasattr(actual_scrobbler, "_movie_search_retry_after"):
+                actual_scrobbler._movie_search_retry_after.clear()
+
+            # Close the scrobble session of the old identity before it is cleared below.
+            if hasattr(actual_scrobbler, "end_scrobble_session_for_reidentification"):
+                actual_scrobbler.end_scrobble_session_for_reidentification()
                     
             # Determine cache keys to clear
             cache_keys_to_clear = []

@@ -14,6 +14,7 @@ import pathlib
 from datetime import datetime, timezone
 import threading
 from collections import deque
+from difflib import SequenceMatcher
 from typing import Any, Dict
 from requests.exceptions import RequestException
 
@@ -27,10 +28,19 @@ from simkl_mps.simkl_api import (
     search_movie,
     scrobble,
     get_playback_sessions,
-    delete_playback
+    delete_playback,
+    normalize_scrobble_min_progress
 )
 from simkl_mps.backlog_cleaner import BacklogCleaner
-from simkl_mps.window_detection import parse_movie_title, parse_filename_from_path, is_video_player
+from simkl_mps.window_detection import (
+    parse_movie_title,
+    parse_filename_from_path,
+    parse_media_title,
+    is_video_player,
+    split_media_path,
+    media_path_basename,
+    coerce_media_number,
+)
 from simkl_mps.media_cache import MediaCache
 
 logger = logging.getLogger(__name__)
@@ -60,8 +70,13 @@ class MediaScrobbler:
     # Class constants
     MAX_BACKLOG_ATTEMPTS = 5  # Maximum retry attempts for backlog items
     SCROBBLE_MIN_INTERVAL = 2.5
+    SCROBBLE_RETRY_INTERVAL = 20.0  # Simkl holds a 20s per-user scrobble lock; don't hammer it after a failure
+    MOVIE_SEARCH_RETRY_INTERVAL = 60.0
     MIN_REPORT_WATCH_SECONDS = 30
     MIN_RESUME_PROGRESS = 2.0
+    MAX_FILE_SEARCH_ATTEMPTS_PER_FILE = 3  # Automatic /search/file cycles before requiring tray retry
+    MAX_FILE_SEARCH_VARIANTS = 4  # Extra normalized /search/file queries per cycle; the endpoint is for one-file lookups
+    VALIDATED_MOVIE_SEARCH_SOURCE = "simkl_search_movie_validated"  # Cache source for title-checked movie matches
 
     def __init__(self, app_data_dir, client_id=None, access_token=None, testing_mode=False):
         self.app_data_dir = pathlib.Path(app_data_dir) # Ensure it's a Path object
@@ -71,6 +86,7 @@ class MediaScrobbler:
         self.currently_tracking = None
         self._scrobble_reported_state = None
         self._last_scrobble_attempt = 0.0
+        self._scrobble_retry_after = 0.0
         self._pending_scrobble_seek = False
         self._last_reported_progress = None
         self._resume_done = False
@@ -99,6 +115,8 @@ class MediaScrobbler:
         self.media_cache = MediaCache(app_data_dir=self.app_data_dir)
         self.last_progress_check = 0
         self.completion_threshold = get_setting('watch_completion_threshold', DEFAULT_THRESHOLD)
+        self._synced_history_keys = set()
+        self._movie_search_retry_after = {}
         self.completed = False
         self.current_position_seconds = 0
         self.total_duration_seconds = None
@@ -114,6 +132,8 @@ class MediaScrobbler:
         self._last_connection_error_log = {} # Tracks last log time for player connection errors
         self._backlog_notification_throttle = {} # Track last notification time per item {item_key: timestamp}
         self._general_notification_throttle = {} # Track last notification time for general notifications {key: timestamp}
+        self._file_search_attempts = {} # Track automatic /search/file cycles per file until user retries from tray
+        self._file_search_attempts_lock = threading.Lock()
 
         self.playback_log_file = self.app_data_dir / 'playback_log.jsonl'
         self.playback_logger = logging.getLogger('PlaybackLogger')
@@ -268,12 +288,113 @@ class MediaScrobbler:
             self._backlog_notification_throttle.clear()
             general_notification_items_cleared = len(self._general_notification_throttle)
             self._general_notification_throttle.clear()
+            self._ensure_file_search_rate_limit_state()
+            with self._file_search_attempts_lock:
+                file_search_limits_cleared = len(self._file_search_attempts)
+                self._file_search_attempts.clear()
             
             total_throttles_cleared = notification_items_cleared + general_notification_items_cleared
-            if items_cleared > 0 or total_throttles_cleared > 0:
-                logger.info(f"Cleared {items_cleared} items from backlog processing state and {total_throttles_cleared} notification throttles")
+            if items_cleared > 0 or total_throttles_cleared > 0 or file_search_limits_cleared > 0:
+                logger.info(f"Cleared {items_cleared} items from backlog processing state, {total_throttles_cleared} notification throttles, and {file_search_limits_cleared} file search limits")
             else:
                 logger.debug("Backlog processing state and notification throttles were already empty")
+
+    def _file_search_rate_limit_key(self, filepath):
+        """Return a stable key for automatic /search/file attempts."""
+        if not filepath:
+            return None
+
+        value = str(filepath).strip()
+        if not value:
+            return None
+
+        # Separator/case-insensitive but never resolved against the CWD, so remote
+        # Windows paths and backlog titles keep a stable key on any host.
+        return value.replace('\\', '/').lower()
+
+    def _ensure_file_search_rate_limit_state(self):
+        if not hasattr(self, "_file_search_attempts"):
+            self._file_search_attempts = {}
+        if not hasattr(self, "_file_search_attempts_lock"):
+            self._file_search_attempts_lock = threading.Lock()
+
+    def clear_file_search_rate_limit(self, filepath=None):
+        """Clear automatic /search/file suppression for one file, or all files."""
+        self._ensure_file_search_rate_limit_state()
+        with self._file_search_attempts_lock:
+            if filepath:
+                key = self._file_search_rate_limit_key(filepath)
+                removed = bool(key and self._file_search_attempts.pop(key, None))
+                if removed:
+                    logger.info("Cleared Simkl file search rate limit for '%s'.", filepath)
+                return removed
+
+            cleared_count = len(self._file_search_attempts)
+            self._file_search_attempts.clear()
+            if cleared_count:
+                logger.info("Cleared Simkl file search rate limits for %d file(s).", cleared_count)
+            return bool(cleared_count)
+
+    def _is_file_search_rate_limited(self, filepath):
+        self._ensure_file_search_rate_limit_state()
+        key = self._file_search_rate_limit_key(filepath)
+        if not key:
+            return False
+
+        with self._file_search_attempts_lock:
+            return bool(self._file_search_attempts.get(key, {}).get("blocked"))
+
+    def _record_file_search_attempt(self, filepath):
+        """Record one automatic file-search cycle and block future cycles at the limit."""
+        self._ensure_file_search_rate_limit_state()
+        key = self._file_search_rate_limit_key(filepath)
+        if not key:
+            return 0
+
+        with self._file_search_attempts_lock:
+            state = self._file_search_attempts.setdefault(key, {"count": 0, "blocked": False})
+            state["count"] = int(state.get("count", 0)) + 1
+            state["last_attempt"] = time.time()
+            if state["count"] >= self.MAX_FILE_SEARCH_ATTEMPTS_PER_FILE:
+                state["blocked"] = True
+                logger.warning(
+                    "Automatic Simkl file search limit reached for '%s' (%d/%d). Future automatic searches will be skipped until tray retry.",
+                    filepath,
+                    state["count"],
+                    self.MAX_FILE_SEARCH_ATTEMPTS_PER_FILE,
+                )
+            else:
+                logger.debug(
+                    "Recorded automatic Simkl file search attempt %d/%d for '%s'.",
+                    state["count"],
+                    self.MAX_FILE_SEARCH_ATTEMPTS_PER_FILE,
+                    filepath,
+                )
+            return state["count"]
+
+    def _skip_rate_limited_file_search(self, filepath):
+        filename = media_path_basename(filepath) if filepath else "this file"
+        filename = filename or str(filepath)
+        # Unidentified items are re-checked on every poll; only warn once per blocked file.
+        self._ensure_file_search_rate_limit_state()
+        key = self._file_search_rate_limit_key(filepath)
+        with self._file_search_attempts_lock:
+            state = self._file_search_attempts.get(key) if key else None
+            first_skip = bool(state) and not state.get("skip_logged")
+            if state:
+                state["skip_logged"] = True
+        log = logger.warning if first_skip else logger.debug
+        log(
+            "Skipping automatic Simkl file search for '%s': per-file search limit exceeded; use tray retry to try again.",
+            filepath,
+        )
+        self._send_throttled_notification(
+            f"file_search_rate_limited:{self._file_search_rate_limit_key(filepath) or filename}",
+            "Simkl File Search Paused",
+            f"Skipping '{filename}' until Retry Last Scrobble is used.",
+            throttle_minutes=60,
+            online_only=True,
+        )
 
     def _send_notification(self, title, message, online_only=False, offline_only=False, critical=False):
         """
@@ -610,6 +731,396 @@ class MediaScrobbler:
         curr_name = os.path.basename(current_filepath).lower()
         return prev_name != curr_name
 
+    # Words a filename may carry around the real title without naming a different work.
+    _TITLE_NOISE_WORDS = {
+        "extended", "directors", "director", "cut", "edition", "remastered", "unrated",
+        "uncut", "theatrical", "imax", "special", "final", "version", "collectors",
+        "anniversary", "restored", "redux", "complete", "uncensored",
+    }
+    _SEQUEL_NUMBER_RE = re.compile(r'^(?:\d+|i{1,3}|iv|vi{0,3}|ix|x)$')
+
+    @staticmethod
+    def _title_match_key(value):
+        if not value:
+            return ""
+        # Only strip a release year written as "(2019)"/"[2019]": bare numbers can be the
+        # title itself ("1917", "Blade Runner 2049").
+        key = re.sub(r'[\(\[]\s*(19\d{2}|20\d{2})\s*[\)\]]', ' ', str(value).lower())
+        key = key.replace("&", " and ")
+        key = re.sub(r"['’]", '', key)
+        key = re.sub(r'[^a-z0-9]+', ' ', key).strip()
+        key = re.sub(r'^(the|a|an)\s+', '', key)
+        return re.sub(r'\s+', ' ', key)
+
+    @classmethod
+    def _titles_are_compatible(cls, expected_title, actual_title):
+        expected_key = cls._title_match_key(expected_title)
+        actual_key = cls._title_match_key(actual_title)
+
+        if not expected_key or not actual_key:
+            return True
+        if expected_key == actual_key:
+            return True
+
+        expected_words = expected_key.split()
+        actual_words = actual_key.split()
+        # A differing sequel/part number means a different work ("Spider Man" vs "Spider Man 2").
+        expected_numbers = {w for w in expected_words if cls._SEQUEL_NUMBER_RE.match(w)}
+        actual_numbers = {w for w in actual_words if cls._SEQUEL_NUMBER_RE.match(w)}
+        if expected_numbers != actual_numbers:
+            return False
+
+        # Filename carries extra edition words around the real title.
+        for start in range(len(expected_words) - len(actual_words) + 1):
+            if expected_words[start:start + len(actual_words)] == actual_words:
+                extra = expected_words[:start] + expected_words[start + len(actual_words):]
+                if extra and all(word in cls._TITLE_NOISE_WORDS for word in extra):
+                    return True
+                break
+
+        return SequenceMatcher(None, expected_key, actual_key).ratio() >= 0.86
+
+    @staticmethod
+    def _alternate_titles(media_item):
+        """Collect the display and localized/alternate titles Simkl matched the search on."""
+        if not isinstance(media_item, dict):
+            return []
+        titles = [media_item.get("title"), media_item.get("title_en"), media_item.get("title_romaji")]
+        all_titles = media_item.get("all_titles") or []
+        if isinstance(all_titles, (list, tuple)):
+            for entry in all_titles:
+                titles.append(entry.get("title") if isinstance(entry, dict) else entry)
+        return [title for title in titles if isinstance(title, str) and title.strip()]
+
+    @staticmethod
+    def _year_from_title_text(value):
+        match = re.search(r'[\(\[]\s*(19\d{2}|20\d{2})\s*[\)\]]', str(value or ""))
+        return int(match.group(1)) if match else None
+
+    def _expected_media_info_from_filepath(self, filepath, guessit_info=None):
+        expected = {}
+
+        if filepath:
+            try:
+                expected = parse_media_title(media_path_basename(filepath) or str(filepath)) or {}
+            except Exception:
+                logger.debug("Could not parse expected media info from filepath.", exc_info=True)
+
+            # Folder years are only a hint for movies: episode folders often carry a
+            # season/air year ("Show (2005)/Season 13 (2021)") that differs from the
+            # show year Simkl returns, which would wrongly reject a correct match.
+            if isinstance(expected, dict) and "year" not in expected and expected.get("type") != "episode":
+                year = self._year_from_path_context(filepath)
+                if year is not None:
+                    expected["year"] = year
+
+        if not expected and guessit_info:
+            expected = {
+                "title": guessit_info.get("title"),
+                "type": guessit_info.get("type"),
+                "season": guessit_info.get("season"),
+                "episode": guessit_info.get("episode"),
+            }
+
+        if isinstance(expected, dict):
+            expected = dict(expected)
+            for field in ("season", "episode", "year"):
+                if field in expected:
+                    expected[field] = coerce_media_number(expected[field])
+        else:
+            expected = {}
+
+        return expected
+
+    @staticmethod
+    def _year_from_path_context(filepath):
+        if not filepath:
+            return None
+
+        current_year = datetime.now().year
+        for part in reversed(split_media_path(filepath)[:-1]):
+            for match in re.finditer(r'\b(19\d{2}|20\d{2})\b', part):
+                year = int(match.group(1))
+                if 1900 <= year <= current_year + 3:
+                    return year
+        return None
+
+    @staticmethod
+    def _simkl_file_media_item(result):
+        return (result or {}).get("show") or (result or {}).get("movie") or {}
+
+    @staticmethod
+    def _simkl_file_episode_item(result):
+        return (result or {}).get("episode") or {}
+
+    def _file_search_result_has_expected_episode_context(self, result, filepath, guessit_info=None):
+        expected = self._expected_media_info_from_filepath(filepath, guessit_info)
+        expected_episode = expected.get("episode")
+        # Absolute-numbered files ("Show - 1071") have no season; Simkl may map them
+        # onto its own season numbering, so only an explicit SxxEyy is enforced.
+        if expected_episode is None or expected.get("season") is None:
+            return True
+
+        episode_details = self._simkl_file_episode_item(result)
+        return coerce_media_number(episode_details.get("episode")) == expected_episode
+
+    def _file_search_result_matches_expected_year(self, result, filepath, guessit_info=None):
+        expected = self._expected_media_info_from_filepath(filepath, guessit_info)
+        expected_year = expected.get("year")
+        if expected_year is None:
+            return True
+
+        media_item = self._simkl_file_media_item(result)
+        result_year = media_item.get("year")
+        return result_year in (None, 0, expected_year)
+
+    def _file_search_result_is_preferred(self, result, filepath, guessit_info=None):
+        return (
+            self._simkl_file_result_matches_expected(result, filepath, guessit_info)
+            and self._file_search_result_matches_expected_year(result, filepath, guessit_info)
+            and self._file_search_result_has_expected_episode_context(result, filepath, guessit_info)
+        )
+
+    def _simkl_file_result_matches_expected(self, result, filepath, guessit_info=None):
+        """Accept structurally valid /search/file results.
+
+        Simkl's file endpoint is the source of truth for shows/anime in this
+        app. Filename parsing is still used later to fill missing episode
+        context, but it should not reject a file-search match.
+        """
+        if not result:
+            return False
+
+        media_item = result.get("show") or result.get("movie")
+        if not media_item:
+            return False
+
+        ids = media_item.get("ids") or {}
+        return bool(ids.get("simkl") or ids.get("simkl_id"))
+
+    def _add_filename_episode_context_to_result(self, result, filepath=None, guessit_info=None):
+        """Fill missing S/E on Simkl /search/file result from the filename."""
+        if not result or "show" not in result:
+            return result
+
+        expected = self._expected_media_info_from_filepath(filepath, guessit_info)
+        expected_season = expected.get("season")
+        expected_episode = expected.get("episode")
+
+        if expected_season is None and expected_episode is None:
+            return result
+
+        normalized = dict(result)
+        episode_details = dict(normalized.get("episode") or {})
+        if expected_season is not None and episode_details.get("season") is None:
+            episode_details["season"] = expected_season
+        if expected_episode is not None and episode_details.get("episode") is None:
+            episode_details["episode"] = expected_episode
+
+        normalized["episode"] = episode_details
+        return normalized
+
+    def _simkl_movie_result_matches_title(self, result, title_to_search):
+        if not result:
+            return False
+
+        media_item = None
+        if isinstance(result, dict):
+            media_item = result.get("movie") or (result if result.get("type") == "movie" else None)
+        elif isinstance(result, list) and result:
+            first_result = result[0]
+            media_item = first_result.get("movie") if isinstance(first_result, dict) else None
+            if media_item is None and isinstance(first_result, dict) and first_result.get("type") == "movie":
+                media_item = first_result
+
+        candidate_titles = self._alternate_titles(media_item)
+        if not candidate_titles:
+            return True
+        if any(self._titles_are_compatible(title_to_search, title) for title in candidate_titles):
+            return True
+
+        # A shared release year cannot establish identity: unrelated movies are
+        # released in the same year. Localized matches need a matching alias above.
+        logger.warning(
+            "Rejecting Simkl movie title match for '%s': got '%s'.",
+            title_to_search,
+            candidate_titles[0],
+        )
+        return False
+
+    def _cached_info_matches_expected(self, cached_info, filepath=None, raw_title=None, guessit_info=None):
+        """Return False for stale cache entries that conflict with the filename parse."""
+        if not cached_info:
+            return False
+
+        expected = self._expected_media_info_from_filepath(filepath, guessit_info)
+        if not expected and raw_title:
+            try:
+                expected = parse_media_title(raw_title) or {}
+            except Exception:
+                logger.debug("Could not parse expected media info from raw title.", exc_info=True)
+
+        expected_title = expected.get("title")
+        expected_type = expected.get("type")
+        expected_year = expected.get("year")
+        cached_title = cached_info.get("movie_name") or cached_info.get("title")
+        cached_type = cached_info.get("type")
+        cached_year = cached_info.get("year")
+
+        source = cached_info.get("source") or ""
+        if source.startswith("simkl_search_file"):
+            if expected_year is not None and cached_year not in (None, 0, expected_year):
+                logger.warning(
+                    "Ignoring stale file-search cache entry for '%s': expected year %s, cached year %s.",
+                    expected.get("title") or raw_title or filepath,
+                    expected_year,
+                    cached_year,
+                )
+                return False
+            return True
+
+        title_conflict = (
+            expected_title
+            and cached_title
+            and source != self.VALIDATED_MOVIE_SEARCH_SOURCE
+            and not self._titles_are_compatible(expected_title, cached_title)
+            # Localized Simkl title cached for a filename with the same release year.
+            and not (expected_year and coerce_media_number(cached_year) == expected_year)
+        )
+        if title_conflict:
+            logger.warning(
+                "Ignoring stale cache entry: expected title '%s', cached title '%s'.",
+                expected_title,
+                cached_title,
+            )
+            return False
+
+        if expected_type == "episode":
+            if cached_type not in ["show", "anime", "episode"]:
+                logger.warning(
+                    "Ignoring stale cache entry for '%s': expected episode, cached type '%s'.",
+                    expected_title or raw_title or filepath,
+                    cached_type,
+                )
+                return False
+
+            expected_season = expected.get("season")
+            expected_episode = expected.get("episode")
+            cached_season = cached_info.get("season")
+            cached_episode = cached_info.get("episode")
+
+            if expected_season is not None and cached_season != expected_season:
+                logger.warning(
+                    "Ignoring stale cache entry for '%s': expected season %s, cached season %s.",
+                    expected_title or raw_title or filepath,
+                    expected_season,
+                    cached_season,
+                )
+                return False
+
+            if expected_episode is not None and cached_episode != expected_episode:
+                logger.warning(
+                    "Ignoring stale cache entry for '%s': expected episode %s, cached episode %s.",
+                    expected_title or raw_title or filepath,
+                    expected_episode,
+                    cached_episode,
+                )
+                return False
+
+        return True
+
+    def _add_filename_episode_context_to_cached_info(self, cached_info, filepath=None, raw_title=None, guessit_info=None):
+        if not cached_info or cached_info.get("type") not in ["show", "anime", "episode"]:
+            return cached_info
+
+        expected = self._expected_media_info_from_filepath(filepath, guessit_info)
+        if not expected and raw_title:
+            expected = parse_media_title(raw_title) or {}
+
+        enriched = dict(cached_info)
+        if expected.get("season") is not None and enriched.get("season") is None:
+            enriched["season"] = expected.get("season")
+        if expected.get("episode") is not None and enriched.get("episode") is None:
+            enriched["episode"] = expected.get("episode")
+        return enriched
+
+    def _get_valid_cached_info(self, cache_key, filepath=None, raw_title=None, guessit_info=None):
+        cached_info = self.media_cache.get(cache_key)
+        if not (cached_info and cached_info.get('simkl_id') and not str(cached_info.get('simkl_id')).startswith("temp_")):
+            return None
+
+        if self._cached_info_matches_expected(cached_info, filepath=filepath, raw_title=raw_title, guessit_info=guessit_info):
+            return self._add_filename_episode_context_to_cached_info(
+                cached_info,
+                filepath=filepath,
+                raw_title=raw_title,
+                guessit_info=guessit_info,
+            )
+
+        logger.warning("Removing stale cache entry for key '%s'.", cache_key)
+        self.media_cache.remove(cache_key)
+        return None
+
+    def _file_search_variant_candidates(self, filepath, guessit_info=None, include_original=True):
+        expected = self._expected_media_info_from_filepath(filepath, guessit_info)
+        title = expected.get("title")
+        episode = expected.get("episode")
+        season = expected.get("season")
+        year = expected.get("year")
+
+        candidates = []
+        if filepath:
+            basename = media_path_basename(filepath)
+            if basename and basename != filepath:
+                candidates.append(basename)
+
+        # Values are already coerced to int/None, so multi-episode lists or junk strings
+        # from guessit can't break the formatting below.
+        if title:
+            if episode is not None:
+                if season is not None:
+                    sxe = f"S{season:02d}E{episode:02d}"
+                    if year:
+                        candidates.append(f"{title}.{year}.{sxe}.mkv")
+                    candidates.append(f"{title}.{sxe}.mkv")
+                    candidates.append(f"{title} {sxe}.mkv")
+                    candidates.append(f"{title}.{season}x{episode:02d}.mkv")
+                    if year:
+                        candidates.append(f"{title} {year} {sxe}.mkv")
+                else:
+                    candidates.append(f"{title}.{episode}.mkv")
+                    candidates.append(f"{title} E{episode:02d}.mkv")
+            else:
+                if year:
+                    candidates.append(f"{title}.{year}.mkv")
+                    candidates.append(f"{title} {year}.mkv")
+                candidates.append(f"{title}.mkv")
+
+        unique_candidates = []
+        seen = {str(filepath).lower()} if filepath else set()
+        for candidate in candidates:
+            key = candidate.lower()
+            if key not in seen:
+                seen.add(key)
+                unique_candidates.append(candidate)
+        # /search/file is meant for one-file lookups; bound the extra queries per cycle.
+        unique_candidates = unique_candidates[:self.MAX_FILE_SEARCH_VARIANTS]
+        if filepath and include_original:
+            unique_candidates.insert(0, filepath)
+        return unique_candidates
+
+    def _identify_media_with_file_search_variants(self, filepath, guessit_info=None, cache_key_override=None, include_original=True):
+        for candidate in self._file_search_variant_candidates(filepath, guessit_info, include_original=include_original):
+            logger.info("Trying Simkl file search variant: '%s'", candidate)
+            result = search_file(candidate, self.client_id)
+            if result and self._file_search_result_is_preferred(result, filepath or candidate, guessit_info):
+                cache_key = cache_key_override or (os.path.basename(filepath).lower() if filepath else candidate.lower())
+                logger.info("Simkl file search variant produced a preferred result for '%s'.", candidate)
+                self._process_simkl_search_result(result, filepath or candidate, cache_key, "simkl_search_file_variant")
+                self.clear_file_search_rate_limit(filepath or candidate)
+                return True
+        return False
+
     def _start_new_media_item(self, raw_title, filepath, initial_media_type_guess, guessit_info=None):
         """Starts tracking a new media item, sets initial state, and attempts identification."""
         if not raw_title or raw_title.lower() in ["audio", "video", "media", "no file"]:
@@ -617,6 +1128,8 @@ class MediaScrobbler:
             return
 
         logger.info(f"Starting media tracking for raw title: '{raw_title}'")
+        self._synced_history_keys = set()
+        self._movie_search_retry_after = {}
         self.currently_tracking = raw_title # Store raw title
         self.current_filepath = filepath
         self.start_time = time.time()
@@ -630,6 +1143,7 @@ class MediaScrobbler:
         self.estimated_duration = None
         self._scrobble_reported_state = None
         self._last_scrobble_attempt = 0.0
+        self._scrobble_retry_after = 0.0
         self._pending_scrobble_seek = False
         self._last_reported_progress = None
         self._resume_done = False
@@ -658,9 +1172,9 @@ class MediaScrobbler:
 
         # Attempt initial identification
         cache_key = os.path.basename(filepath).lower() if filepath else raw_title.lower()
-        cached_info = self.media_cache.get(cache_key)
+        cached_info = self._get_valid_cached_info(cache_key, filepath=filepath, raw_title=raw_title, guessit_info=guessit_info)
 
-        if cached_info and cached_info.get('simkl_id') and not str(cached_info.get('simkl_id')).startswith("temp_"):
+        if cached_info:
             logger.info(f"Found cached Simkl info for '{raw_title}': ID {cached_info['simkl_id']}")
             self._apply_cached_info_to_state(cached_info)
         elif is_internet_connected():
@@ -878,8 +1392,8 @@ class MediaScrobbler:
         self.last_update_time = current_time        # Attempt identification if Simkl ID is still missing
         if not self.simkl_id and self.currently_tracking:
             cache_key_for_lookup = os.path.basename(self.current_filepath).lower() if self.current_filepath else self.currently_tracking.lower()
-            cached_info = self.media_cache.get(cache_key_for_lookup)
-            if cached_info and cached_info.get('simkl_id') and not str(cached_info.get('simkl_id')).startswith("temp_"):
+            cached_info = self._get_valid_cached_info(cache_key_for_lookup, filepath=self.current_filepath, raw_title=self.currently_tracking)
+            if cached_info:
                 logger.info(f"Found cached Simkl info for '{self.currently_tracking}' during update: ID {cached_info['simkl_id']}")
                 self._apply_cached_info_to_state(cached_info) # This updates self.simkl_id, self.movie_name etc.
             elif is_internet_connected():
@@ -982,6 +1496,17 @@ class MediaScrobbler:
         """Calculate current playback progress percentage."""
         return self._calculate_percentage(use_position=True)
 
+    def _scrobble_min_progress(self) -> int | None:
+        """Completion threshold expressed as Simkl's min_progress URL value (50-100)."""
+        return normalize_scrobble_min_progress(self.completion_threshold)
+
+    def _is_at_or_past_threshold(self, progress: float | None) -> bool:
+        """True if progress reaches the local completion threshold or Simkl's min_progress."""
+        if progress is None:
+            return False
+        limits = [float(v) for v in (self.completion_threshold, self._scrobble_min_progress()) if v is not None]
+        return float(progress) >= min(limits or [float(DEFAULT_THRESHOLD)])
+
     def _report_scrobble(self, action: str, progress: float) -> bool:
         """
         Reports playback state (start, pause, stop) to Simkl Scrobble API.
@@ -993,21 +1518,50 @@ class MediaScrobbler:
         if not item:
             return False
 
+        display_title = self.movie_name or self.currently_tracking
         self._last_scrobble_attempt = time.time()
         try:
-            res = scrobble(action, item, progress, self.client_id, self.access_token)
-            if res.get("ok"):
-                logger.info(f"Simkl scrobble '{action}' reported at {progress:.1f}% for '{self.movie_name or self.currently_tracking}'.")
-                return True
-            else:
-                logger.warning(f"Simkl scrobble '{action}' failed (status {res.get('status')}): {res.get('error')}")
-                return False
+            res = scrobble(action, item, progress, self.client_id, self.access_token,
+                           min_progress=self._scrobble_min_progress())
         except Exception as e:
-            logger.warning(f"Exception during Simkl scrobble '{action}': {e}")
+            logger.warning(f"Exception during Simkl scrobble '{action}' for '{display_title}': {e}")
+            self._scrobble_retry_after = time.time() + self.SCROBBLE_RETRY_INTERVAL
             return False
 
+        if not res.get("ok"):
+            self._scrobble_retry_after = time.time() + self.SCROBBLE_RETRY_INTERVAL
+            logger.warning(
+                f"Simkl scrobble '{action}' for '{display_title}' not accepted "
+                f"(HTTP {res.get('status')}): {res.get('error')}"
+            )
+            return False
+
+        self._scrobble_retry_after = 0.0
+        server_action = res.get("server_action")
+        if res.get("already_completed"):
+            outcome = "session already completed on Simkl"
+        elif server_action == "scrobble":
+            outcome = "marked watched by Simkl"
+        elif server_action == "pause":
+            outcome = "progress saved by Simkl"
+        elif server_action == "start":
+            outcome = "shown in Watching now"
+        else:
+            outcome = f"server action '{server_action}'"
+        logger.info(
+            f"Simkl scrobble '{action}' accepted for '{display_title}' at {progress:.1f}% "
+            f"(HTTP {res.get('status')}, {outcome})."
+        )
+        expected_actions = {"start": ("start",), "pause": ("pause",), "stop": ("scrobble", "pause")}
+        if server_action and server_action not in expected_actions.get(action, ()):
+            logger.warning(f"Simkl answered scrobble '{action}' for '{display_title}' with unexpected action '{server_action}'.")
+        return True
+
     def _notify_seek(self) -> None:
-        """Mark that a seek event occurred and needs synchronization to Simkl."""
+        """
+        Records that a seek happened. Simkl's scrobble API expects no call for seeks;
+        the next real play/pause/stop event carries the new progress.
+        """
         self._pending_scrobble_seek = True
 
     def _check_completion_threshold(self, use_position: bool = True) -> bool:
@@ -1044,7 +1598,8 @@ class MediaScrobbler:
     def _sync_scrobble_state(self) -> None:
         """
         Synchronizes playback state (start / pause) with Simkl Scrobble API.
-        Respects enable_realtime_scrobble setting and min debounce interval.
+        Only real play/pause transitions are reported, never seeks or timers.
+        Respects enable_realtime_scrobble setting, min debounce and failure retry intervals.
         """
         if not get_setting("enable_realtime_scrobble", True):
             return
@@ -1056,19 +1611,29 @@ class MediaScrobbler:
             return
 
         desired = "pause" if self.state == PAUSED else "start"
-        state_changed = (desired != self._scrobble_reported_state)
-        needs_report = state_changed or self._pending_scrobble_seek
+        if desired == self._scrobble_reported_state:
+            return
 
-        if needs_report:
-            current_time = time.time()
-            if current_time - self._last_scrobble_attempt >= self.SCROBBLE_MIN_INTERVAL:
-                pct = self._current_progress_pct()
-                progress_val = float(pct) if pct is not None else 0.0
-                ok = self._report_scrobble(desired, progress_val)
-                if ok:
-                    self._scrobble_reported_state = desired
-                    self._last_reported_progress = progress_val
-                    self._pending_scrobble_seek = False
+        current_time = time.time()
+        if current_time - self._last_scrobble_attempt < self.SCROBBLE_MIN_INTERVAL:
+            return
+        if current_time < self._scrobble_retry_after:
+            return
+
+        pct = self._current_progress_pct()
+        progress_val = float(pct) if pct is not None else 0.0
+
+        if desired == "start" and not self.completed and self._is_at_or_past_threshold(progress_val):
+            # A later /scrobble/start (for any item) auto-finishes an open session that reached
+            # min_progress, marking this item watched without the local watch-time check.
+            # Don't open a session past the threshold until local completion accepts the watch.
+            return
+
+        ok = self._report_scrobble(desired, progress_val)
+        if ok:
+            self._scrobble_reported_state = desired
+            self._last_reported_progress = progress_val
+            self._pending_scrobble_seek = False
 
     def _detect_pause(self, window_info):
         """Detect if playback is paused based on player status or window title keywords."""
@@ -1267,6 +1832,31 @@ class MediaScrobbler:
         except Exception as e:
             logger.debug(f"Failed to clear saved playback from Simkl: {e}")
 
+    def end_scrobble_session_for_reidentification(self):
+        """
+        Close the Simkl session opened for the current identity before it is replaced.
+
+        Tray retry swaps simkl_id mid-playback. Left open, the old item stays "watching
+        now", the new item never gets its own /scrobble/start (the reported state already
+        matches), and a later /scrobble/start auto-finishes the old session if it reached
+        min_progress, marking the wrong item watched.
+        """
+        had_session = self._scrobble_reported_state is not None
+        if had_session and get_setting("enable_realtime_scrobble", True):
+            display_title = self.movie_name or self.currently_tracking
+            try:
+                # Below min_progress a stop resolves to a pause; that saved playback is deleted below.
+                self._report_scrobble("stop", 0.0)
+            except Exception as e:
+                logger.warning(f"Error closing scrobble session before re-identifying '{display_title}': {e}")
+            self._clear_saved_playback(force_refresh=True)
+
+        self._scrobble_reported_state = None
+        self._pending_scrobble_seek = False
+        self._last_reported_progress = None
+        self._resume_sessions = None
+        return had_session
+
     def stop_tracking(self):
         """Stop tracking the current media item and reset state."""
         if not self.currently_tracking:
@@ -1290,34 +1880,49 @@ class MediaScrobbler:
             self._check_completion_threshold(use_position=True)
 
         final_completion_pct = self._calculate_percentage(use_position=True) # Prefer position at stop
-        threshold = self.completion_threshold
         has_reported_scrobble = (self._scrobble_reported_state is not None)
 
         if get_setting("enable_realtime_scrobble", True):
-            should_save_progress = (
-                not self.completed
-                and final_completion_pct is not None
-                and threshold is not None
-                and self.MIN_RESUME_PROGRESS <= float(final_completion_pct) < float(threshold)
-                and (has_reported_scrobble or self.watch_time >= self.MIN_REPORT_WATCH_SECONDS)
-            )
-            if should_save_progress:
-                try:
-                    self._report_scrobble("pause", float(final_completion_pct))
-                except Exception as e:
-                    logger.warning(f"Error saving progress on stop for '{final_movie_name or final_raw_title}': {e}")
-            elif has_reported_scrobble:
-                # Playback has ended and we are not saving an unfinished resume point
-                # (e.g. completed item, or stopped below MIN_RESUME_PROGRESS, or watch time < MIN_REPORT_WATCH_SECONDS).
-                # Terminate active "Now Watching" session on Simkl and delete any residual playback session.
-                try:
-                    pct = float(final_completion_pct) if final_completion_pct is not None else (100.0 if self.completed else 0.0)
-                    self._report_scrobble("stop", pct)
-                except Exception as e:
-                    logger.warning(f"Error stopping scrobble on close for '{final_movie_name or final_raw_title}': {e}")
+            display_title = final_movie_name or final_raw_title
+            if self.completed:
+                # Local completion (threshold, minimum watch time, rewatch rules) already accepted
+                # this watch, so closing with stop is safe. Drop any residual paused playback.
+                if has_reported_scrobble:
+                    try:
+                        pct = float(final_completion_pct) if final_completion_pct is not None else 100.0
+                        self._report_scrobble("stop", pct)
+                    except Exception as e:
+                        logger.warning(f"Error stopping scrobble on close for '{display_title}': {e}")
                 self._clear_saved_playback(force_refresh=True)
-            elif self.completed:
-                self._clear_saved_playback(force_refresh=True)
+            else:
+                pct = float(final_completion_pct) if final_completion_pct is not None else None
+                should_save_progress = (
+                    pct is not None
+                    and pct >= self.MIN_RESUME_PROGRESS
+                    and (has_reported_scrobble or self.watch_time >= self.MIN_REPORT_WATCH_SECONDS)
+                )
+                if should_save_progress:
+                    # Never stop an unaccepted watch: stop >= min_progress marks it watched on Simkl,
+                    # bypassing the local minimum watch time (e.g. seeking to the end to preview).
+                    # pause saves the position and closes the open session without marking watched.
+                    if self._is_at_or_past_threshold(pct):
+                        logger.info(
+                            f"'{display_title}' stopped at {pct:.1f}% before the minimum watch time was met; "
+                            f"saving progress on Simkl instead of marking watched."
+                        )
+                    try:
+                        self._report_scrobble("pause", pct)
+                    except Exception as e:
+                        logger.warning(f"Error saving progress on stop for '{display_title}': {e}")
+                elif has_reported_scrobble:
+                    # Stopped near the start (or duration unknown): end the "Watching now" session
+                    # and delete the near-zero playback the stop leaves behind.
+                    stop_pct = pct if pct is not None and not self._is_at_or_past_threshold(pct) else 0.0
+                    try:
+                        self._report_scrobble("stop", stop_pct)
+                    except Exception as e:
+                        logger.warning(f"Error stopping scrobble on close for '{display_title}': {e}")
+                    self._clear_saved_playback(force_refresh=True)
         elif self.completed:
             self._clear_saved_playback(force_refresh=True)
 
@@ -1351,6 +1956,7 @@ class MediaScrobbler:
         self.episode = None
         self._scrobble_reported_state = None
         self._last_scrobble_attempt = 0.0
+        self._scrobble_retry_after = 0.0
         self._pending_scrobble_seek = False
         self._last_reported_progress = None
         self._resume_done = False
@@ -1409,10 +2015,25 @@ class MediaScrobbler:
             logger.warning("Cannot identify media from filepath: Missing Client ID.")
             return
 
-        cache_key = os.path.basename(filepath).lower()
-        cached_info = self.media_cache.get(cache_key)
+        if (guessit_info and guessit_info.get('type') == 'movie') or self.media_type == 'movie':
+            title_for_movie_search = parse_filename_from_path(filepath) if filepath else None
+            title_for_movie_search = title_for_movie_search or self.currently_tracking
+            title_for_movie_search = title_for_movie_search or (guessit_info.get('title') if guessit_info else None)
+            if title_for_movie_search:
+                logger.info(
+                    "Detected movie filepath '%s'; using Simkl movie title search for '%s' instead of /search/file.",
+                    filepath,
+                    title_for_movie_search,
+                )
+                self._identify_movie(title_for_movie_search)
+            else:
+                logger.warning("Cannot identify movie filepath '%s': no usable title.", filepath)
+            return
 
-        if cached_info and cached_info.get('simkl_id') and not str(cached_info.get('simkl_id')).startswith("temp_"):
+        cache_key = os.path.basename(filepath).lower()
+        cached_info = self._get_valid_cached_info(cache_key, filepath=filepath, guessit_info=guessit_info)
+
+        if cached_info:
             logger.info(f"Using cached Simkl info for file '{cache_key}': ID {cached_info['simkl_id']}")
             self._apply_cached_info_to_state(cached_info)
             return
@@ -1459,9 +2080,82 @@ class MediaScrobbler:
             self._handle_offline_identification_fallback(filepath, guessit_info, cache_key, retry_attempt)
             return
 
+        if self._is_file_search_rate_limited(filepath):
+            self._skip_rate_limited_file_search(filepath)
+            return
+
+        # Tray retry clears media_type before re-identifying, so fall back to the guessit type.
+        expects_episode = self.media_type == 'episode' or (
+            self.media_type is None and bool(guessit_info) and guessit_info.get('type') == 'episode'
+        )
+
         try:
+            self._record_file_search_attempt(filepath)
             logger.info(f"Querying Simkl API with file: '{filepath}' (attempt {retry_attempt}/{max_retries})")
             result = search_file(filepath, self.client_id)
+
+            if result and expects_episode and not self._file_search_result_is_preferred(result, filepath, guessit_info):
+                logger.info(
+                    "Simkl /search/file returned a valid but incomplete/non-preferred result for '%s'. Trying normalized file-search variants.",
+                    filepath
+                )
+                if self._identify_media_with_file_search_variants(filepath, guessit_info, cache_key, include_original=False):
+                    return
+                logger.warning(
+                    "Rejecting non-preferred Simkl /search/file result for '%s' after normalized variants failed.",
+                    filepath,
+                )
+                self.backlog_cleaner.add(
+                    filepath,
+                    os.path.basename(filepath),
+                    additional_data={
+                        "type": "episode",
+                        "original_filepath": filepath,
+                        "source": "non_preferred_file_search",
+                    },
+                )
+                self._send_notification(
+                    "Episode Detection Needs Review",
+                    f"Skipped ambiguous Simkl result for '{os.path.basename(filepath)}'.",
+                    online_only=True,
+                )
+                return
+
+            if result and not self._simkl_file_result_matches_expected(result, filepath, guessit_info):
+                basename = os.path.basename(filepath)
+                basename_result = None
+                if basename and basename != filepath:
+                    logger.warning(
+                        "Simkl /search/file result did not match filename parse for '%s'. Retrying with basename only.",
+                        filepath
+                    )
+                    basename_result = search_file(basename, self.client_id)
+
+                if basename_result and self._simkl_file_result_matches_expected(basename_result, filepath, guessit_info):
+                    logger.info("Simkl basename file search produced a filename-compatible result for '%s'.", basename)
+                    result = basename_result
+                else:
+                    logger.warning("Simkl /search/file could not produce a filename-compatible result for '%s'.", filepath)
+                    if self.media_type == 'movie' and self.currently_tracking:
+                        logger.info("Falling back to title search for movie '%s'.", self.currently_tracking)
+                        self._identify_movie(self.currently_tracking)
+                    elif expects_episode:
+                        if not self._identify_media_with_file_search_variants(filepath, guessit_info, cache_key, include_original=False):
+                            self.backlog_cleaner.add(
+                                filepath,
+                                os.path.basename(filepath),
+                                additional_data={
+                                    "type": "episode",
+                                    "original_filepath": filepath,
+                                    "source": "mismatched_file_search"
+                                }
+                            )
+                            self._send_notification(
+                                "Episode Detection Needs Review",
+                                f"Skipped mismatched Simkl result for '{os.path.basename(filepath)}'.",
+                                online_only=True
+                            )
+                    return
 
             # Check for invalid Simkl show detection (e.g., title='?' or year=0)
             if result:
@@ -1482,12 +2176,24 @@ class MediaScrobbler:
 
             # Existing logic for processing valid results
             if result:
+                result = self._add_filename_episode_context_to_result(result, filepath, guessit_info)
                 logger.info(f"SIMKL API returned result for file search: {result}")
                 self._process_simkl_search_result(result, filepath, cache_key, "simkl_search_file")
+                self.clear_file_search_rate_limit(filepath)
             else:
+                if not is_internet_connected():
+                    logger.warning(
+                        "Simkl /search/file could not run for '%s' because connectivity was lost. Keeping filename fallback until online.",
+                        filepath,
+                    )
+                    self._handle_offline_identification_fallback(filepath, guessit_info, cache_key)
+                    return
+
                 logger.warning(f"Simkl /search/file found no match for '{filepath}'. Trying alternative with title search.")
-                # If file search fails, try title search as a fallback
-                if self.currently_tracking:
+                # If file search fails, try a type-appropriate title search fallback.
+                if expects_episode and self._identify_media_with_file_search_variants(filepath, guessit_info, cache_key, include_original=False):
+                    return
+                elif self.currently_tracking and self.media_type == 'movie':
                     logger.info(f"Attempting title search with: '{self.currently_tracking}'")
                     self._identify_movie(self.currently_tracking)
                 else:
@@ -1496,7 +2202,7 @@ class MediaScrobbler:
 
         except RequestException as e:
             logger.warning(f"Network error during Simkl file identification for '{filepath}': {e}")
-            if self.media_type == 'episode': # media_type here is the initial guessit type
+            if expects_episode: # initial guessit type (or guessit hint after tray retry)
                 self.backlog_cleaner.add(filepath, os.path.basename(filepath), additional_data={"type": "episode", "original_filepath": filepath, "source": "failed_file_search"})
             self._store_guessit_fallback_data(filepath, guessit_info, cache_key) # Fallback on network error
         except Exception as e:
@@ -1519,7 +2225,12 @@ class MediaScrobbler:
                 # Check for invalid guessit detection and retry if needed
                 title = info_to_use.get('title')
                 year = info_to_use.get('year', 0)
-                if title == '?' or year == 0:
+                is_episode_guess = (
+                    info_to_use.get('type') == 'episode'
+                    and info_to_use.get('season') is not None
+                    and info_to_use.get('episode') is not None
+                )
+                if title == '?' or (year == 0 and not is_episode_guess):
                     if retry_attempt <= max_retries:
                         logger.warning(f"Invalid offline guessit detection for file '{filepath}' (attempt {retry_attempt}/{max_retries}): title='{title}', year={year}. Retrying...")
                         # Wait a moment and retry
@@ -1545,6 +2256,7 @@ class MediaScrobbler:
                 self.movie_name = info_to_use.get('title') # This becomes the stand-in for official title offline
                 self.season = info_to_use.get('season')
                 self.episode = info_to_use.get('episode')
+                cache_year = info_to_use.get('year') or self._year_from_path_context(filepath)
                 # Simkl ID remains None
 
                 logger.info(f"Offline fallback (guessit): Title='{self.movie_name}', Type='{self.media_type}', "
@@ -1556,7 +2268,7 @@ class MediaScrobbler:
                     "type": self.media_type, # Store guessit type
                     "season": self.season,
                     "episode": self.episode,
-                    "year": info_to_use.get('year'),
+                    "year": cache_year,
                     "source": "guessit_fallback_offline",
                     "original_filepath": filepath
                 })
@@ -1765,8 +2477,8 @@ class MediaScrobbler:
             return
 
         cache_key = title_to_search.lower() # Use raw title for this initial cache lookup
-        cached_info = self.media_cache.get(cache_key)
-        if cached_info and cached_info.get('simkl_id') and not str(cached_info.get('simkl_id')).startswith("temp_"):
+        cached_info = self._get_valid_cached_info(cache_key, raw_title=title_to_search)
+        if cached_info:
             logger.info(f"Using cached Simkl info for movie title '{title_to_search}': ID {cached_info['simkl_id']}")
             self._apply_cached_info_to_state(cached_info)
             return
@@ -1796,14 +2508,21 @@ class MediaScrobbler:
                     )
             return
 
+        retry_after = self._movie_search_retry_after.get(cache_key, 0.0)
+        if time.time() < retry_after:
+            return
+        self._movie_search_retry_after[cache_key] = time.time() + self.MOVIE_SEARCH_RETRY_INTERVAL
         logger.info(f"Attempting Simkl movie search for: '{title_to_search}'")
         try:
             # Use file search directly if filepath is available, otherwise fall back to title search
-            results = search_movie(title_to_search, self.client_id, self.access_token, file_path=self.current_filepath)
+            results = search_movie(title_to_search, self.client_id, self.access_token)
             if results:
+                if not self._simkl_movie_result_matches_title(results, title_to_search):
+                    logger.warning(f"Simkl movie search for '{title_to_search}' returned an incompatible result. Not caching/scrobbling it.")
+                    return
                 # search_movie can return a list or a single movie dict
                 # _process_simkl_search_result handles both list (takes first) and dict
-                self._process_simkl_search_result(results, title_to_search, cache_key, "simkl_search_movie")
+                self._process_simkl_search_result(results, title_to_search, cache_key, self.VALIDATED_MOVIE_SEARCH_SOURCE)
             else:
                 logger.warning(f"Simkl movie search for '{title_to_search}' returned no results.")
         except RequestException as e:
@@ -1898,6 +2617,15 @@ class MediaScrobbler:
         Attempts to add the currently tracked media to Simkl history or backlog.
         Sets self.completed on success or when added to backlog.
         """
+        sync_key = (
+            str(self.simkl_id), self.media_type,
+            coerce_media_number(self.season), coerce_media_number(self.episode)
+        )
+        if sync_key in self._synced_history_keys:
+            # Tray retry clears completed to allow correcting an identification, but
+            # the same accepted identity must not become a second watch this session.
+            self.completed = True
+            return False
         display_title = self.movie_name or self.currently_tracking # Use official name if known
         # Cache key for cooldown tracking: prefer filepath, fallback to raw title
         cache_key_for_cooldown = (
@@ -2035,6 +2763,7 @@ class MediaScrobbler:
 
             result = add_to_history(payload, self.client_id, self.access_token, allow_rewatch=allow_rewatch)
             if result:
+                self._synced_history_keys.add(sync_key)
                 self.completed = True
                 self._clear_saved_playback()
                 self._log_playback_event("added_to_history_success", {"simkl_id": self.simkl_id, "type": self.media_type})
@@ -2458,6 +3187,15 @@ class MediaScrobbler:
                 # This updates item_data with resolved simkl_id, type, title, S/E
                 resolution_success, item_data, api_error_msg = self._resolve_backlog_item_identity(item_key, item_data)
                 
+                if not resolution_success and api_error_msg == "file_search_rate_limited":
+                    logger.warning(f"[Backlog] Skipping '{display_title}' (Key: {item_key}): file search limit exceeded until manual retry.")
+                    self.backlog_cleaner.update_item(item_key, {
+                        'last_attempt_timestamp': current_time,
+                        'last_error': "File search limit exceeded until manual retry"
+                    })
+                    failure_this_cycle = True
+                    continue # To next item without consuming a backlog retry attempt
+
                 if not resolution_success:
                     logger.warning(f"[Backlog] Failed to resolve identity for '{display_title}' (Key: {item_key}): {api_error_msg}")
                     # Removed individual error notification - only log the error
@@ -2667,19 +3405,53 @@ class MediaScrobbler:
         api_search_result = None
         try:
             if original_filepath and media_type_guess in ['episode', 'show', 'anime']:
+                if self._is_file_search_rate_limited(original_filepath):
+                    self._skip_rate_limited_file_search(original_filepath)
+                    return False, item_data, "file_search_rate_limited"
+
+                self._record_file_search_attempt(original_filepath)
                 api_search_result = search_file(original_filepath, self.client_id)
+                if api_search_result and not self._simkl_file_result_matches_expected(api_search_result, original_filepath):
+                    api_search_result = None
+                elif api_search_result and not self._file_search_result_is_preferred(api_search_result, original_filepath):
+                    api_search_result = None
+                elif api_search_result:
+                    api_search_result = self._add_filename_episode_context_to_result(api_search_result, original_filepath)
+                if not api_search_result and media_type_guess in ['episode', 'show', 'anime']:
+                    for candidate in self._file_search_variant_candidates(original_filepath, include_original=False):
+                        api_search_result = search_file(candidate, self.client_id)
+                        if api_search_result and self._file_search_result_is_preferred(api_search_result, original_filepath):
+                            api_search_result = self._add_filename_episode_context_to_result(api_search_result, original_filepath)
+                            break
+                        api_search_result = None
+                if api_search_result:
+                    self.clear_file_search_rate_limit(original_filepath)
             elif media_type_guess in ['episode', 'show', 'anime'] or _has_episode_pattern(search_term_title):
                 # Use episode-appropriate search even without filepath if title suggests it's an episode
                 logger.info(f"[Backlog Resolve] Title '{search_term_title}' appears to be TV/anime episode, using file search method")
                 # For episodes without filepath, we can try using the title as if it were a filename
                 # This works because search_file can handle titles that look like episode filenames
+                if self._is_file_search_rate_limited(search_term_title):
+                    self._skip_rate_limited_file_search(search_term_title)
+                    return False, item_data, "file_search_rate_limited"
+
+                self._record_file_search_attempt(search_term_title)
                 api_search_result = search_file(search_term_title, self.client_id)
+                if api_search_result and not self._simkl_file_result_matches_expected(api_search_result, search_term_title):
+                    api_search_result = None
+                elif api_search_result:
+                    api_search_result = self._add_filename_episode_context_to_result(api_search_result, search_term_title)
+                    self.clear_file_search_rate_limit(search_term_title)
             elif media_type_guess == 'movie':
-                api_search_result = search_movie(search_term_title, self.client_id, self.access_token, file_path=original_filepath)
+                api_search_result = search_movie(search_term_title, self.client_id, self.access_token)
+                if api_search_result and not self._simkl_movie_result_matches_title(api_search_result, search_term_title):
+                    api_search_result = None
             elif not original_filepath:
                 # Fallback: no filepath and no clear type hint - try movie search
                 logger.info(f"[Backlog Resolve] No filepath and ambiguous type, defaulting to movie search for '{search_term_title}'")
                 api_search_result = search_movie(search_term_title, self.client_id, self.access_token)
+                if api_search_result and not self._simkl_movie_result_matches_title(api_search_result, search_term_title):
+                    api_search_result = None
             else: # Should not happen if logic is sound
                  return False, item_data, "Could not determine search method for backlog item."
         except Exception as e:
@@ -3024,9 +3796,17 @@ class MediaScrobbler:
         try:
             raw_title_from_guessit = guessit_info.get('title')
             year_from_guessit = guessit_info.get('year', 0)
+            media_type_from_guessit = guessit_info.get('type', 'episode') # 'episode' or 'movie'
+            season_from_guessit = guessit_info.get('season')
+            episode_from_guessit = guessit_info.get('episode')
+            is_episode_guess = (
+                media_type_from_guessit == 'episode'
+                and season_from_guessit is not None
+                and episode_from_guessit is not None
+            )
             
             # Check for invalid detection and retry if needed
-            if not raw_title_from_guessit or raw_title_from_guessit == '?' or year_from_guessit == 0:
+            if not raw_title_from_guessit or raw_title_from_guessit == '?' or (year_from_guessit == 0 and not is_episode_guess):
                 if retry_attempt <= max_retries:
                     logger.warning(f"Invalid guessit fallback data for file '{filepath}' (attempt {retry_attempt}/{max_retries}): title='{raw_title_from_guessit}', year={year_from_guessit}. Retrying...")
                     # Wait a moment and retry with fresh parsing
@@ -3042,10 +3822,7 @@ class MediaScrobbler:
                     self._send_notification("Guessit Fallback Failed", f" File skipped. Could not extract fallback data for '{os.path.basename(filepath)}' after {max_retries} attempts.")
                     return
 
-            media_type_from_guessit = guessit_info.get('type', 'episode') # 'episode' or 'movie'
-            season_from_guessit = guessit_info.get('season')
-            episode_from_guessit = guessit_info.get('episode')
-            year_from_guessit = guessit_info.get('year')
+            year_from_guessit = guessit_info.get('year') or self._year_from_path_context(filepath)
 
             # Use provided cache_key or derive from filepath/title
             cache_key_to_use = cache_key_override

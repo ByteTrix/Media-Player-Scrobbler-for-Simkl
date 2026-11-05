@@ -74,7 +74,7 @@ def main():
 
     client_id, client_secret = load_credentials()
     if client_id and client_secret:
-        print(f"[*] Simkl API credentials found (Client ID prefix: {client_id[:8]}...)")
+        print("[*] Simkl API credentials found.")
 
     orig_content = CREDENTIALS_FILE.read_text(encoding="utf-8")
     injected = False

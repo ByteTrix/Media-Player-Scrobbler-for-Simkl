@@ -52,6 +52,235 @@ else:
 
 logger = logging.getLogger(__name__)
 
+COMMON_VIDEO_EXTENSIONS = (
+    '.mp4', '.mkv', '.avi', '.mov', '.wmv', '.flv',
+    '.webm', '.m4v', '.mpg', '.mpeg', '.ts', '.vob'
+)
+
+_DOMAIN_RE = re.compile(r'(?:https?://)?(?:www\.)?[\w-]+\.(?:com|org|net|info|tv|io|me)\b', re.IGNORECASE)
+_LEADING_BRACKETED_TAG_RE = re.compile(r'^\s*[\[\(][^\]\)]{1,48}[\]\)]\s*')
+_TRAILING_RELEASE_MARKERS = {
+    'screen_size',
+    'source',
+    'streaming_service',
+    'video_codec',
+    'video_profile',
+    'audio_codec',
+    'audio_channels',
+    'color_depth',
+    'edition',
+    'other',
+    'release_group',
+    'container',
+    'mimetype',
+    'crc32',
+    'language',
+    'subtitle_language',
+}
+_EPISODE_BOUNDARY_MARKERS = {'season', 'episode'}
+_WINDOWS_PATH_RE = re.compile(r'^(?:[A-Za-z]:[\\/]|\\\\)')
+
+
+def split_media_path(filepath):
+    """
+    Split a media path into its components, independent of the host OS.
+
+    Players can report Windows paths (drive or UNC) to a non-Windows host, and
+    os.path only understands the host's separators. Backslash is a legal filename
+    character on POSIX, so it is only treated as a separator there when the path
+    is recognisably a Windows path.
+    """
+    if not filepath:
+        return []
+    value = str(filepath)
+    if os.sep == '\\' or _WINDOWS_PATH_RE.match(value):
+        parts = re.split(r'[\\/]+', value)
+    else:
+        parts = value.split('/')
+    return [part for part in parts if part]
+
+
+def media_path_basename(filepath):
+    """Return the filename portion of a local or remote (Windows/POSIX) media path."""
+    parts = split_media_path(filepath)
+    return parts[-1] if parts else ''
+
+
+def coerce_media_number(value):
+    """
+    Normalize a season/episode/year value to a positive-or-zero int, or None.
+
+    Guessit returns lists for multi-episode files (S01E01E02 -> [1, 2]); the
+    first entry is the one a player starts on. Invalid strings yield None.
+    """
+    if isinstance(value, (list, tuple)):
+        value = next((item for item in value if coerce_media_number(item) is not None), None)
+    if value is None or isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value if value >= 0 else None
+    try:
+        text = str(value).strip()
+        return int(text) if text.isdigit() else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _iter_guessit_matches(guess, names):
+    """Yield guessit Match objects for the requested names."""
+    for name in names:
+        value = guess.get(name) if guess else None
+        if value is None:
+            continue
+        if not isinstance(value, list):
+            value = [value]
+        for match in value:
+            if hasattr(match, 'start') and hasattr(match, 'end'):
+                yield match
+
+
+def _strip_video_extension(value):
+    stem, ext = os.path.splitext(value)
+    if ext.lower() in COMMON_VIDEO_EXTENSIONS:
+        return stem
+    return value
+
+
+def _looks_like_release_segment(part):
+    part = part.strip()
+    if not part:
+        return True
+    return bool(_DOMAIN_RE.search(part) or _LEADING_BRACKETED_TAG_RE.fullmatch(part))
+
+
+def _strip_structural_release_prefixes(value):
+    cleaned = value.strip()
+
+    while True:
+        next_value = _LEADING_BRACKETED_TAG_RE.sub('', cleaned, count=1).strip()
+        if next_value == cleaned:
+            break
+        cleaned = next_value
+
+    cleaned = re.sub(r'^\s*' + _DOMAIN_RE.pattern + r'\s*(?:[-|:_]+)?\s*', '', cleaned, flags=re.IGNORECASE)
+    return cleaned.strip()
+
+
+def _normalize_filename_title_text(value):
+    value = _strip_video_extension(value)
+    protected = {}
+
+    def protect_literal_dot(match):
+        key = f"TITLEDOTTOKEN{len(protected)}"
+        protected[key] = match.group(0)
+        return key
+
+    value = re.sub(r'\bwww\.[A-Za-z0-9@#$%+~-]+\b', protect_literal_dot, value)
+    value = value.replace('.', ' ').replace('_', ' ')
+    for key, original in protected.items():
+        value = value.replace(key, original)
+    value = re.sub(r'\s+', ' ', value).strip(' .-_')
+    # Recover common compressed filename boundaries without affecting titles like M3GAN.
+    value = re.sub(r'^([A-Za-z]\d)(?=[A-Z][a-z])', r'\1 ', value)
+    value = re.sub(r'(?<=[A-Za-z])(?=(?:19|20)\d{2}(?:\D|$))', ' ', value)
+    return re.sub(r'\s+', ' ', value).strip()
+
+
+def _extract_trailing_release_year(value):
+    match = re.search(r'(?:^|[\s\(\[])(19\d{2}|20\d{2})(?:[\]\)]|\s*)$', value)
+    if not match:
+        return None, value
+
+    year = int(match.group(1))
+    # Avoid treating title numbers such as "Blade Runner 2049" as a release year.
+    if year > datetime.now().year + 3:
+        return None, value
+
+    title = value[:match.start(1)].strip(' .-_([\'"')
+    if not title:
+        return None, value
+    return year, title
+
+
+def _filename_title_candidate(source_title, guess, advanced_guess):
+    """
+    Build a conservative title candidate from visible filename text.
+
+    Guessit is excellent at release metadata, but some short/odd title tokens can
+    be classified as metadata. This keeps text before the technical release
+    boundary so titles like "F1 The Movie" and "#@th3win" remain searchable.
+    """
+    source_stem = _strip_video_extension(source_title)
+    cutoff = len(source_stem)
+
+    for match in _iter_guessit_matches(advanced_guess, _TRAILING_RELEASE_MARKERS):
+        start = getattr(match, 'start', None)
+        end = getattr(match, 'end', None)
+        if start is None or end is None:
+            continue
+        if start <= 0 or start >= len(source_stem):
+            continue
+        cutoff = min(cutoff, start)
+
+    candidate = source_stem[:cutoff]
+    candidate = _strip_structural_release_prefixes(candidate)
+    candidate = _normalize_filename_title_text(candidate)
+    if not candidate:
+        return None, None
+
+    inferred_year, candidate_without_year = _extract_trailing_release_year(candidate)
+    return candidate_without_year, inferred_year
+
+
+def _filename_episode_title_candidate(source_title, advanced_guess, guess=None):
+    source_stem = _strip_video_extension(source_title)
+    cutoff = len(source_stem)
+
+    for match in _iter_guessit_matches(advanced_guess, _EPISODE_BOUNDARY_MARKERS):
+        start = getattr(match, 'start', None)
+        if start is not None and 0 < start < cutoff:
+            cutoff = start
+
+    if cutoff == len(source_stem):
+        return None
+
+    candidate = source_stem[:cutoff]
+    candidate = _strip_structural_release_prefixes(candidate)
+    candidate = _normalize_filename_title_text(candidate)
+    # Drop a dangling season/episode marker left before the number ("Show E05", "Show Ep 5").
+    candidate = re.sub(r'\s+(?:s|e|ep|episode|season)$', '', candidate, flags=re.IGNORECASE).strip()
+    # Trailing separators before the episode marker ("Show - S04E28", "Show - 12").
+    candidate = re.sub(r'[\s\-\u2013\u2014:|,]+$', '', candidate).strip()
+    # Guessit's show year ("Doctor.Who.2005.S13E01") is metadata, not part of the title.
+    guessed_year = guess.get('year') if guess else None
+    if isinstance(guessed_year, int):
+        candidate = re.sub(r'\s*[\(\[]?' + str(guessed_year) + r'[\)\]]?$', '', candidate).strip() or candidate
+    return candidate or None
+
+
+def _absolute_episode_from_weak_duplicate(advanced_guess):
+    season_match = advanced_guess.get('season') if advanced_guess else None
+    episode_match = advanced_guess.get('episode') if advanced_guess else None
+    if not season_match or not episode_match:
+        return None
+
+    season_tags = set(getattr(season_match, 'tags', []) or [])
+    episode_tags = set(getattr(episode_match, 'tags', []) or [])
+    if not {'weak-episode', 'weak-duplicate'}.issubset(season_tags & episode_tags):
+        return None
+
+    parent = getattr(season_match, 'parent', None)
+    if parent is None or parent is not getattr(episode_match, 'parent', None):
+        return None
+
+    raw_value = getattr(parent, 'raw', None) or getattr(parent, 'value', None)
+    raw_text = str(raw_value or '')
+    if not re.fullmatch(r'\d{3,4}', raw_text):
+        return None
+
+    episode_number = int(raw_text)
+    return episode_number if episode_number > 0 else None
+
 VIDEO_PLAYER_EXECUTABLES = {
     'windows': [
         'vlc.exe',
@@ -673,10 +902,6 @@ def parse_media_title(window_title_or_info):
     # --- Pre-process title for separators and release info ---
     title_to_guess = cleaned_title
     separators = ['|', ' - ']
-    release_info_pattern = re.compile(
-        r'\b(psarips|rarbg|yts|yify|evo|mkvcage|\[.*?\]|\(.*?\)|(www\.)?\w+\.(com|org|net|info))\b',
-        re.IGNORECASE
-    )
     processed_split = False
 
     for sep in separators:
@@ -687,7 +912,7 @@ def parse_media_title(window_title_or_info):
             # Filter out parts that look like release info
             potential_title_parts = []
             for part in parts:
-                 if not release_info_pattern.search(part):
+                 if not _looks_like_release_segment(part):
                       potential_title_parts.append(part)
                  else:
                       logger.debug(f"Part '{part}' identified as release info, filtering out.")
@@ -715,6 +940,13 @@ def parse_media_title(window_title_or_info):
     try:
         # Use guessit for final parsing and media type identification
         guess = guessit(title_to_guess)
+        try:
+            advanced_guess = guessit(title_to_guess, {'advanced': True})
+        except Exception:
+            advanced_guess = {}
+        title_candidate, inferred_year = _filename_title_candidate(title_to_guess, guess, advanced_guess)
+        episode_title_candidate = _filename_episode_title_candidate(title_to_guess, advanced_guess, guess)
+        absolute_episode = _absolute_episode_from_weak_duplicate(advanced_guess)
         
         result = {
             'raw_title': window_title,
@@ -727,8 +959,13 @@ def parse_media_title(window_title_or_info):
         else:
             result['type'] = 'unknown'
 
-        # Add main title
-        if 'title' in guess:
+        # Add main title. For movies, prefer the visible filename title when
+        # guessit classified leading title text as metadata.
+        if guess.get('type') == 'movie' and title_candidate:
+            result['title'] = title_candidate
+        elif guess.get('type') == 'episode' and episode_title_candidate:
+            result['title'] = episode_title_candidate
+        elif 'title' in guess:
             result['title'] = guess['title']
         else:
             result['title'] = cleaned_title.strip()
@@ -736,13 +973,24 @@ def parse_media_title(window_title_or_info):
         # Add year if available
         if 'year' in guess:
             result['year'] = guess['year']
+        elif inferred_year is not None:
+            result['year'] = inferred_year
 
         # Add TV show specific information
         if guess.get('type') == 'episode':
-            if 'season' in guess:
-                result['season'] = guess['season']
-            if 'episode' in guess:
-                result['episode'] = guess['episode']
+            # Multi-episode files (S01E01E02) come back as lists; track the first episode.
+            season_value = coerce_media_number(guess.get('season'))
+            episode_value = coerce_media_number(guess.get('episode'))
+            if absolute_episode is not None:
+                result['episode'] = absolute_episode
+            elif season_value is not None:
+                result['season'] = season_value
+
+            if absolute_episode is None and episode_value is not None:
+                result['episode'] = episode_value
+                if isinstance(guess.get('episode'), list):
+                    episodes = [coerce_media_number(item) for item in guess['episode']]
+                    result['episodes'] = [item for item in episodes if item is not None]
             if 'episode_title' in guess:
                 result['episode_title'] = guess['episode_title']
 
@@ -753,8 +1001,14 @@ def parse_media_title(window_title_or_info):
         result['display_title'] = display_title
 
         # Add formatted episode info for display
-        if guess.get('type') == 'episode' and 'season' in guess and 'episode' in guess:
-            result['formatted_episode'] = f"S{guess['season']:02d}E{guess['episode']:02d}"
+        if guess.get('type') == 'episode' and 'episode' in result:
+            if 'season' in result:
+                result['formatted_episode'] = f"S{result['season']:02d}E{result['episode']:02d}"
+            else:
+                result['formatted_episode'] = f"E{result['episode']:02d}"
+            extra_episodes = result.get('episodes', [])[1:]
+            if extra_episodes:
+                result['formatted_episode'] += f"-E{extra_episodes[-1]:02d}"
             result['display_title'] += f" {result['formatted_episode']}"
 
         logger.debug(f"Parsed media: {result}")
@@ -796,15 +1050,13 @@ def parse_filename_from_path(filepath):
         
     try:
         # Extract just the filename from the path
-        filename = os.path.basename(filepath)
+        filename = media_path_basename(filepath)
         logger.debug(f"Extracted filename: '{filename}' from path: '{filepath}'")
         
         # Skip non-video files
-        common_video_extensions = ['.mp4', '.mkv', '.avi', '.mov', '.wmv', '.flv', 
-                                  '.webm', '.m4v', '.mpg', '.mpeg', '.ts', '.vob']
         file_ext = os.path.splitext(filename.lower())[1]
         
-        if file_ext and file_ext not in common_video_extensions:
+        if file_ext and file_ext not in COMMON_VIDEO_EXTENSIONS:
             logger.debug(f"Skipping non-video file extension: {file_ext}")
             return None
             

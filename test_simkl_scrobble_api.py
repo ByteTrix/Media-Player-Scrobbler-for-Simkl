@@ -29,6 +29,15 @@ class FakeResponse:
             raise requests.HTTPError(f"HTTP {self.status_code}", response=self)
 
 
+def test_scrobble_lock_400_is_reported_as_throttling(monkeypatch, caplog):
+    monkeypatch.setattr(simkl_api.requests, "post", lambda *a, **kw:
+                        FakeResponse(400, {"error": "RATE_LIMIT"}, '{"error":"RATE_LIMIT"}'))
+    res = simkl_api.scrobble("start", {"movie": {"ids": {"simkl": 123}}}, 10, "cid", "tok")
+    assert res["ok"] is False
+    assert res["status"] == 400
+    assert "throttled (status 400" in caplog.text
+
+
 def test_scrobble_posts_body_and_params(monkeypatch):
     captured = {}
 
@@ -57,14 +66,82 @@ def test_scrobble_posts_body_and_params(monkeypatch):
     assert captured["headers"]["simkl-api-key"] == "cid"
 
 
-def test_scrobble_409_is_soft_success(monkeypatch):
+def test_scrobble_409_on_stop_is_already_completed(monkeypatch):
+    # Documented: stopping a session already completed within the last hour returns 409.
     def fake_post(*args, **kwargs):
-        return FakeResponse(409, {"error": "already_watched"})
+        return FakeResponse(409, {"watched_at": "2026-11-04T10:00:00Z", "expires_at": "2026-11-04T11:00:00Z"})
 
     monkeypatch.setattr(simkl_api.requests, "post", fake_post)
     res = simkl_api.scrobble("stop", {"movie": {}}, 95.0, "cid", "tok")
     assert res["ok"] is True
     assert res["status"] == 409
+    assert res["already_completed"] is True
+
+
+def test_scrobble_409_on_start_or_pause_is_failure(monkeypatch):
+    monkeypatch.setattr(simkl_api.requests, "post", lambda *a, **kw: FakeResponse(409, {}, text="conflict"))
+    for action in ("start", "pause"):
+        res = simkl_api.scrobble(action, {"movie": {}}, 10.0, "cid", "tok")
+        assert res["ok"] is False
+        assert res["status"] == 409
+
+
+def test_scrobble_429_lock_is_failure(monkeypatch):
+    monkeypatch.setattr(simkl_api.requests, "post", lambda *a, **kw: FakeResponse(429, {}, text="locked"))
+    res = simkl_api.scrobble("pause", {"movie": {}}, 40.0, "cid", "tok")
+    assert res["ok"] is False
+    assert res["status"] == 429
+
+
+def test_scrobble_returns_server_action(monkeypatch):
+    monkeypatch.setattr(simkl_api.requests, "post", lambda *a, **kw: FakeResponse(201, {"action": "pause", "progress": 85}))
+    res = simkl_api.scrobble("stop", {"movie": {}}, 85.0, "cid", "tok", min_progress=90)
+    assert res["ok"] is True
+    assert res["server_action"] == "pause"
+    assert res["already_completed"] is False
+
+
+def test_scrobble_min_progress_sent_on_start_and_stop_only(monkeypatch):
+    captured = []
+
+    def fake_post(url, headers=None, json=None, params=None, timeout=None):
+        captured.append((url.rsplit("/", 1)[-1], dict(params), dict(json)))
+        return FakeResponse(201, {})
+
+    monkeypatch.setattr(simkl_api.requests, "post", fake_post)
+    for action in ("start", "pause", "stop"):
+        simkl_api.scrobble(action, {"movie": {"ids": {"simkl": 1}}}, 50.0, "cid", "tok", min_progress=92.7)
+
+    by_action = {a: (params, body) for a, params, body in captured}
+    assert by_action["start"][0]["min_progress"] == 92
+    assert by_action["stop"][0]["min_progress"] == 92
+    assert "min_progress" not in by_action["pause"][0]
+    # Only valid in the URL, never in the body
+    assert all("min_progress" not in body for _, _, body in captured)
+    # Rewatch is never requested from the realtime scrobble path
+    assert all("allow_rewatch" not in params for _, params, _ in captured)
+
+
+def test_scrobble_without_min_progress_uses_server_default(monkeypatch):
+    captured = {}
+
+    def fake_post(url, headers=None, json=None, params=None, timeout=None):
+        captured["params"] = params
+        return FakeResponse(201, {})
+
+    monkeypatch.setattr(simkl_api.requests, "post", fake_post)
+    simkl_api.scrobble("stop", {"movie": {}}, 50.0, "cid", "tok")
+    assert "min_progress" not in captured["params"]
+
+
+def test_normalize_scrobble_min_progress():
+    assert simkl_api.normalize_scrobble_min_progress(80) == 80
+    assert simkl_api.normalize_scrobble_min_progress(90.9) == 90
+    assert simkl_api.normalize_scrobble_min_progress(30) == 50
+    assert simkl_api.normalize_scrobble_min_progress(150) == 100
+    assert simkl_api.normalize_scrobble_min_progress(None) is None
+    assert simkl_api.normalize_scrobble_min_progress(0) is None
+    assert simkl_api.normalize_scrobble_min_progress("bad") is None
 
 
 def test_scrobble_400_is_failure_without_raising(monkeypatch):

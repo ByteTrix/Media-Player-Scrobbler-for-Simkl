@@ -623,7 +623,27 @@ def get_activities(client_id, access_token):
         logger.error(f"Simkl API: Error getting activities: {e}")
         return None
 
-def scrobble(action, item, progress, client_id, access_token):
+SCROBBLE_MIN_PROGRESS_FLOOR = 50
+SCROBBLE_MIN_PROGRESS_CEILING = 100
+
+
+def normalize_scrobble_min_progress(threshold):
+    """
+    Converts a local completion threshold into Simkl's ``min_progress`` URL value.
+
+    Simkl accepts whole numbers 50-100 (lower values count as 50, higher as 100).
+    Returns None when the threshold is unusable so the server default (80) applies.
+    """
+    try:
+        value = int(float(threshold))
+    except (TypeError, ValueError):
+        return None
+    if value <= 0:
+        return None
+    return max(SCROBBLE_MIN_PROGRESS_FLOOR, min(SCROBBLE_MIN_PROGRESS_CEILING, value))
+
+
+def scrobble(action, item, progress, client_id, access_token, min_progress=None):
     """
     Reports playback state (start, pause, stop) to Simkl Scrobble API.
 
@@ -633,19 +653,24 @@ def scrobble(action, item, progress, client_id, access_token):
         progress (float): Playback progress percentage (0.0 - 100.0).
         client_id (str): Simkl API client ID.
         access_token (str): Simkl API access token.
+        min_progress (int | float, optional): Completion threshold sent as the
+            ``min_progress`` URL parameter on start/stop (pause ignores it).
 
     Returns:
-        dict: {'ok': bool, 'status': int | None, 'error': str | None}
+        dict: {'ok': bool, 'status': int | None, 'error': str | None,
+               'server_action': str | None, 'already_completed': bool}
+            ``server_action`` is the ``action`` field Simkl returned
+            ('start', 'pause', 'scrobble'), when present.
     """
     if action not in {"start", "pause", "stop"}:
         logger.error(f"Simkl API: Invalid scrobble action '{action}'. Must be 'start', 'pause', or 'stop'.")
-        return {"ok": False, "status": None, "error": f"Invalid action: {action}"}
+        return {"ok": False, "status": None, "error": f"Invalid action: {action}", "server_action": None, "already_completed": False}
     if not client_id or not access_token:
         logger.error("Simkl API: Missing Client ID or Access Token for scrobble.")
-        return {"ok": False, "status": None, "error": "Missing credentials"}
+        return {"ok": False, "status": None, "error": "Missing credentials", "server_action": None, "already_completed": False}
     if not item or not isinstance(item, dict):
         logger.error("Simkl API: Invalid or empty item dictionary for scrobble.")
-        return {"ok": False, "status": None, "error": "Invalid item payload"}
+        return {"ok": False, "status": None, "error": "Invalid item payload", "server_action": None, "already_completed": False}
 
     headers = {
         'Content-Type': 'application/json',
@@ -659,6 +684,11 @@ def scrobble(action, item, progress, client_id, access_token):
         'app-name': APP_NAME,
         'app-version': __version__
     }
+    # min_progress only works as a URL param; keep start and stop in agreement.
+    if action in ("start", "stop"):
+        normalized_min_progress = normalize_scrobble_min_progress(min_progress)
+        if normalized_min_progress is not None:
+            params['min_progress'] = normalized_min_progress
 
     body = dict(item)
     body["progress"] = round(float(progress), 2)
@@ -668,16 +698,36 @@ def scrobble(action, item, progress, client_id, access_token):
 
     try:
         response = requests.post(url, headers=headers, json=body, params=params, timeout=5)
-        # 2xx is success; 409 is soft-success (conflict / duplicate scrobble window)
-        if 200 <= response.status_code < 300 or response.status_code == 409:
-            logger.debug(f"Simkl API: Scrobble '{action}' successful (status {response.status_code}).")
-            return {"ok": True, "status": response.status_code, "error": None}
-        else:
-            logger.warning(f"Simkl API: Scrobble '{action}' failed with status {response.status_code}: {response.text}")
-            return {"ok": False, "status": response.status_code, "error": response.text}
     except requests.exceptions.RequestException as e:
         logger.warning(f"Simkl API: Network error during scrobble '{action}': {e}")
-        return {"ok": False, "status": None, "error": str(e)}
+        return {"ok": False, "status": None, "error": str(e), "server_action": None, "already_completed": False}
+
+    status = response.status_code
+    server_action = None
+    try:
+        data = response.json()
+        if isinstance(data, dict) and isinstance(data.get("action"), str):
+            server_action = data["action"]
+    except ValueError:
+        data = None
+
+    if 200 <= status < 300:
+        logger.debug(f"Simkl API: Scrobble '{action}' accepted (status {status}, server action '{server_action}').")
+        return {"ok": True, "status": status, "error": None, "server_action": server_action, "already_completed": False}
+
+    # Documented: a stop for a session already completed within the last hour returns 409
+    # (duplicate prevention). The session is finished either way, so treat it as done.
+    # 409 is not documented for start/pause, so those stay failures.
+    if status == 409 and action == "stop":
+        logger.info("Simkl API: Scrobble 'stop' returned 409 (session already completed recently).")
+        return {"ok": True, "status": status, "error": None, "server_action": server_action, "already_completed": True}
+
+    error_text = (response.text or "")[:300]
+    if status == 429 or (status == 400 and "RATE_LIMIT" in error_text.upper()):
+        logger.warning(f"Simkl API: Scrobble '{action}' throttled (status {status}, per-user scrobble lock or rate limit).")
+    else:
+        logger.warning(f"Simkl API: Scrobble '{action}' failed with status {status}: {error_text}")
+    return {"ok": False, "status": status, "error": error_text, "server_action": server_action, "already_completed": False}
 
 def get_playback_sessions(client_id, access_token, media_type=None):
     """
