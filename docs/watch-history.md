@@ -11,6 +11,8 @@ A new feature in MPS for SIMKL is the **Local Watch History Viewer**. This page 
 - **Pagination:** Easily browse large histories with page navigation.
 - **Dark/Light Theme:** Toggle between dark and light modes.
 - **Detailed Cards:** Click any item for more info, including file details and episode breakdowns for TV/anime.
+- **Rewatch Counts:** Cards show a ↻ badge with the number of rewatches (repeat plays of a movie, or of the same episode for shows/anime). The "All Watches" filter can limit the list to original watches or rewatches.
+- **Hide from this view:** Tidy the viewer by hiding titles you don't want to see, and restore them at any time (see below).
 - **TV Shows & Anime Support:** Full scrobbling and episode tracking for TV and anime, with special handling for anime metadata.
 - **Charts & Analytics:** Visualize your watching trends, media type distribution, and viewing times with interactive charts.
 - **HTML/CSS/JS Implementation:** Built with vanilla JavaScript, modern CSS, and HTML—no frameworks required.
@@ -23,6 +25,21 @@ A new feature in MPS for SIMKL is the **Local Watch History Viewer**. This page 
 4. Use the controls to filter by type (movie, TV, anime), year, or search by title/overview.
 5. Click any card for detailed info, including file path, size, and episode list for shows/anime.
 6. Use the dashboard to view statistics and trends. Toggle between grid/list and dark/light themes as you prefer.
+
+## Hiding Items From the Viewer
+
+Each card has an eye-slash button, and the detailed card has a **Hide from view** button. Hiding is a display preference only:
+
+| Where | Effect of "Hide from this view" |
+|-------|---------------------------------|
+| This viewer, in this browser | The title (all of its episodes, for shows/anime) is no longer listed or counted in the statistics. |
+| The app's local history (`watch_history.json`) | **Unchanged.** Nothing is deleted, and rewatch tracking keeps working. |
+| Your Simkl account | **Unchanged.** The viewer never contacts Simkl and cannot remove anything from your Simkl history. |
+
+- **Restore:** once something is hidden, a **Hidden (N)** button appears next to the view controls. It lists every hidden title with a **Restore** button, plus **Restore all**.
+- **Watching again brings it back:** if you watch a hidden title again (a rewatch, or a new episode of a hidden show), it reappears automatically. Hiding never hides future watches.
+- **Stored per browser:** the hidden list is kept in the browser's local storage for the viewer page. Another browser, a private window, or clearing site data shows everything again. If the browser blocks storage, items stay hidden only until the page is closed, and the viewer tells you so.
+- **Actually deleting history:** the viewer can't do this. To remove an entry from the app's local history, edit `watch_history.json` (see *Editing & Debugging* below). To remove it from Simkl, use the Simkl website or apps.
 
 ## TV Shows & Anime Scrobbling
 
@@ -53,7 +70,7 @@ https://github.com/user-attachments/assets/b4337aa2-6cb6-4946-b2a2-496e122fbc2a
 ## Technical Notes
 - Built with HTML, CSS, and vanilla JS—no frameworks required.
 - Uses Chart.js for statistics visualizations.
-- All data is processed locally; no data is sent anywhere.
+- All data is processed locally; no data is sent anywhere. Viewer preferences (theme, layout, hidden items) are saved in the browser's local storage only.
 
 ---
 
@@ -66,7 +83,7 @@ The local watch history system is managed by the `WatchHistoryManager` (see `sim
 - **History Data:**
   - `watch_history.json` is stored in your app data directory (open from tray: `Maintenance → Open Data Folder`).
 - **Viewer:**
-  - The HTML/JS viewer is auto-copied to `~/kavin/simkl-mps/watch-history-viewer/`.
+  - The HTML/JS viewer is auto-copied to the `watch-history-viewer` folder inside the app data directory.
   - The viewer loads `data.js` (auto-generated from your history).
 
 ### How It Works

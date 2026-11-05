@@ -75,3 +75,10 @@ testing
 bump_version.bat
 simklapi.txt
 *.bak
+# Build and test artifacts
+artifacts/
+build-tools/
+.test-home/
+.venv*/
+.poetry*/
+

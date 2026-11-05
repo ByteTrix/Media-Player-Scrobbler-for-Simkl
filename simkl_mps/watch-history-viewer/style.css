@@ -597,6 +597,51 @@ body.dark-mode .media-card:hover {
     font-size: 0.75rem;
 }
 
+.hide-history-btn.card-hide {
+    position: absolute;
+    right: 10px;
+    bottom: 10px;
+    z-index: 4;
+    width: 34px;
+    height: 34px;
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    border-radius: 999px;
+    background: rgba(17, 24, 39, 0.78);
+    color: white;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    opacity: 0.8;
+    transition: transform var(--transition-fast), background-color var(--transition-fast), opacity var(--transition-fast);
+}
+
+.media-card:hover .hide-history-btn.card-hide,
+.hide-history-btn.card-hide:hover,
+.hide-history-btn.card-hide:focus-visible {
+    opacity: 1;
+}
+
+.hide-history-btn.card-hide:hover,
+.hide-history-btn.card-hide:focus-visible {
+    background: var(--gray-600);
+    transform: translateY(-1px);
+}
+
+.hide-history-btn.card-hide i {
+    font-size: 1rem;
+}
+
+.history-grid.list-view .hide-history-btn.card-hide {
+    right: 6px;
+    bottom: 6px;
+    width: 28px;
+    height: 28px;
+}
+
 /* Media Info Section */
 .media-info {
     padding: 1rem; /* Adjusted padding */
@@ -1651,3 +1696,134 @@ body.dark-mode .rewatch-badge {
     font-weight: 600;
 }
 body.dark-mode .season-badge { background: var(--gray-800); color: var(--text-primary); }
+
+/* Hidden-from-view controls (browser-only; nothing is deleted) */
+.control-btn.hidden-items-toggle {
+    width: auto;
+    padding: 0 0.75rem;
+    gap: 0.4rem;
+    font-size: 0.9rem;
+}
+
+.hidden-items-count {
+    background: var(--simkl-red);
+    color: white;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    min-width: 1.4rem;
+    padding: 0.05rem 0.4rem;
+    text-align: center;
+}
+
+.viewer-notice {
+    margin: -1rem 0 1.5rem;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--border-color);
+    border-left: 4px solid var(--simkl-red);
+    border-radius: var(--border-radius-md);
+    background: var(--card-bg);
+    color: var(--text-primary);
+    font-size: 0.9rem;
+}
+
+.viewer-notice[hidden],
+.hidden-items-panel[hidden] {
+    display: none;
+}
+
+.hidden-items-panel {
+    margin: 0 0 2rem;
+    padding: 1.25rem 1.5rem;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-lg);
+    background: var(--card-bg);
+    color: var(--text-primary);
+}
+
+.hidden-items-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.hidden-items-header h2 {
+    font-size: 1.1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.hidden-items-help {
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    margin: 0.5rem 0 1rem;
+}
+
+.hidden-items-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    max-height: 320px;
+    overflow-y: auto;
+}
+
+.hidden-item-row,
+.hidden-items-empty {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.hidden-items-empty {
+    color: var(--text-secondary);
+}
+
+.hidden-item-title {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.hidden-item-meta {
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    text-transform: uppercase;
+}
+
+.hidden-items-panel .action-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.45rem 0.9rem;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-md);
+    background: transparent;
+    color: var(--text-primary);
+    font-weight: 600;
+    font-size: 0.85rem;
+    cursor: pointer;
+}
+
+.hidden-items-panel .action-btn:hover:not(:disabled),
+.hidden-items-panel .action-btn:focus-visible {
+    background: var(--simkl-red);
+    border-color: var(--simkl-red);
+    color: white;
+}
+
+.hidden-items-panel .action-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.hidden-items-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 1rem;
+}

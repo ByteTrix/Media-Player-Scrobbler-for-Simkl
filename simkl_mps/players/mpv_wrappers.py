@@ -82,24 +82,35 @@ CONFIG_PATHS = {
     }
 }
 
+# Value returned by decorated methods when a custom-IPC call raises
+_CUSTOM_IPC_ERROR_DEFAULTS = {
+    "get_position_duration": (None, None),
+    "seek_absolute": False,
+    "show_osd": False,
+}
+
+
 def with_custom_ipc_path(func):
     """
     Decorator to handle custom IPC path logic for MPV wrapper methods.
     Temporarily sets the custom IPC path if needed, calls the original method,
     then restores the original path.
+
+    The original arguments are always forwarded unchanged; ``process_name`` is
+    only inspected (positionally or by keyword) to look up the custom path.
     """
     import inspect
     sig = inspect.signature(func)
+    error_default = _CUSTOM_IPC_ERROR_DEFAULTS.get(func.__name__)
 
     @wraps(func)
     def wrapper(self, *args, **kwargs):
-        process_name = kwargs.get('process_name')
-        if not process_name:
-            try:
-                bound = sig.bind_partial(self, *args, **kwargs)
-                process_name = bound.arguments.get('process_name')
-            except Exception:
-                process_name = None
+        try:
+            bound = sig.bind(self, *args, **kwargs)
+            process_name = bound.arguments.get('process_name')
+        except TypeError:
+            # Let the original method raise its own signature error
+            return func(self, *args, **kwargs)
 
         if not process_name or not isinstance(process_name, str):
             return func(self, *args, **kwargs)
@@ -120,14 +131,14 @@ def with_custom_ipc_path(func):
         
         try:
             # Call the original method with the custom IPC path
-            return func(self, process_name, *args, **kwargs)
+            return func(self, *args, **kwargs)
         except Exception as e:
             # Log any errors
             if isinstance(e, MPVError):
                 logger.warning(f"Error in {func.__name__} for {wrapper_display}: {e}")
             else:
                 logger.error(f"Unexpected error in {func.__name__} for {wrapper_display}: {e}", exc_info=True)
-            return None if func.__name__ != "get_position_duration" else (None, None)
+            return error_default
         finally:
             # Always restore the original IPC path
             self.mpv_integration.ipc_path = original_ipc_path

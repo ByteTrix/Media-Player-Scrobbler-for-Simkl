@@ -72,8 +72,36 @@
                 <button class="control-btn toggle-stats" id="stats-toggle" title="Toggle Statistics">
                     <i class="ph-duotone ph-chart-pie-slice"></i>
                 </button>
+
+                <button type="button" class="control-btn hidden-items-toggle" id="hidden-items-toggle" title="Items hidden from this view" aria-controls="hidden-items-panel" aria-expanded="false" style="display: none;">
+                    <i class="ph-duotone ph-eye-slash"></i>
+                    <span class="hidden-items-label">Hidden</span>
+                    <span class="hidden-items-count" id="hidden-items-count">0</span>
+                </button>
             </div>
         </div>
+
+        <div class="viewer-notice" id="viewer-notice" role="status" aria-live="polite" hidden></div>
+
+        <!-- Items hidden from this view (stored only in this browser) -->
+        <section class="hidden-items-panel" id="hidden-items-panel" aria-labelledby="hidden-items-title" hidden>
+            <div class="hidden-items-header">
+                <h2 id="hidden-items-title"><i class="ph-duotone ph-eye-slash"></i> Hidden from this view</h2>
+                <button type="button" class="control-btn" id="hidden-items-close" title="Close" aria-label="Close hidden items">
+                    <i class="ph-duotone ph-x"></i>
+                </button>
+            </div>
+            <p class="hidden-items-help">
+                Hiding only changes what this browser shows. It does not delete anything from the app's watch history
+                or from your Simkl account. A hidden title shows up again automatically when you watch it again.
+            </p>
+            <ul class="hidden-items-list" id="hidden-items-list"></ul>
+            <div class="hidden-items-actions">
+                <button type="button" class="action-btn secondary" id="restore-all-hidden">
+                    <i class="ph-duotone ph-eye"></i> Restore all
+                </button>
+            </div>
+        </section>
 
         <!-- Dashboard -->
         <div class="dashboard" id="dashboard">
@@ -274,6 +302,9 @@
                 <a class="action-btn secondary" href="https://www.google.com/search?q=watch+online+" target="_blank" id="search-online" title="Search online sources">
                     <i class="ph-duotone ph-globe"></i> Find Online
                 </a>
+                <button type="button" class="action-btn secondary hide-history" title="Hide this title from this history view. Nothing is deleted from the app or Simkl.">
+                    <i class="ph-duotone ph-eye-slash"></i> Hide from view
+                </button>
             </div>
         </div> <!-- End Scrollable Content Wrapper -->
     </template>
