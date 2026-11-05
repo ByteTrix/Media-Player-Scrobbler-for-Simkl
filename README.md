@@ -14,6 +14,9 @@
 - 🌐 **Cross-Platform** – Windows, macOS, Linux
 - 🖥️ **Native Executable** – System tray, auto-update, and background service (Windows)
 - 📈 **Accurate Position Tracking** – For supported players (configure via [Media Players Guide](docs/media-players.md))
+- ⏱️ **Real-Time Scrobble & Watching Now** – Displays live watching/paused status on Simkl and saves unfinished progress
+- 🔄 **Reverse Playback Resume** – Automatically resumes unfinished media in MPV and PotPlayer from your Simkl saved position
+- ⏳ **Minimum Watch Time** – Configurable threshold before scrobbling to prevent accidental scrobbles
 - 🔌 **Offline Support** – Queues updates when offline
 - 🧠 **Smart Media Detection** – Intelligent filename parsing
 - 🍿 **Media-Focused** – Optimized for every type of media (Movies,TV Shows and Anime)

@@ -523,3 +523,38 @@ class MPVIntegration:
         else:
             logger.debug(f"Unknown MPV pause state: {paused}")
             return None
+
+    def _run_command(self, command: list) -> bool:
+        """
+        Send a command to MPV over IPC and return True if successful.
+        """
+        with self.ipc_lock:
+            try:
+                self._connect()
+                req_id = self._send_command(command)
+                response = self._receive_response()
+                if response and response.get('request_id') == req_id:
+                    if response.get('error') == 'success':
+                        logger.debug(f"MPV command succeeded: {command}")
+                        return True
+                    else:
+                        logger.warning(f"MPV command failed: {command} -> {response.get('error')}")
+                        return False
+                return False
+            except MPVError as e:
+                logger.warning(f"Failed to run MPV command {command}: {e}")
+                return False
+            finally:
+                self._disconnect()
+
+    def seek_absolute(self, seconds: float) -> bool:
+        """
+        Seek to an absolute timestamp in seconds.
+        """
+        return self._run_command(["seek", round(float(seconds), 2), "absolute"])
+
+    def show_osd(self, text: str, duration_ms: int = 3500) -> bool:
+        """
+        Display an OSD message in MPV for duration_ms milliseconds.
+        """
+        return self._run_command(["show-text", str(text), int(duration_ms)])

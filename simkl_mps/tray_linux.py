@@ -18,7 +18,7 @@ from PIL import Image
 from typing import Any, Optional, cast
 
 from simkl_mps.tray_base import TrayAppBase, get_simkl_scrobbler, logger
-from simkl_mps.config_manager import get_setting, DEFAULT_THRESHOLD # Import for menu state and dialog
+from simkl_mps.config_manager import get_setting, DEFAULT_THRESHOLD, DEFAULT_MIN_REWATCH_WATCH_SECONDS # Import for menu state and dialog
 
 Gtk: Any = None
 AppIndicator3: Any = None
@@ -215,7 +215,39 @@ class AppIndicatorTray:
 
             threshold_item.set_submenu(threshold_submenu)
             scrobbling_submenu.append(threshold_item)
-            
+
+            # Minimum Watch Time submenu
+            min_watch_item = gtk_module.MenuItem(label="Minimum Watch Time")
+            min_watch_submenu = gtk_module.Menu()
+            min_watch_group = None
+            current_min_watch = get_setting('min_rewatch_watch_seconds', DEFAULT_MIN_REWATCH_WATCH_SECONDS)
+
+            def create_min_watch_preset_item(value, label):
+                nonlocal min_watch_group
+                if min_watch_group is None:
+                    item = gtk_module.RadioMenuItem(label=label)
+                    min_watch_group = item
+                else:
+                    item = gtk_module.RadioMenuItem(group=min_watch_group, label=label)
+
+                item.set_active(current_min_watch == value)
+                item.connect("activate", lambda w, v=value: self._wrap_callback(lambda: self.app._set_preset_min_watch_time(v))())
+                return item
+
+            min_watch_submenu.append(create_min_watch_preset_item(0, "None (0s)"))
+            min_watch_submenu.append(create_min_watch_preset_item(60, "1 Minute (60s)"))
+            min_watch_submenu.append(create_min_watch_preset_item(180, "3 Minutes (Default)"))
+            min_watch_submenu.append(create_min_watch_preset_item(300, "5 Minutes (300s)"))
+            min_watch_submenu.append(create_min_watch_preset_item(600, "10 Minutes (600s)"))
+            min_watch_submenu.append(gtk_module.SeparatorMenuItem())
+
+            custom_min_watch_item = gtk_module.MenuItem(label="Custom...")
+            custom_min_watch_item.connect("activate", self._wrap_callback(self.app.set_custom_min_watch_time))
+            min_watch_submenu.append(custom_min_watch_item)
+
+            min_watch_item.set_submenu(min_watch_submenu)
+            scrobbling_submenu.append(min_watch_item)
+
             scrobbling_submenu.append(gtk_module.SeparatorMenuItem())
             
             # Notifications toggle
@@ -911,6 +943,50 @@ class TrayAppLinux(TrayAppBase):
                     return None
             else: # User cancelled or closed the dialog
                 logger.debug("User cancelled custom threshold input via zenity.")
+                return None
+
+        except FileNotFoundError:
+            logger.error("zenity command not found, even after 'which' check (unexpected).")
+            self.show_notification("Error", "zenity command not found.")
+            return None
+
+    def _ask_custom_min_watch_time_dialog(self, current_seconds: int) -> Optional[int]:
+        """Ask user for custom minimum watch time in seconds using zenity."""
+        logger.debug("Attempting to ask for custom minimum watch time using zenity.")
+        try:
+            if subprocess.run(['which', 'zenity'], stdout=subprocess.PIPE, stderr=subprocess.PIPE).returncode != 0:
+                logger.warning("zenity command not found. Cannot ask for custom minimum watch time.")
+                self.show_notification("Cannot Set Custom Time", "zenity command not found. Please install zenity.")
+                return None
+
+            process = subprocess.run(
+                [
+                    'zenity', '--entry',
+                    '--title=Set Minimum Watch Time',
+                    f'--text=Enter minimum watch time (seconds):\n(Current: {current_seconds}s)',
+                    f'--entry-text={current_seconds}'
+                ],
+                capture_output=True,
+                text=True,
+                check=False
+            )
+
+            if process.returncode == 0:
+                try:
+                    value = int(process.stdout.strip())
+                    if 0 <= value <= 86400:
+                        logger.info(f"User entered custom minimum watch time: {value}")
+                        return value
+                    else:
+                        logger.warning(f"User entered invalid minimum watch time value: {value}")
+                        self.show_notification("Invalid Input", "Minimum watch time must be between 0 and 86400 seconds.")
+                        return None
+                except ValueError:
+                    logger.warning(f"User entered non-integer value: {process.stdout.strip()}")
+                    self.show_notification("Invalid Input", "Please enter a valid number of seconds.")
+                    return None
+            else:
+                logger.debug("User cancelled custom minimum watch time input via zenity.")
                 return None
 
         except FileNotFoundError:

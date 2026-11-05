@@ -15,6 +15,14 @@ import json
 from pathlib import Path
 from colorama import Fore, Style
 
+if sys.platform == "win32":
+    if hasattr(sys.stdout, "reconfigure"):
+        try:
+            sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+            sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
+
 VERSION = "unknown" # Default fallback version
 
 def get_version():
@@ -111,16 +119,16 @@ def init_command(args):
     if not client_id or not creds.get("client_secret"):
         print(f"{Fore.RED}ERROR: Client ID or Secret not found. Please reinstall the application.{Style.RESET_ALL}", file=sys.stderr)
         return 1
-    print(f"{Fore.GREEN}✓ Client ID/Secret loaded.{Style.RESET_ALL}")
+    print(f"{Fore.GREEN}[+] Client ID/Secret loaded.{Style.RESET_ALL}")
     if access_token:
-        print(f"{Fore.GREEN}✓ Access Token found. Skipping authentication.{Style.RESET_ALL}")
+        print(f"{Fore.GREEN}[+] Access Token found. Skipping authentication.{Style.RESET_ALL}")
     else:
         print(f"{Fore.YELLOW}No Access Token found. Starting authentication...{Style.RESET_ALL}")
         new_access_token = pin_auth_flow(client_id)
         if not new_access_token:
             print(f"{Fore.RED}ERROR: Authentication failed or was cancelled.{Style.RESET_ALL}", file=sys.stderr)
             return 1
-        print(f"{Fore.GREEN}✓ Access token saved successfully.{Style.RESET_ALL}")
+        print(f"{Fore.GREEN}[+] Access token saved successfully.{Style.RESET_ALL}")
         access_token = new_access_token # Use the newly obtained token
 
     print(f"Verifying application configuration by checking API access...")
@@ -133,7 +141,7 @@ def init_command(args):
         return 1
     else:
         user_id = user_settings.get('user_id', 'N/A')
-        print(f"{Fore.GREEN}✓ API connection verified successfully (User ID: {user_id}).{Style.RESET_ALL}")
+        print(f"{Fore.GREEN}[+] API connection verified successfully (User ID: {user_id}).{Style.RESET_ALL}")
 
     print(f"{Fore.GREEN}Initialization Complete!{Style.RESET_ALL}")
     print(f"To start monitoring and scrobbling, run: {Fore.WHITE}simkl-mps start{Style.RESET_ALL}")
@@ -232,9 +240,9 @@ def start_command(args):
             )
             logger.info("Launched detached process on Unix-like system")
 
-        print(f"{Fore.GREEN}[✓] Scrobbler launched successfully in background.{Style.RESET_ALL}")
+        print(f"{Fore.GREEN}[+] Scrobbler launched successfully in background.{Style.RESET_ALL}")
         print(f"[*] Look for the SIMKL-MPS icon in your system tray.")
-        print(f"{Fore.GREEN}[✓] You can safely close this terminal window. All processes will continue running.{Style.RESET_ALL}")
+        print(f"{Fore.GREEN}[+] You can safely close this terminal window. All processes will continue running.{Style.RESET_ALL}")
         return 0
     except Exception as e:
         logger.exception(f"Failed to launch detached tray process: {e}")
@@ -510,11 +518,11 @@ def exit_command(args):
     
     # Check if we killed anything
     if killed_any:
-        print(f"{Fore.GREEN}[✓] Successfully terminated SIMKL-MPS processes.{Style.RESET_ALL}")
+        print(f"{Fore.GREEN}[+] Successfully terminated SIMKL-MPS processes.{Style.RESET_ALL}")
     else:
         print(f"{Fore.YELLOW}[!] No running SIMKL-MPS processes were found.{Style.RESET_ALL}")
         
-    print(f"{Fore.GREEN}[✓] Application has been stopped.{Style.RESET_ALL}")
+    print(f"{Fore.GREEN}[+] Application has been stopped.{Style.RESET_ALL}")
     return 0
 
 def create_parser():

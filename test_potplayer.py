@@ -12,6 +12,9 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from simkl_mps.players.potplayer import PotPlayerIntegration
 
+# This is an interactive manual verification script, exclude from automated pytest discovery
+__test__ = False
+
 def format_time(seconds):
     """Format seconds into HH:MM:SS format."""
     if seconds is None:

@@ -475,6 +475,39 @@ class TrayAppMac(TrayAppBase):
             self.show_notification("Error", f"Could not get custom threshold: {e}")
             return None
 
+    def _ask_custom_min_watch_time_dialog(self, current_seconds: int) -> int | None:
+        """macOS-specific implementation to ask for minimum watch time using AppleScript."""
+        try:
+            cmd = f'''osascript -e '
+                set answer to text returned of (display dialog "Enter minimum watch time (seconds):" \\
+                default answer "{current_seconds}" \\
+                with title "Set Minimum Watch Time" \\
+                buttons {{"Cancel", "OK"}} default button "OK")
+                return answer
+            ' '''
+            result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+            if result.returncode == 0 and result.stdout.strip():
+                try:
+                    value = int(result.stdout.strip())
+                    if 0 <= value <= 86400:
+                        logger.info(f"User entered custom minimum watch time: {value}")
+                        return value
+                    else:
+                        self.show_notification("Invalid Input", "Minimum watch time must be between 0 and 86400 seconds.")
+                        logger.warning(f"User entered out of range minimum watch time: {value}")
+                        return None
+                except ValueError:
+                    self.show_notification("Invalid Input", "Please enter a valid number of seconds.")
+                    logger.warning(f"User entered non-numeric minimum watch time: {result.stdout.strip()}")
+                    return None
+            else:
+                logger.debug("User cancelled custom minimum watch time input.")
+                return None
+        except Exception as e:
+            logger.error(f"Error showing AppleScript minimum watch time dialog: {e}", exc_info=True)
+            self.show_notification("Error", f"Could not get custom minimum watch time: {e}")
+            return None
+
     def _ask_directory_filter_dialog(self, title: str, current_value: str, help_text: str) -> str | None:
         """macOS-specific directory filter input using AppleScript dialog."""
         try:

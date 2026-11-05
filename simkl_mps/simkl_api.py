@@ -623,6 +623,146 @@ def get_activities(client_id, access_token):
         logger.error(f"Simkl API: Error getting activities: {e}")
         return None
 
+def scrobble(action, item, progress, client_id, access_token):
+    """
+    Reports playback state (start, pause, stop) to Simkl Scrobble API.
+
+    Args:
+        action (str): 'start', 'pause', or 'stop'.
+        item (dict): Item dictionary containing 'movie', 'show', or 'anime' identifiers.
+        progress (float): Playback progress percentage (0.0 - 100.0).
+        client_id (str): Simkl API client ID.
+        access_token (str): Simkl API access token.
+
+    Returns:
+        dict: {'ok': bool, 'status': int | None, 'error': str | None}
+    """
+    if action not in {"start", "pause", "stop"}:
+        logger.error(f"Simkl API: Invalid scrobble action '{action}'. Must be 'start', 'pause', or 'stop'.")
+        return {"ok": False, "status": None, "error": f"Invalid action: {action}"}
+    if not client_id or not access_token:
+        logger.error("Simkl API: Missing Client ID or Access Token for scrobble.")
+        return {"ok": False, "status": None, "error": "Missing credentials"}
+    if not item or not isinstance(item, dict):
+        logger.error("Simkl API: Invalid or empty item dictionary for scrobble.")
+        return {"ok": False, "status": None, "error": "Invalid item payload"}
+
+    headers = {
+        'Content-Type': 'application/json',
+        'simkl-api-key': client_id,
+        'Authorization': f'Bearer {access_token}'
+    }
+    headers = _add_user_agent(headers)
+
+    params = {
+        'client_id': client_id,
+        'app-name': APP_NAME,
+        'app-version': __version__
+    }
+
+    body = dict(item)
+    body["progress"] = round(float(progress), 2)
+
+    url = f"{SIMKL_API_BASE_URL}/scrobble/{action}"
+    logger.debug(f"Simkl API: Reporting scrobble action '{action}' at {body['progress']}%...")
+
+    try:
+        response = requests.post(url, headers=headers, json=body, params=params, timeout=5)
+        # 2xx is success; 409 is soft-success (conflict / duplicate scrobble window)
+        if 200 <= response.status_code < 300 or response.status_code == 409:
+            logger.debug(f"Simkl API: Scrobble '{action}' successful (status {response.status_code}).")
+            return {"ok": True, "status": response.status_code, "error": None}
+        else:
+            logger.warning(f"Simkl API: Scrobble '{action}' failed with status {response.status_code}: {response.text}")
+            return {"ok": False, "status": response.status_code, "error": response.text}
+    except requests.exceptions.RequestException as e:
+        logger.warning(f"Simkl API: Network error during scrobble '{action}': {e}")
+        return {"ok": False, "status": None, "error": str(e)}
+
+def get_playback_sessions(client_id, access_token, media_type=None):
+    """
+    Retrieves the user's active playback sessions from Simkl.
+
+    Args:
+        client_id (str): Simkl API client ID.
+        access_token (str): Simkl API access token.
+        media_type (str, optional): 'episodes' or 'movies' to filter sessions. Defaults to None.
+
+    Returns:
+        list[dict] | None: List of active playback sessions, or None on failure.
+    """
+    if not client_id or not access_token:
+        logger.error("Simkl API: Missing credentials for get_playback_sessions.")
+        return None
+
+    headers = {
+        'Content-Type': 'application/json',
+        'simkl-api-key': client_id,
+        'Authorization': f'Bearer {access_token}'
+    }
+    headers = _add_user_agent(headers)
+
+    params = {
+        'client_id': client_id,
+        'app-name': APP_NAME,
+        'app-version': __version__
+    }
+
+    if media_type in ("episodes", "movies"):
+        url = f"{SIMKL_API_BASE_URL}/sync/playback/{media_type}"
+    else:
+        url = f"{SIMKL_API_BASE_URL}/sync/playback"
+
+    try:
+        logger.debug(f"Simkl API: Fetching playback sessions from {url}...")
+        response = requests.get(url, headers=headers, params=params, timeout=10)
+        if 200 <= response.status_code < 300:
+            return response.json()
+        logger.warning(f"Simkl API: Failed to get playback sessions. Status: {response.status_code}")
+        return None
+    except requests.exceptions.RequestException as e:
+        logger.warning(f"Simkl API: Error fetching playback sessions: {e}")
+        return None
+
+def delete_playback(playback_id, client_id, access_token):
+    """
+    Deletes an active playback session by ID from Simkl.
+
+    Args:
+        playback_id (int | str): The ID of the playback session to delete.
+        client_id (str): Simkl API client ID.
+        access_token (str): Simkl API access token.
+
+    Returns:
+        bool: True if deletion was successful (2xx status), False otherwise.
+    """
+    if not client_id or not access_token or not playback_id:
+        logger.error("Simkl API: Missing required parameters for delete_playback.")
+        return False
+
+    headers = {
+        'Content-Type': 'application/json',
+        'simkl-api-key': client_id,
+        'Authorization': f'Bearer {access_token}'
+    }
+    headers = _add_user_agent(headers)
+
+    params = {
+        'client_id': client_id,
+        'app-name': APP_NAME,
+        'app-version': __version__
+    }
+
+    url = f"{SIMKL_API_BASE_URL}/sync/playback/{playback_id}"
+    try:
+        logger.debug(f"Simkl API: Deleting playback session {playback_id}...")
+        response = requests.delete(url, headers=headers, params=params, timeout=10)
+        return 200 <= response.status_code < 300
+    except requests.exceptions.RequestException as e:
+        logger.warning(f"Simkl API: Error deleting playback session {playback_id}: {e}")
+        return False
+
+
 def pin_auth_flow(client_id, redirect_uri="urn:ietf:wg:oauth:2.0:oob"):
     """
     Implements the OAuth 2.0 device authorization flow for Simkl authentication.
