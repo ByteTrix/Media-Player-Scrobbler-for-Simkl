@@ -135,7 +135,7 @@ def test_seek_while_paused_makes_no_call(tmp_path, clock_and_recorder):
     scrobbler._sync_scrobble_state()
     assert len(calls) == 2
 
-    # Resume carries the seeked progress
+    # Resume carries the seek progress
     clock.advance(30.0)
     scrobbler.state = PLAYING
     scrobbler._sync_scrobble_state()
