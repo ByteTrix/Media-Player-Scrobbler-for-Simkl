@@ -211,6 +211,11 @@ class SimklScrobbler:
         logger.info("Initiating scrobbler shutdown...")
         self.running = False
         self.monitor.stop()
+        if hasattr(self.monitor, "scrobbler") and hasattr(self.monitor.scrobbler, "discord_rpc") and self.monitor.scrobbler.discord_rpc:
+            try:
+                self.monitor.scrobbler.discord_rpc.close()
+            except Exception as e:
+                logger.debug(f"Error closing Discord RPC on scrobbler stop: {e}")
         logger.info("Scrobbler shutdown complete.")
 
     def _signal_handler(self, sig, frame):

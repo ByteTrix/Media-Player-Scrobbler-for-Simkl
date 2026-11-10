@@ -4375,6 +4375,21 @@ pyobjc-core = ">=12.2.2"
 pyobjc-framework-Cocoa = ">=12.2.2"
 
 [[package]]
+name = "pypresence"
+version = "4.6.2"
+description = "Discord RPC client written in Python"
+optional = false
+python-versions = ">=3.9"
+groups = ["main"]
+files = [
+    {file = "pypresence-4.6.2-py3-none-any.whl", hash = "sha256:6587e525a663699ca5fb8621ea147a9c264c135650c50afbccd7b5d9b4e28dc0"},
+    {file = "pypresence-4.6.2.tar.gz", hash = "sha256:7e7e93de0e94a42314300ef6d15dd2c44c64ef74b7c749243bc226be2ab90687"},
+]
+
+[package.extras]
+dev = ["black (>=23.0.0)", "flake8 (>=6.0.0)", "isort (>=5.12.0)", "mypy (>=1.0.0)", "pytest (>=7.0.0)", "pytest-asyncio (>=0.21.0)", "pytest-cov (>=4.0.0)", "pytest-mock (>=3.10.0)", "sphinx (>=5.0.0)", "sphinx-rtd-theme (>=1.2.0)"]
+
+[[package]]
 name = "pyrect"
 version = "0.2.0"
 description = "PyRect is a simple module with a Rect class for Pygame-like rectangular areas."
@@ -4732,4 +4747,4 @@ macos = ["pyobjc"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10,<4.0"
-content-hash = "2108f1d6526fb36d426ecd4e2b585fc5ad4d62debbf0525b70a9bf0369d1e7e6"
+content-hash = "192a55ddca4bc3fb15bdac9f1b6b13e93f734d853f8d5949a6129c2556340746"

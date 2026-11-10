@@ -17,6 +17,7 @@
 - ⏱️ **Real-Time Scrobble & Watching Now** – Displays live watching/paused status on Simkl and saves unfinished progress
 - 🔄 **Reverse Playback Resume** – Automatically resumes unfinished media in MPV and PotPlayer from your Simkl saved position
 - ⏳ **Minimum Watch Time** – Configurable threshold before scrobbling to prevent accidental scrobbles
+- 💬 **Discord Rich Presence** – Shows movie/show title, season/episode, live playing/paused state, elapsed/total time progress bar, and Simkl poster image directly on your Discord profile
 - 🔌 **Offline Support** – Queues updates when offline
 - 🧠 **Smart Media Detection** – Intelligent filename parsing
 - 🍿 **Media-Focused** – Optimized for every type of media (Movies,TV Shows and Anime)
