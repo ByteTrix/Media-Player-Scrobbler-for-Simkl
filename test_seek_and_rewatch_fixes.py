@@ -135,7 +135,7 @@ def test_seek_while_paused_makes_no_call(tmp_path, clock_and_recorder):
     scrobbler._sync_scrobble_state()
     assert len(calls) == 2
 
-    # Resume carries the seeked progress
+    # Resume carries the seek progress
     clock.advance(30.0)
     scrobbler.state = PLAYING
     scrobbler._sync_scrobble_state()
@@ -216,6 +216,8 @@ def test_rewatch_succeeds_when_watch_time_sufficient(tmp_path, monkeypatch, isol
     scrobbler.watch_time = 200.0  # 200s >= 180s
 
     history_calls = []
+    orig_get_setting = media_scrobbler_mod.get_setting
+    monkeypatch.setattr(media_scrobbler_mod, "get_setting", lambda k, d=None: True if k == "allow_rewatch" else orig_get_setting(k, d))
     monkeypatch.setattr(scrobbler, "_is_local_rewatch", lambda *a: True)
     monkeypatch.setattr(scrobbler, "is_pro_or_vip", lambda: True)
     monkeypatch.setattr(scrobbler, "_store_in_watch_history", lambda *a, **kw: None)
@@ -295,6 +297,8 @@ def test_add_to_history_passes_allow_rewatch_when_enabled_for_cloud_rewatch(tmp_
     scrobbler.watch_time = 200.0
 
     history_calls = []
+    orig_get_setting = media_scrobbler_mod.get_setting
+    monkeypatch.setattr(media_scrobbler_mod, "get_setting", lambda k, d=None: True if k == "allow_rewatch" else orig_get_setting(k, d))
     monkeypatch.setattr(scrobbler, "_is_local_rewatch", lambda *a: False)
     monkeypatch.setattr(scrobbler, "is_pro_or_vip", lambda: True)
     monkeypatch.setattr(scrobbler, "_store_in_watch_history", lambda *a, **kw: None)

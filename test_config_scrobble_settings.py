@@ -19,4 +19,6 @@ def test_scrobble_settings_defaults():
     assert defaults["enable_realtime_scrobble"] is True
     assert defaults["enable_playback_resume"] is True
     assert defaults["resume_start_tolerance_seconds"] == 30
+    assert defaults["enable_discord_rpc"] is True
+    assert defaults["discord_client_id"] == "1556713709462880316"
     assert defaults["min_rewatch_watch_seconds"] == 180

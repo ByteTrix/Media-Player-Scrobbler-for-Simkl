@@ -34,6 +34,7 @@ colorama = ">=0.4.4"
 pystray = ">=0.19.0"
 pillow = ">=12.1.1"
 plyer = ">=2.0.0"
+pypresence = ">=4.3.0"
 
 [tool.poetry.dependencies.winotify]
 version = "^1.1.0"
