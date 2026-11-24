@@ -193,6 +193,88 @@ class VLCIntegration:
         
         return None, None
     
+    def _candidate_configs(self):
+        """Return VLC HTTP configs in priority order without duplicates."""
+        raw_configs = []
+        if self.last_successful_config:
+            raw_configs.append(self.last_successful_config)
+
+        raw_configs.append({
+            "port": self.vlc_config["port"],
+            "password": self.vlc_config["password"],
+        })
+
+        common_configs = [
+            {"port": 8080, "password": ""},
+            {"port": 8080, "password": "admin"},
+            {"port": 8080, "password": "simkl"},
+            {"port": 9090, "password": ""},
+            {"port": 8888, "password": ""},
+        ]
+
+        if self.vlc_config["password"] and self.vlc_config["password"] not in ["", "admin", "simkl"]:
+            for port in [8080, 9090, 8888]:
+                common_configs.append({"port": port, "password": self.vlc_config["password"]})
+
+        raw_configs.extend(common_configs)
+
+        seen = set()
+        unique_configs = []
+        for config in raw_configs:
+            key = (config["port"], config["password"])
+            if key not in seen:
+                seen.add(key)
+                unique_configs.append(config)
+        return unique_configs
+
+    @staticmethod
+    def _parse_pause_state(status_data):
+        """
+        Parse VLC /requests/status.json state into a pause boolean.
+
+        Returns:
+            bool or None: False if playing, True if paused/stopped, None if missing/unknown.
+        """
+        if not isinstance(status_data, dict):
+            return None
+
+        state = status_data.get("state")
+        if not isinstance(state, str):
+            return None
+
+        normalized = state.strip().lower()
+        if normalized == "playing":
+            return False
+        if normalized in ("paused", "stopped"):
+            return True
+        return None
+
+    def is_paused(self):
+        """
+        Check if VLC playback is paused or stopped via /requests/status.json.
+
+        Returns:
+            bool or None: True if paused/stopped, False if playing, None if unknown
+        """
+        for config in self._candidate_configs():
+            port = config["port"]
+            password = config["password"]
+            status_url = f"http://localhost:{port}/requests/status.json"
+            try:
+                self.session.auth = ('', password) if password else None
+                response = self.session.get(status_url, timeout=1.0)
+                response.raise_for_status()
+                data = response.json()
+            except (requests.exceptions.RequestException, ValueError, TypeError) as e:
+                logger.debug(f"Could not read VLC pause state on port {port}: {e}")
+                continue
+
+            if isinstance(data, dict):
+                self.last_successful_config = config
+                return self._parse_pause_state(data)
+
+        return None
+
     def get_current_filepath(self, process_name=None):
         """
         Get the filepath of the currently playing file in VLC.
