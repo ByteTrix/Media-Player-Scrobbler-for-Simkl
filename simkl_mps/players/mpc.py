@@ -175,30 +175,56 @@ class MPCIntegration:
                 
         return None, None  # Failed to get position/duration
         
+    @staticmethod
+    def _parse_pause_state(variables):
+        """
+        Parse MPC /variables.html state into a pause boolean.
+
+        MPC-HC/BE reports DirectShow FILTER_STATE values:
+        2 = Playing (State_Running), 1 = Paused (State_Paused),
+        0 = Stopped (State_Stopped), -1 = Closed / No file.
+
+        Returns:
+            bool or None: False if playing, True if paused/stopped/closed, None if missing/unknown.
+        """
+        if not variables or 'state' not in variables:
+            return None
+
+        state = str(variables.get('state', '')).strip()
+        if state == '2':
+            return False
+        if state in ('0', '1', '-1'):
+            return True
+        return None
+
     def is_paused(self):
         """
-        Check if MPC playback is paused
+        Check if MPC playback is paused or stopped.
         
         Returns:
-            bool: True if paused, False if playing, None if unknown
+            bool or None: True if paused/stopped, False if playing, None if unknown
         """
-        # Try working port first
-        if self.working_port:
-            variables = self.get_vars(self.working_port)
-            if variables:
-                state = variables.get('state', '')
-                return state == '2'  # MPC state 2 = paused
-        
-        # If no working port or it failed, try all default ports
+        ports_to_try = [self.working_port] if self.working_port else [None]
         for port in self.default_ports:
-            if port == self.working_port:
-                continue  # Already tried this one
-                
-            variables = self.get_vars(port)
+            if port not in ports_to_try:
+                ports_to_try.append(port)
+
+        tried_urls = set()
+        for port in ports_to_try:
+            url = self._get_variables_url(port)
+            if url in tried_urls:
+                continue
+            tried_urls.add(url)
+
+            try:
+                variables = self.get_vars(port)
+            except requests.RequestException as e:
+                logger.debug(f"Could not read MPC pause state from {url}: {e}")
+                continue
+
             if variables:
-                state = variables.get('state', '')
-                return state == '2'  # MPC state 2 = paused
-                
+                return self._parse_pause_state(variables)
+
         return None  # Couldn't determine pause state
 
     def get_current_filepath(self, process_name=None):

@@ -167,7 +167,12 @@ class PotPlayerIntegration:
             
         try:
             state = win32gui.SendMessage(hwnd, win32con.WM_USER, PPM_GET_PLAYBACK_STATUS, 0)
-            return state != 2  # 2 = Running / Playing. 1 = Paused. -1 or 0 = Stopped.
+            if state == 2:
+                return False  # 2 = Running / Playing
+            if state in (-1, 0, 1):
+                return True   # 1 = Paused, -1 or 0 = Stopped
+            logger.debug(f"Unknown PotPlayer playback status: {state}")
+            return None
         except Exception as e:
             logger.debug(f"Error checking pause state: {e}")
             return None

@@ -108,6 +108,7 @@ class MediaScrobbler:
         self.watch_time = 0
         self.state = STOPPED
         self.previous_state = STOPPED
+        self._last_state_confirmed = True
         self.estimated_duration = None
         self.simkl_id = None
         self.movie_name = None # Official title from Simkl (movie title or show title)
@@ -1137,6 +1138,7 @@ class MediaScrobbler:
         self.watch_time = 0
         self.state = PLAYING
         self.previous_state = STOPPED
+        self._last_state_confirmed = True
         self.completed = False
         self.current_position_seconds = 0
         self.total_duration_seconds = None # Will be updated by player or API
@@ -1371,23 +1373,33 @@ class MediaScrobbler:
             self.current_position_seconds = pos
             position_updated_from_player = True
         
-        # Determine current playback state (PLAYING or PAUSED)
-        new_state = PAUSED if self._detect_pause(window_info) else PLAYING
+        # Determine current playback state (PLAYING, PAUSED, or None if unknown)
+        detected_state = self._detect_playback_state(window_info)
 
-        # Accumulate watch time if playing
-        if self.state == PLAYING:
-            # Cap elapsed time to avoid huge jumps if app was suspended
-            # Useful if position_updated_from_player is False, otherwise current_position_seconds is more reliable
-            safe_elapsed = min(elapsed_since_last_update, 30.0) # Max 30s jump for accumulated time
-            self.watch_time += safe_elapsed
+        if detected_state is None:
+            logger.debug(
+                f"Playback state for '{self.movie_name or self.currently_tracking}' is unknown; "
+                "skipping watch-time accumulation for this interval."
+            )
+            self._last_state_confirmed = False
+            state_changed = False
+        else:
+            # Accumulate watch time only during confirmed playback
+            if self._last_state_confirmed and self.state == PLAYING and detected_state == PLAYING:
+                # Cap elapsed time to avoid huge jumps if app was suspended
+                # Useful if position_updated_from_player is False, otherwise current_position_seconds is more reliable
+                safe_elapsed = min(elapsed_since_last_update, 30.0) # Max 30s jump for accumulated time
+                self.watch_time += safe_elapsed
 
-        # Handle state changes
-        state_changed = (new_state != self.state)
-        if state_changed:
-            logger.info(f"Playback state for '{self.movie_name or self.currently_tracking}' changed: {self.state} -> {new_state}")
-            self.previous_state = self.state
-            self.state = new_state
-            self._log_playback_event("state_change", {"previous_state": self.previous_state})
+            # Handle state changes
+            state_changed = (detected_state != self.state)
+            if state_changed:
+                logger.info(f"Playback state for '{self.movie_name or self.currently_tracking}' changed: {self.state} -> {detected_state}")
+                self.previous_state = self.state
+                self.state = detected_state
+                self._log_playback_event("state_change", {"previous_state": self.previous_state})
+
+            self._last_state_confirmed = True
 
         self.last_update_time = current_time        # Attempt identification if Simkl ID is still missing
         if not self.simkl_id and self.currently_tracking:
@@ -1418,7 +1430,8 @@ class MediaScrobbler:
             self._try_resume_playback(process_name, self.current_position_seconds, self.total_duration_seconds)
 
         # Synchronize realtime scrobble state (start / pause) with Simkl
-        self._sync_scrobble_state()
+        if detected_state is not None:
+            self._sync_scrobble_state()
 
         # Determine if a scrobble update should be returned (e.g., for UI)
         # This is different from just logging progress_update.
@@ -1635,20 +1648,28 @@ class MediaScrobbler:
             self._last_reported_progress = progress_val
             self._pending_scrobble_seek = False
 
-    def _detect_pause(self, window_info):
-        """Detect if playback is paused based on player status or window title keywords."""
+    def _detect_playback_state(self, window_info):
+        """
+        Detect current playback state (PLAYING, PAUSED, or None if unknown).
+
+        When a player integration provides `is_paused()`, a missing or unreadable
+        status returns None (unless the window title explicitly indicates pause)
+        so callers skip watch-time accumulation rather than assuming playback.
+        """
+        has_pause_api = False
         if window_info:
             process_name = window_info.get('process_name')
             if process_name:
                 try:
                     integration = self._get_player_integration(process_name.lower())
                     if integration and hasattr(integration, "is_paused"):
+                        has_pause_api = True
                         if integration.__class__.__name__ == "MPVWrapperIntegration":
                             paused = integration.is_paused(process_name)
                         else:
                             paused = integration.is_paused()
                         if paused is not None:
-                            return bool(paused)
+                            return PAUSED if bool(paused) else PLAYING
                 except Exception as e:
                     logger.debug(f"Error checking is_paused on player integration: {e}")
 
@@ -1656,8 +1677,15 @@ class MediaScrobbler:
                 title_lower = window_info['title'].lower()
                 pause_keywords = ["paused", "- pause", "[paused]"]
                 if any(keyword in title_lower for keyword in pause_keywords):
-                    return True
-        return False
+                    return PAUSED
+
+        if has_pause_api:
+            return None
+        return PLAYING
+
+    def _detect_pause(self, window_info):
+        """Detect if playback is paused based on player status or window title keywords."""
+        return self._detect_playback_state(window_info) == PAUSED
 
     @staticmethod
     def _format_timestamp(seconds: float) -> str:
@@ -1944,6 +1972,7 @@ class MediaScrobbler:
         self.watch_time = 0
         self.state = STOPPED
         self.previous_state = STOPPED
+        self._last_state_confirmed = True
         self.estimated_duration = None
         self.simkl_id = None
         self.movie_name = None
