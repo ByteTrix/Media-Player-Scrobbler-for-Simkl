@@ -211,14 +211,14 @@ pyflakes = ">=4.0.0,<4.1.0"
 
 [[package]]
 name = "guessit"
-version = "4.5.1"
+version = "4.5.4"
 description = "GuessIt - a library for guessing information from video filenames."
 optional = false
 python-versions = ">=3.10"
 groups = ["main"]
 files = [
-    {file = "guessit-4.5.1-py3-none-any.whl", hash = "sha256:3943faf9136a1277b730a08f1212bc17acc5566b94fd689ec561c53260508f00"},
-    {file = "guessit-4.5.1.tar.gz", hash = "sha256:df09f2bd6f4ab24eb7960422292cc2332be7bd7d338ff14511b9d1174a78e383"},
+    {file = "guessit-4.5.4-py3-none-any.whl", hash = "sha256:739e15b4858f6b45c7de1593f4d4fb73b93e4ab9f0a88975393880405a9e9c37"},
+    {file = "guessit-4.5.4.tar.gz", hash = "sha256:a1a892d0a08b5bfb6211c1c99019d1e1c9568eab19d95b6e7c93ff526d5b2739"},
 ]
 
 [package.dependencies]
