@@ -31,16 +31,20 @@ jobs:
           fail-on-scopes: runtime
           vulnerability-check: true
 
-  update-dependencies:
-    name: Update Dependencies
+  # Dependency update PRs are managed weekly by Dependabot (.github/dependabot.yml).
+  # This scheduled job verifies that the locked dependency set installs cleanly
+  # and passes dependency and unit tests on Linux.
+  verify-dependencies:
+    name: Verify Dependencies
     runs-on: ubuntu-latest
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     permissions:
-      contents: write
-      pull-requests: write
+      contents: read
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: Set up Python
         uses: actions/setup-python@v7
@@ -48,75 +52,27 @@ jobs:
           python-version: '3.13'
           cache: pip
 
-      - name: Install system dependencies
+      - name: Install Poetry and locked dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libcairo2-dev libgirepository1.0-dev gir1.2-gtk-3.0
-
-      - name: Install Poetry
-        run: |
-          pip install poetry
-          poetry config virtualenvs.create false
-
-      - name: Update Poetry Lock File
-        run: poetry lock
+          python -m pip install --upgrade pip
+          python -m pip install "poetry==2.5.1"
+          poetry check --lock
+          poetry install --with dev --no-interaction
 
       - name: Run Comprehensive Dependency Tests
-        id: dependency-tests
-        run: |
-          # Install dependencies
-          poetry install
-          
-          # Run the comprehensive dependency test script
-          python test_dependencies.py --ci
-          
-          if [ $? -ne 0 ]; then
-            echo "Dependency tests failed. Aborting."
-            echo "dependency_tests_passed=false" >> $GITHUB_OUTPUT
-            exit 1
-          else
-            echo "dependency_tests_passed=true" >> $GITHUB_OUTPUT
-          fi
+        env:
+          PYSTRAY_BACKEND: dummy
+          PYTHONIOENCODING: utf-8
+        run: poetry run python test_dependencies.py --ci
 
       - name: Run Project Tests
-        if: steps.dependency-tests.outputs.dependency_tests_passed == 'true'
-        run: |
-          poetry run pytest
-
-      - name: Check for Changes
-        id: git-diff
-        run: |
-          if git diff --quiet poetry.lock; then
-            echo "No changes detected in poetry.lock"
-            echo "changed=false" >> $GITHUB_OUTPUT
-          else
-            echo "Changes detected in poetry.lock"
-            echo "changed=true" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Create PR if Changes Detected
-        if: steps.git-diff.outputs.changed == 'true'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PYSTRAY_BACKEND: dummy
+          PYTHONIOENCODING: utf-8
         run: |
-          # Setup git
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-
-          # Create branch
-          BRANCH="deps/update-dependencies-$(date +%Y%m%d)"
-          git checkout -b ${BRANCH}
-
-          # Commit changes
-          git add poetry.lock
-          git commit -m "chore: update dependencies"
-
-          # Push changes
-          git push origin ${BRANCH}
-
-          # Create PR
-          gh pr create --title "chore: Update dependencies" \
-                       --body "This PR updates the Poetry lock file to reflect the latest compatible versions of dependencies." \
-                       --label "dependencies,automation" \
-                       --base main \
-                       --head ${BRANCH}
+          TEST_HOME="${RUNNER_TEMP}/test-home"
+          mkdir -p "${TEST_HOME}"
+          HOME="${TEST_HOME}" \
+          XDG_CONFIG_HOME="${TEST_HOME}/.config" \
+          XDG_DATA_HOME="${TEST_HOME}/.local/share" \
+          poetry run pytest -q --ignore=test_build.py --ignore=test_potplayer.py
