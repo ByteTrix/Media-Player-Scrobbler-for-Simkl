@@ -70,9 +70,10 @@ jobs:
           PYSTRAY_BACKEND: dummy
           PYTHONIOENCODING: utf-8
         run: |
+          VENV_PYTHON="$(poetry env info --executable)"
           TEST_HOME="${RUNNER_TEMP}/test-home"
           mkdir -p "${TEST_HOME}"
           HOME="${TEST_HOME}" \
           XDG_CONFIG_HOME="${TEST_HOME}/.config" \
           XDG_DATA_HOME="${TEST_HOME}/.local/share" \
-          poetry run pytest -q --ignore=test_build.py --ignore=test_potplayer.py
+          "${VENV_PYTHON}" -m pytest -q --ignore=test_build.py --ignore=test_potplayer.py
